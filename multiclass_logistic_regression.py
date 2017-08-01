@@ -33,43 +33,18 @@ def optlinesearch(alphai, deltai, a, b, precision, plot=False):
     def u(gamma):
         return -np.sum(deltai * np.log(np.maximum(alphai + gamma * deltai, 1e-16))) - gamma * a + b
 
-    # if plot:
-    #    gamma = np.linspace(0, 1, 100)
-    #    plt#.plot(gamma, u(gamma))
-
-    # Find the upper and lower bounds on gamma for the function to exist.
-    # ie alpha+gamma*delta should be in the simplex.
-
-    # bounds = - alphai[np.absolute(deltai) > 1e-16] / deltai[np.absolute(deltai) > 1e-16]
-    bounds = - alphai / deltai
-    # if bounds
-    try:
-        upperbound = max(1, np.amin(bounds[bounds > 0]))
-        lowerbound = min(0, np.amax(bounds[bounds <= 0]))
-    except ValueError:
-        print("a :", a)
-        print("b :", b)
-        print("alphai :", alphai)
-        print("deltai :", deltai)
-        print("bounds :", bounds)
-        raise
-
-    u1 = u(upperbound)
-    if u1 >= -precision:
-        return upperbound, [u1]
-
     u0 = u(0)
     if u0 <= precision:  # 0 is optimal
         return 0, [u0]
 
-    # u1 = u(1)
-    # if u1 >= -precision:  # 1 is optimal
-    #     return 1, [u1]
+    u1 = u(1)
+    if u1 >= -precision:  # 1 is optimal
+        return 1, [u1]
 
     def gu(gamma):
         return -np.sum(deltai ** 2 / np.maximum(alphai + gamma * deltai, 1e-16)) - a
 
-    return optnewton(u, gu, (lowerbound + upperbound) / 2, lowerbound, upperbound, precision=precision)
+    return optnewton(u, gu, .5, 0, 1, precision=precision)
 
 
 class MulticlassLogisticRegression:
@@ -166,12 +141,10 @@ class MulticlassLogisticRegression:
         countneg = 0
         countpos = 0
         countzero = 0
-        toosmall_ascent = 0
-        gamma_isneg = 0
-        gamma_isbig = 0
 
         t = 0
         while t < self.n * npass and (debug or obj[-1] > precision):
+            t += 1
 
             if nonuniform:
                 if np.random.rand() < 0.5:  # with probability 1/2 sample uniformly
@@ -188,36 +161,27 @@ class MulticlassLogisticRegression:
             # find the optimal alpha[i]
             ascent_direction = self.conditional_probabilities(x[i]) - self.alpha[i]
             ascent_norm = np.sum(ascent_direction ** 2)
-            if ascent_norm > 1e-14:
-                t += 1
-                linear_coeff = linear_coeffs[i] * ascent_norm
-                constant_coeff = np.dot(ascent_direction, np.dot(self.w, x[i]))
-                gammaopt, subobjective = optlinesearch(self.alpha[i], ascent_direction,
-                                                       linear_coeff, constant_coeff, precision=1e-16)
-                alphai = self.alpha[i] + gammaopt * ascent_direction
+            linear_coeff = linear_coeffs[i] * ascent_norm
+            constant_coeff = np.dot(ascent_direction, np.dot(self.w, x[i]))
+            gammaopt, subobjective = optlinesearch(self.alpha[i], ascent_direction,
+                                                   linear_coeff, constant_coeff, precision=1e-16)
+            alphai = self.alpha[i] + gammaopt * ascent_direction
 
-                if subobjective[-1] > precision:
-                    countpos += 1
-                elif subobjective[-1] < -precision:
-                    countneg += 1
-                else:
-                    countzero += 1
-
-                if gammaopt < 0:
-                    gamma_isneg += 1
-                elif gammaopt > 1:
-                    gamma_isbig += 1
-
-                # update w accordingly
-                self.w += (self.alpha[i] - alphai)[:, np.newaxis] * x[i] / self.reg / self.n
-                self.alpha[i] = alphai
+            if subobjective[-1] > precision:
+                countpos += 1
+            elif subobjective[-1] < -precision:
+                countneg += 1
             else:
-                toosmall_ascent += 1
+                countzero += 1
+
+            # update w accordingly
+            self.w += (self.alpha[i] - alphai)[:, np.newaxis] * x[i] / self.reg / self.n
+            self.alpha[i] = alphai
 
             # update the duality gap for variable i (extra computation only because of my code)
             # problem : since it is right after the update of alpha i and w, the score is almost always 0.
             # this is not what we want.
-            # Hence the SVRG approach : update all the gaps once in a while
+            # Hence the full batch approach : update all the gaps once in a while
             if t % self.n == 0:
                 s = np.dot(x, self.w.T)  # n*k array, like alpha
                 dual_gaps = np.maximum(0, logsumexp(s) - self.entropy() - np.sum(s * self.alpha, axis=-1))
@@ -232,8 +196,6 @@ class MulticlassLogisticRegression:
                 timing.append(time.time())
 
         print("Perfect line search : %i \t Negative ls : %i \t Positive ls : %i" % (countzero, countneg, countpos))
-        print("line search step size is negative : %i \t larger than 1 : %i" % (gamma_isneg, gamma_isbig))
-        print("Number of useless examples : ", toosmall_ascent)
 
         obj = np.array(obj)
         # if debug:
