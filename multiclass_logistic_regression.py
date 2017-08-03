@@ -47,10 +47,9 @@ def optlinesearch(alphai, deltai, a, b, precision, plot=False):
     return optnewton(u, gu, .5, 0, 1, precision=precision)
 
 
-def boolean_encoding(y):
+def boolean_encoding(y, k):
     """Return the n*k matrix Y whose line i is the one-hot encoding of y_i."""
     n = y.shape[0]
-    k = np.unique(y).shape[0]
     ans = np.zeros([n, k])
     ans[np.arange(n), y] = 1  #
     return ans
@@ -71,7 +70,7 @@ class MulticlassLogisticRegression:
     def __init__(self, reg, x, y):
         self.reg = reg
         self.n, self.d = x.shape
-        self.k = np.unique(y).shape[0]
+        self.k = np.amax(y) + 1
         self.w = np.zeros([self.k, self.d])
         self.alpha = np.zeros([self.n, self.k])
 
@@ -100,7 +99,7 @@ class MulticlassLogisticRegression:
 
     def dual2primal(self, x, y):
         """Return the vector w given by the optimality condition for a given alpha."""
-        w = np.mean((boolean_encoding(y) - self.alpha)[:, :, np.newaxis] * x[:, np.newaxis, :], axis=0)
+        w = np.mean((boolean_encoding(y, self.k) - self.alpha)[:, :, np.newaxis] * x[:, np.newaxis, :], axis=0)
         w /= self.reg
         return w
 
@@ -134,7 +133,20 @@ class MulticlassLogisticRegression:
     def duality_gap(self, x, y):
         return self.primal_objective(x, y) - self.dual_objective(x, y)
 
-    def sdca(self, x, y, alpha0=None, npass=50, precision=1e-15, debug=False, nonuniform=False):
+    def sdca(self, x, y, alpha0=None, npass=50, precision=1e-15, non_uniformity=0, _debug=False):
+        """Update self.alpha and self.w with the stochastic dual coordinate ascent algorithm to fit the model tp the
+        data points x and the labels y.
+
+        :param x: data points organized by rows
+        :param y: labels as a one dimensional array. They should be positive.
+        :param alpha0: initial point for alpha. If None, starts from the previous value of alpha (warm start).
+        :param npass: maximum number of pass over the data
+        :param precision: precision to which we wish to optimize the objective.
+        :param non_uniformity: between 0 and 1. probability of sampling non-uniformly.
+        :param _debug: if true, return a detailed list of objectives
+        :return: the list of duality gaps after each pass over the data
+        :return: the time after each pass over the data
+        """
 
         ##################################################################################
         # INITIALIZE : the dual and primal variables
@@ -148,7 +160,7 @@ class MulticlassLogisticRegression:
         ##################################################################################
         # OBJECTIVES : initialize the lists to be returned
         ##################################################################################
-        if debug:
+        if _debug:
             obj = [[self.regularization(), np.mean(self.negloglikelihood(x, y)), np.mean(self.entropy()), 0]]
         else:
             obj = [self.duality_gap(x, y)]
@@ -171,24 +183,16 @@ class MulticlassLogisticRegression:
         # MAIN LOOP
         ##################################################################################
         t = -1
-        while t < self.n * npass and (debug or obj[-1] > precision):
+        while t < self.n * npass and (_debug or obj[-1] > precision):
             t += 1
 
             ##################################################################################
             # DRAW : one sample at random.
             ##################################################################################
-            # TODO replace nonuniform by nonuniformity
-            if nonuniform:
-                if np.random.rand() > 0.5:  # with probability 1/2 sample uniformly
-                    i = np.random.randint(self.n)
-                else:  # and with the other 1/2 sample according to the gaps
-                    try:
-                        i = np.random.choice(self.n, p=dual_gaps)
-                    except ValueError:
-                        print(dual_gaps)
-                        raise
+            if np.random.rand() > non_uniformity:  # with probability
+                i = np.random.randint(self.n)
             else:
-                i = np.random.randint(0, self.n)
+                i = np.random.choice(self.n, p=dual_gaps / dual_gaps.sum())
 
             ##################################################################################
             # FUNCTION ESTIMATE
@@ -236,7 +240,7 @@ class MulticlassLogisticRegression:
             # OBJECTIVES : after each pass over the data, compute the duality gap
             ##################################################################################
             if t % self.n == 0:
-                if debug:
+                if _debug:
                     obj.append(
                         [self.regularization(), np.mean(self.negloglikelihood(x, y)), np.mean(self.entropy()),
                          len(subobjective)])
