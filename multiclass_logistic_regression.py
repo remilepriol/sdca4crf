@@ -55,6 +55,15 @@ def boolean_encoding(y, k):
     return ans
 
 
+def conditional_probabilities(scores):
+    """For each row of scores, return the probability vector that is proportional to exp(score)."""
+    smax = np.amax(scores, axis=-1, keepdims=True)  # mode of the score for each x
+    prob = np.exp(scores - smax)  # stabilized exponential
+    partition_functions = np.sum(prob, axis=-1, keepdims=True)
+    prob /= partition_functions
+    return prob
+
+
 class MulticlassLogisticRegression:
     """Contains all the elements of a multinomial logistic classifier.
     This is the same model as neural network with zero hidden layer,
@@ -86,16 +95,11 @@ class MulticlassLogisticRegression:
         """Return the most likely class of each data point in x, as an array of size len(x)."""
         return np.argmax(self.scores(x), axis=-1)
 
-    def conditional_probabilities(self, x):
+    def primal2dual(self, x):
         """Return the probability vector p(.|x_i ; self.w) for all x_i in x.
-        It is also equal to the dual representation of w.
+        It is also equal to the dual variable given by the optimality condition on w.
         """
-        scores = self.scores(x)
-        smax = np.amax(scores, axis=-1, keepdims=True)  # mode of the score for each x
-        prob = np.exp(scores - smax)  # stabilized exponential
-        partition_functions = np.sum(prob, axis=-1, keepdims=True)
-        prob /= partition_functions
-        return prob
+        return conditional_probabilities(self.scores(x))
 
     def dual2primal(self, x, y):
         """Return the vector w given by the optimality condition for a given alpha."""
@@ -197,16 +201,20 @@ class MulticlassLogisticRegression:
             ##################################################################################
             # FUNCTION ESTIMATE
             ##################################################################################
-            ascent_direction = self.conditional_probabilities(x[i]) - self.alpha[i]
-            squared_ascent_norm = np.sum(ascent_direction ** 2)
-            linear_coeff = squared_norm_x[i] * squared_ascent_norm / self.reg / self.n
-            constant_coeff = np.dot(ascent_direction, np.dot(self.w, x[i]))
+            scores_i = self.scores(x[i])
+            ascent_direction = conditional_probabilities(scores_i) - self.alpha[i]
 
-            # TODO add a computation of the duality gap here, and update the table.
+            ##################################################################################
+            # DUALITY GAP ESTIMATE
+            ##################################################################################
+            dual_gaps[i] = max(0, logsumexp(scores_i) - self.entropy(i) - np.dot(scores_i, self.alpha[i]))
 
             ##################################################################################
             # LINE SEARCH : find the optimal alpha[i]
             ##################################################################################
+            squared_ascent_norm = np.sum(ascent_direction ** 2)
+            linear_coeff = squared_norm_x[i] * squared_ascent_norm / self.reg / self.n
+            constant_coeff = np.dot(ascent_direction, np.dot(self.w, x[i]))
             gammaopt, subobjective = optlinesearch(self.alpha[i], ascent_direction,
                                                    linear_coeff, constant_coeff, precision=1e-16)
             alphai = self.alpha[i] + gammaopt * ascent_direction
@@ -227,11 +235,11 @@ class MulticlassLogisticRegression:
             self.w += (self.alpha[i] - alphai)[:, np.newaxis] * x[i] / self.reg / self.n
             self.alpha[i] = alphai
 
-            # TODO change this computation to combine it with the stopping criterion calculation
             ##################################################################################
-            # UPDATE : the table of duality gaps, after every 10 pass over the data.
+            # UPDATE : the table of duality gaps, after every 10 pass over the data
+            # if the degree of non uniformity is too low.
             ##################################################################################
-            if t % (10 * self.n) == 0:
+            if t % (10 * self.n) == 0 and non_uniformity > 0.9:
                 scores = self.scores(x)  # n*k array, like alpha
                 dual_gaps = np.maximum(0, logsumexp(scores) - self.entropy() - np.sum(scores * self.alpha, axis=-1))
                 dual_gaps /= dual_gaps.sum()
