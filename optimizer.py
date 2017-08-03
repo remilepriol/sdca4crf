@@ -323,7 +323,7 @@ def sdca(alpha0, x, y, reg, npass=50, precision=1e-15):
     w = logreg.dual_to_primal(alpha, x, y, reg)
 
     ##################################################################################
-    # SCORES : initialize the variables to be returned
+    # OBJECTIVES : initialize the lists to be returned
     ##################################################################################
     obj = [four_objectives(w, x, y, alpha, reg)]
     duality_gap = obj[-1][-1]  # stopping criterion
@@ -332,6 +332,9 @@ def sdca(alpha0, x, y, reg, npass=50, precision=1e-15):
     # linear coefficients of the functions for the line search
     linear_coeffs = np.sum(x ** 2, axis=1) / reg / n
 
+    ##################################################################################
+    # MAIN LOOP
+    ##################################################################################
     t = 0
     while t < npass * n and duality_gap > precision:
         t += 1
@@ -354,7 +357,7 @@ def sdca(alpha0, x, y, reg, npass=50, precision=1e-15):
         alpha[i] = alphai
 
         ##################################################################################
-        # SCORES : after each pass over the data, compute the scores
+        # OBJECTIVES : after each pass over the data, compute the scores
         ##################################################################################
         if t % n == 0:
             obj.append(four_objectives(w, x, y, alpha, reg))
@@ -362,7 +365,7 @@ def sdca(alpha0, x, y, reg, npass=50, precision=1e-15):
             timing.append(time.time())
 
     ##################################################################################
-    # FINISH : update the scores to simplify the after process.
+    # FINISH : convert the objectives to simplify the after process.
     ##################################################################################
     obj = np.array(obj)
     timing = np.array(timing)
