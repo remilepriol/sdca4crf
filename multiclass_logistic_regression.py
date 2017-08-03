@@ -47,6 +47,15 @@ def optlinesearch(alphai, deltai, a, b, precision, plot=False):
     return optnewton(u, gu, .5, 0, 1, precision=precision)
 
 
+def boolean_encoding(y):
+    """Return the n*k matrix Y whose line i is the one-hot encoding of y_i."""
+    n = y.shape[0]
+    k = np.unique(y).shape[0]
+    ans = np.zeros([n, k])
+    ans[np.arange(n), y] = 1  #
+    return ans
+
+
 class MulticlassLogisticRegression:
     """Contains all the elements of a multinomial logistic classifier.
     This is the same model as neural network with zero hidden layer,
@@ -62,22 +71,48 @@ class MulticlassLogisticRegression:
     def __init__(self, reg, x, y):
         self.reg = reg
         self.n, self.d = x.shape
-        self.k = np.amax(y) + 1
+        self.k = np.unique(y).shape[0]
         self.w = np.zeros([self.k, self.d])
         self.alpha = np.zeros([self.n, self.k])
 
+    ############################################################################
+    # Change of variable functions
+    ############################################################################
+
+    def scores(self, x):
+        """Return the score of each class for each line of x as a len(x)*k matrix."""
+        return np.dot(x, self.w.T)
+
+    def prediction(self, x):
+        """Return the most likely class of each data point in x, as an array of size len(x)."""
+        return np.argmax(self.scores(x), axis=-1)
+
+    def conditional_probabilities(self, x):
+        """Return the probability vector p(.|x_i ; self.w) for all x_i in x.
+        It is also equal to the dual representation of w.
+        """
+        scores = self.scores(x)
+        smax = np.amax(scores, axis=-1, keepdims=True)  # mode of the score for each x
+        prob = np.exp(scores - smax)  # stabilized exponential
+        partition_functions = np.sum(prob, axis=-1, keepdims=True)
+        prob /= partition_functions
+        return prob
+
     def dual2primal(self, x, y):
-        """Update w to fit alpha."""
-        boolean_encoding = np.zeros([self.n, self.k])
-        boolean_encoding[np.arange(self.n), y] = 1  # n*k encoding of y
-        self.w = np.mean((boolean_encoding - self.alpha)[:, :, np.newaxis] * x[:, np.newaxis, :], axis=0)
-        self.w /= self.reg
+        """Return the vector w given by the optimality condition for a given alpha."""
+        w = np.mean((boolean_encoding(y) - self.alpha)[:, :, np.newaxis] * x[:, np.newaxis, :], axis=0)
+        w /= self.reg
+        return w
+
+    ############################################################################
+    # Objective functions
+    ############################################################################
 
     def negloglikelihood(self, x, y):
-        scores = np.dot(x, self.w.T)  # n*k array : score[i,j] of class j for object i
-        negll = logsumexp(scores)
+        scores = self.scores(x)
+        negll = logsumexp(scores)  # log partition function for each data point
         negll -= scores[np.arange(self.n), y]  # subtract the scores of the real classes
-        return np.mean(negll)
+        return negll
 
     def entropy(self, i=None):
         epsilon = 1e-15
@@ -86,68 +121,65 @@ class MulticlassLogisticRegression:
         else:
             return -np.sum(self.alpha[i] * np.log(np.maximum(epsilon, self.alpha[i])))
 
-    def mean_entropy(self):
-        return np.mean(self.entropy())
-
     def regularization(self):
         return self.reg / 2 * np.sum(self.w ** 2)
 
     def primal_objective(self, x, y):
-        return self.regularization() + self.negloglikelihood(x, y)
+        return self.regularization() + np.mean(self.negloglikelihood(x, y))
 
     def dual_objective(self, x, y):
-        self.dual2primal(x, y)
-        return self.regularization() + self.mean_entropy()
+        w = self.dual2primal(x, y)
+        return self.reg / 2 * np.sum(w ** 2) + np.mean(self.entropy())
 
     def duality_gap(self, x, y):
-        return 2 * self.regularization() - self.mean_entropy() + self.negloglikelihood(x, y)
+        return self.primal_objective(x, y) - self.dual_objective(x, y)
 
-    def conditional_probabilities(self, x):
-        # handles x even if it is a single instance (a vector)
-        scores = np.dot(x, self.w.T)  # n*k array : score[i,j] of class j for object i
-        smax = np.amax(scores, axis=-1, keepdims=True)
-        scores -= smax  # stabilize the exponential by subtracting the maximum score for each example x
-        prob = np.exp(scores)
-        partition_functions = np.sum(prob, axis=-1, keepdims=True)
-        prob /= partition_functions
-        return prob
+    def sdca(self, x, y, alpha0=None, npass=50, precision=1e-15, debug=False, nonuniform=False):
 
-    def prediction(self, x):
-        # handles x even if it is a single instance (a vector)
-        scores = np.dot(x, self.w.T)  # n*k array : score[i,j] of class j for object i
-        ymax = np.argmax(scores, axis=-1)
-        return ymax
-
-    def sdca(self, alpha0, x, y, npass=50, precision=1e-15, debug=False, nonuniform=False):
+        ##################################################################################
+        # INITIALIZE : the dual and primal variables
+        ##################################################################################
         self.n, self.k = alpha0.shape
         self.n, self.d = x.shape
+        if alpha0 is None:  # Warm start
+            self.alpha = alpha0.copy()
+            self.w = self.dual2primal(x, y)
 
-        self.alpha = alpha0.copy()
-        self.dual2primal(x, y)
-        # else start from the previous optimum.
-
-        # keep track of the objective
+        ##################################################################################
+        # OBJECTIVES : initialize the lists to be returned
+        ##################################################################################
         if debug:
-            obj = [[self.regularization(), self.negloglikelihood(x, y), self.mean_entropy(), 0]]
+            obj = [[self.regularization(), np.mean(self.negloglikelihood(x, y)), np.mean(self.entropy()), 0]]
         else:
             obj = [self.duality_gap(x, y)]
         timing = [time.time()]
 
-        # pre-calculation of some coefficients for the line search
-        linear_coeffs = np.sum(x ** 2, axis=-1) / self.reg / self.n
+        # pre-compute some coefficients for the line search
+        squared_norm_x = np.sum(x ** 2, axis=-1)
 
+        # initialize of the probability table for the non-uniform sampling
         dual_gaps = np.ones(self.n) / self.n
 
+        ##################################################################################
+        # COUNTERS : to give insights on the algorithm
+        ##################################################################################
         countneg = 0
         countpos = 0
         countzero = 0
 
-        t = 0
+        ##################################################################################
+        # MAIN LOOP
+        ##################################################################################
+        t = -1
         while t < self.n * npass and (debug or obj[-1] > precision):
             t += 1
 
+            ##################################################################################
+            # DRAW : one sample at random.
+            ##################################################################################
+            # TODO replace nonuniform by nonuniformity
             if nonuniform:
-                if np.random.rand() < 0.5:  # with probability 1/2 sample uniformly
+                if np.random.rand() > 0.5:  # with probability 1/2 sample uniformly
                     i = np.random.randint(self.n)
                 else:  # and with the other 1/2 sample according to the gaps
                     try:
@@ -158,15 +190,26 @@ class MulticlassLogisticRegression:
             else:
                 i = np.random.randint(0, self.n)
 
-            # find the optimal alpha[i]
+            ##################################################################################
+            # FUNCTION ESTIMATE
+            ##################################################################################
             ascent_direction = self.conditional_probabilities(x[i]) - self.alpha[i]
-            ascent_norm = np.sum(ascent_direction ** 2)
-            linear_coeff = linear_coeffs[i] * ascent_norm
+            squared_ascent_norm = np.sum(ascent_direction ** 2)
+            linear_coeff = squared_norm_x[i] * squared_ascent_norm / self.reg / self.n
             constant_coeff = np.dot(ascent_direction, np.dot(self.w, x[i]))
+
+            # TODO add a computation of the duality gap here, and update the table.
+
+            ##################################################################################
+            # LINE SEARCH : find the optimal alpha[i]
+            ##################################################################################
             gammaopt, subobjective = optlinesearch(self.alpha[i], ascent_direction,
                                                    linear_coeff, constant_coeff, precision=1e-16)
             alphai = self.alpha[i] + gammaopt * ascent_direction
 
+            ##################################################################################
+            # COUNTERS
+            ##################################################################################
             if subobjective[-1] > precision:
                 countpos += 1
             elif subobjective[-1] < -precision:
@@ -174,51 +217,42 @@ class MulticlassLogisticRegression:
             else:
                 countzero += 1
 
-            # update w accordingly
+            ##################################################################################
+            # UPDATE : the primal and dual coordinates
+            ##################################################################################
             self.w += (self.alpha[i] - alphai)[:, np.newaxis] * x[i] / self.reg / self.n
             self.alpha[i] = alphai
 
-            # update the duality gap for variable i (extra computation only because of my code)
-            # problem : since it is right after the update of alpha i and w, the score is almost always 0.
-            # this is not what we want.
-            # Hence the full batch approach : update all the gaps once in a while
-            if t % self.n == 0:
-                s = np.dot(x, self.w.T)  # n*k array, like alpha
-                dual_gaps = np.maximum(0, logsumexp(s) - self.entropy() - np.sum(s * self.alpha, axis=-1))
+            # TODO change this computation to combine it with the stopping criterion calculation
+            ##################################################################################
+            # UPDATE : the table of duality gaps, after every 10 pass over the data.
+            ##################################################################################
+            if t % (10 * self.n) == 0:
+                scores = self.scores(x)  # n*k array, like alpha
+                dual_gaps = np.maximum(0, logsumexp(scores) - self.entropy() - np.sum(scores * self.alpha, axis=-1))
                 dual_gaps /= dual_gaps.sum()
-            # I do almost the same computations as in the bloc above.
+
+            ##################################################################################
+            # OBJECTIVES : after each pass over the data, compute the duality gap
+            ##################################################################################
             if t % self.n == 0:
                 if debug:
                     obj.append(
-                        [self.regularization(), self.negloglikelihood(x, y), self.mean_entropy(), len(subobjective)])
+                        [self.regularization(), np.mean(self.negloglikelihood(x, y)), np.mean(self.entropy()),
+                         len(subobjective)])
                 else:
                     obj.append(self.duality_gap(x, y))
                 timing.append(time.time())
 
+        ##################################################################################
+        # COUNTERS
+        ##################################################################################
         print("Perfect line search : %i \t Negative ls : %i \t Positive ls : %i" % (countzero, countneg, countpos))
 
+        ##################################################################################
+        # FINISH : convert the objectives to simplify the after process.
+        ##################################################################################
         obj = np.array(obj)
-        # if debug:
-        #     maxlen= max([len(subobj) for subobj in obj])
-        #     for subobj in obj:
-        #         subobj += [0]*(maxlen-len(subobj))
-        #     obj = np.array(obj)
         timing = np.array(timing)
         timing -= timing[0]
         return obj, timing
-
-# import generator as gen
-#
-# n = 1000
-# d = 2
-# k = 6
-# bias = 1
-# x, y, mu, sig = gen.gengaussianmixture(n, d, k, scale=.05)
-# x = gen.standardize(x)
-# x = np.concatenate([x, bias * np.ones([n, 1])], axis=1)
-# reg = 1
-# model = MulticlassLogisticRegression(reg, x, y)
-#
-# alpha0 = np.random.rand(n, k)
-# alpha0 /= np.sum(alpha0, axis=1, keepdims=True)
-# obj_sdca, time_sdca = model.sdca(alpha0, x, y, npass=14, precision=1e-5, debug=True)
