@@ -61,7 +61,7 @@ def conditional_probabilities(scores):
     prob = np.exp(scores - smax)  # stabilized exponential
     partition_functions = np.sum(prob, axis=-1, keepdims=True)
     prob /= partition_functions
-    return prob
+    return prob, partition_functions
 
 
 class MulticlassLogisticRegression:
@@ -99,7 +99,7 @@ class MulticlassLogisticRegression:
         """Return the probability vector p(.|x_i ; self.w) for all x_i in x.
         It is also equal to the dual variable given by the optimality condition on w.
         """
-        return conditional_probabilities(self.scores(x))
+        return conditional_probabilities(self.scores(x))[0]
 
     def dual2primal(self, x, y):
         """Return the vector w given by the optimality condition for a given alpha."""
@@ -132,7 +132,7 @@ class MulticlassLogisticRegression:
 
     def dual_objective(self, x, y):
         w = self.dual2primal(x, y)
-        return self.reg / 2 * np.sum(w ** 2) + np.mean(self.entropy())
+        return -self.reg / 2 * np.sum(w ** 2) + np.mean(self.entropy())
 
     def duality_gap(self, x, y):
         return self.primal_objective(x, y) - self.dual_objective(x, y)
@@ -157,7 +157,7 @@ class MulticlassLogisticRegression:
         ##################################################################################
         self.n, self.k = alpha0.shape
         self.n, self.d = x.shape
-        if alpha0 is None:  # Warm start
+        if alpha0 is not None:  # cold start
             self.alpha = alpha0.copy()
             self.w = self.dual2primal(x, y)
 
@@ -196,18 +196,20 @@ class MulticlassLogisticRegression:
             if np.random.rand() > non_uniformity:  # with probability
                 i = np.random.randint(self.n)
             else:
-                i = np.random.choice(self.n, p=dual_gaps / dual_gaps.sum())
+                sampling_probability = dual_gaps / dual_gaps.sum()
+                i = np.random.choice(self.n, p=sampling_probability)
 
             ##################################################################################
             # FUNCTION ESTIMATE
             ##################################################################################
             scores_i = self.scores(x[i])
-            ascent_direction = conditional_probabilities(scores_i) - self.alpha[i]
+            condprob_i, partition_i = conditional_probabilities(scores_i)
+            ascent_direction = condprob_i - self.alpha[i]
 
             ##################################################################################
             # DUALITY GAP ESTIMATE
             ##################################################################################
-            dual_gaps[i] = max(0, logsumexp(scores_i) - self.entropy(i) - np.dot(scores_i, self.alpha[i]))
+            dual_gaps[i] = max(0, partition_i - self.entropy(i) - np.dot(scores_i, self.alpha[i]))
 
             ##################################################################################
             # LINE SEARCH : find the optimal alpha[i]
