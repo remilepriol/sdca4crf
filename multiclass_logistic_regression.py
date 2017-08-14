@@ -221,7 +221,8 @@ class MulticlassLogisticRegression:
             ##################################################################################
             # DUALITY GAP ESTIMATE : for the non-uniform sampling
             ##################################################################################
-            sampler.update(kullback_leibler(self.alpha[i], condprob_i), i)
+            if non_uniformity > 0:
+                sampler.update(kullback_leibler(self.alpha[i], condprob_i), i)
 
             ##################################################################################
             # LINE SEARCH : find the optimal alpha[i]
@@ -263,7 +264,7 @@ class MulticlassLogisticRegression:
                 # To monitor the objective and provide a stopping criterion
                 ##################################################################################
                 elif t % (update_period * self.n) == 0:
-                    cond_probs = conditional_probabilities(self.scores(x))  # n*k array, like alpha
+                    cond_probs, _ = conditional_probabilities(self.scores(x))  # n*k array, like alpha
                     dual_gaps = kullback_leibler(self.alpha, cond_probs)
                     dual_gap = np.mean(dual_gaps)
                     obj.append(dual_gap)
