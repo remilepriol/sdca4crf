@@ -2,6 +2,8 @@ import time
 
 import numpy as np
 
+import random_counters as rc
+
 
 # take care to stabilize the log sum exp
 def logsumexp(v):
@@ -62,6 +64,10 @@ def conditional_probabilities(scores):
     partition_functions = np.sum(prob, axis=-1, keepdims=True)
     prob /= partition_functions
     return prob, partition_functions
+
+
+def kullback_leibler(p, q):
+    return np.sum(p * np.log(p / q), axis=-1)
 
 
 class MulticlassLogisticRegression:
@@ -137,8 +143,8 @@ class MulticlassLogisticRegression:
     def duality_gap(self, x, y):
         return self.primal_objective(x, y) - self.dual_objective(x, y)
 
-    def sdca(self, x, y, alpha0=None, npass=50, precision=1e-15, non_uniformity=0, _debug=False):
-        """Update self.alpha and self.w with the stochastic dual coordinate ascent algorithm to fit the model tp the
+    def sdca(self, x, y, alpha0=None, npass=50, update_period=5, precision=1e-15, non_uniformity=0, _debug=False):
+        """Update self.alpha and self.w with the stochastic dual coordinate ascent algorithm to fit the model to the
         data points x and the labels y.
 
         :param x: data points organized by rows
@@ -168,13 +174,20 @@ class MulticlassLogisticRegression:
             obj = [[self.regularization(), np.mean(self.negloglikelihood(x, y)), np.mean(self.entropy()), 0]]
         else:
             obj = [self.duality_gap(x, y)]
-        timing = [time.time()]
+        delta_time = time.time()
+        timing = [0]
 
-        # pre-compute some coefficients for the line search
+        ##################################################################################
+        # PRE-COMPUTE some coefficients for the line search
+        ##################################################################################
         squared_norm_x = np.sum(x ** 2, axis=-1)
 
-        # initialize of the probability table for the non-uniform sampling
-        dual_gaps = np.ones(self.n) / self.n
+        ##################################################################################
+        # NON-UNIFORM SAMPLING : initialize the sampler
+        ##################################################################################
+        if non_uniformity > 0:
+            sampler = rc.RandomCounters(np.ones(self.n))
+        duality_gap = 1
 
         ##################################################################################
         # COUNTERS : to give insights on the algorithm
@@ -187,29 +200,28 @@ class MulticlassLogisticRegression:
         # MAIN LOOP
         ##################################################################################
         t = -1
-        while t < self.n * npass and (_debug or obj[-1] > precision):
+        while t < self.n * npass and duality_gap > precision:
             t += 1
 
             ##################################################################################
             # DRAW : one sample at random.
             ##################################################################################
-            if np.random.rand() > non_uniformity:  # with probability
+            if np.random.rand() > non_uniformity:  # then sample uniformly
                 i = np.random.randint(self.n)
-            else:
-                sampling_probability = dual_gaps / dual_gaps.sum()
-                i = np.random.choice(self.n, p=sampling_probability)
+            else:  # sample proportionally to the duality gaps
+                i = sampler.sample()
 
             ##################################################################################
-            # FUNCTION ESTIMATE
+            # FUNCTION ESTIMATE : for the ascent
             ##################################################################################
             scores_i = self.scores(x[i])
-            condprob_i, partition_i = conditional_probabilities(scores_i)
+            condprob_i, _ = conditional_probabilities(scores_i)
             ascent_direction = condprob_i - self.alpha[i]
 
             ##################################################################################
-            # DUALITY GAP ESTIMATE
+            # DUALITY GAP ESTIMATE : for the non-uniform sampling
             ##################################################################################
-            dual_gaps[i] = max(0, partition_i - self.entropy(i) - np.dot(scores_i, self.alpha[i]))
+            sampler.update(kullback_leibler(self.alpha[i], condprob_i), i)
 
             ##################################################################################
             # LINE SEARCH : find the optimal alpha[i]
@@ -238,25 +250,31 @@ class MulticlassLogisticRegression:
             self.alpha[i] = alphai
 
             ##################################################################################
-            # UPDATE : the table of duality gaps, after every 10 pass over the data
-            # if the degree of non uniformity is too low.
-            ##################################################################################
-            if t % (10 * self.n) == 0 and non_uniformity > 0.9:
-                scores = self.scores(x)  # n*k array, like alpha
-                dual_gaps = np.maximum(0, logsumexp(scores) - self.entropy() - np.sum(scores * self.alpha, axis=-1))
-                dual_gaps /= dual_gaps.sum()
-
-            ##################################################################################
             # OBJECTIVES : after each pass over the data, compute the duality gap
             ##################################################################################
             if t % self.n == 0:
-                if _debug:
+                if _debug:  # track every score
                     obj.append(
                         [self.regularization(), np.mean(self.negloglikelihood(x, y)), np.mean(self.entropy()),
                          len(subobjective)])
+                ##################################################################################
+                # DUALITY GAPS: perform a batch update after every update_period epoch
+                # To reduce the staleness for the non-uniform sampling
+                # To monitor the objective and provide a stopping criterion
+                ##################################################################################
+                elif t % (update_period * self.n) == 0:
+                    cond_probs = conditional_probabilities(self.scores(x))  # n*k array, like alpha
+                    dual_gaps = kullback_leibler(self.alpha, cond_probs)
+                    dual_gap = np.mean(dual_gaps)
+                    obj.append(dual_gap)
+                    if non_uniformity > 0:
+                        sampler = rc.RandomCounters(dual_gaps)
                 else:
+                    t1 = time.time()
                     obj.append(self.duality_gap(x, y))
-                timing.append(time.time())
+                    t2 = time.time()
+                    delta_time += t2 - t1  # Don't count the time spent monitoring the function
+                timing.append(time.time() - delta_time)
 
         ##################################################################################
         # COUNTERS
@@ -268,5 +286,4 @@ class MulticlassLogisticRegression:
         ##################################################################################
         obj = np.array(obj)
         timing = np.array(timing)
-        timing -= timing[0]
         return obj, timing
