@@ -67,7 +67,8 @@ def conditional_probabilities(scores):
 
 
 def kullback_leibler(p, q):
-    return np.sum(p * np.log(p / q), axis=-1)
+    eps = 1e-50
+    return np.maximum(0, np.sum(p * np.log(np.maximum(p, eps) / np.maximum(q, eps)), axis=-1))
 
 
 class MulticlassLogisticRegression:
