@@ -12,12 +12,14 @@ class RandomCounters:
         score_level = self.score_tree[-1]
         n = score_level.shape[0]
         while n > 1:
-            double_scores = [score_level[2 * i] + score_level[2 * i + 1] for i in range(n // 2)]
             if n % 2 == 0:
-                self.score_tree.append(np.array(double_scores))
+                upper_level = score_level[::2] + score_level[1::2]
+                self.score_tree.append(upper_level)
             else:
-                double_scores.append(score_level[-1])
-                self.score_tree.append(np.array(double_scores))
+                upper_level = np.empty(n // 2 + 1)
+                upper_level[:-1] = score_level[:-1:2] + score_level[1::2]
+                upper_level[-1] = score_level[-1]
+                self.score_tree.append(upper_level)
             score_level = self.score_tree[-1]
             n = score_level.shape[0]
 
