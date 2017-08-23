@@ -232,38 +232,38 @@ def slow_binary_scores(word, weights):
     return bscores
 
 
-def unary_scores(word, weights):
+def unary_scores(images, weights):
     """Return the unary scores of word given by weights.
 
-    :param word:
+    :param images:
     :param weights:
     :return:
     """
-    chain_length = word.shape[0]
-    unary_scores = np.zeros([chain_length, ALPHABET_SIZE])
+    chain_length = images.shape[0]
+    uscores = np.zeros([chain_length, ALPHABET_SIZE])
     for t in range(chain_length):
         bias_selector = np.array([1, t == 0, t == chain_length - 1], dtype=int)
         for label in range(ALPHABET_SIZE):
-            unary_scores[t, label] = np.dot(weights[select_emission(label)], word[t]) \
-                                     + np.dot(weights[select_bias(label)], bias_selector)
-    return unary_scores
+            uscores[t, label] = np.dot(weights[select_emission(label)], images[t]) \
+                                + np.dot(weights[select_bias(label)], bias_selector)
+    return uscores
 
 
-def binary_scores(word, weights):
+def binary_scores(images, weights):
     """Return the binary scores of word given by weights.
 
-    :param word:
+    :param images:
     :param weights:
     :return:
     """
-    binary_scores = np.empty([word.shape[0] - 1, ALPHABET_SIZE, ALPHABET_SIZE])
-    binary_scores[:] = np.reshape(weights[select_transition(-1, -1)], (ALPHABET_SIZE, ALPHABET_SIZE))
+    bscores = np.empty([images.shape[0] - 1, ALPHABET_SIZE, ALPHABET_SIZE])
+    bscores[:] = np.reshape(weights[select_transition(-1, -1)], (ALPHABET_SIZE, ALPHABET_SIZE))
     # the code below is more understandable but slower
     # for t in range(word.shape[0]-1):
     #    for label in range(ALPHABET_SIZE):
     #        for next_label in range(ALPHABET_SIZE):
     #            binary_scores[t,label,next_label] = select_transition(weights,label,next_label)
-    return binary_scores
+    return bscores
 
 
 ########################################################################################################################
