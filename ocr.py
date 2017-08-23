@@ -143,14 +143,14 @@ def binary_feature(label, next_label):
     return feat
 
 
-def word_feature(word, label):
+def word_feature(images, labels):
     feat = np.zeros(NB_FEATURES)
-    if word.shape[0] != label.shape[0]:
+    if images.shape[0] != labels.shape[0]:
         raise ValueError("label is not the same size as this word")
-    for t in range(word.shape[0]):
-        feat += unary_feature(word, label[t], t)
-    for t in range(word.shape[0] - 1):
-        feat += binary_feature(label[t], label[t + 1])
+    for t in range(images.shape[0]):
+        feat += unary_feature(images, labels[t], t)
+    for t in range(images.shape[0] - 1):
+        feat += binary_feature(labels[t], labels[t + 1])
     return feat
 
 
