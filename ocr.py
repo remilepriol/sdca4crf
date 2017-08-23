@@ -121,57 +121,81 @@ def unique_words(words_labels):
 
 
 ########################################################################################################################
-# FEATURES
+# FEATURE SELECTION
 ########################################################################################################################
-def unary_feature(word, label, position):
-    feat = np.zeros(ALPHABET_SIZE * (NB_PIXELS + ALPHABET_SIZE + 3))
-    # image value
-    feat[label * NB_PIXELS:(label + 1) * NB_PIXELS] = word[position]
-    # bias
-    feat[ALPHABET_SIZE * (NB_PIXELS + ALPHABET_SIZE) + label] = 1
-    if position == 0:  # beginning of word
-        feat[ALPHABET_SIZE * (NB_PIXELS + ALPHABET_SIZE + 1) + label] = 1
-    elif position == word.shape[0] - 1:  # end of word
-        feat[ALPHABET_SIZE * (NB_PIXELS + ALPHABET_SIZE + 2) + label] = 1
+def select_emission(label):
+    """If label is positive, return the slice of emission features corresponding to label.
+    Else return the slice of emission features for all labels.
 
+    :param label:
+    :return:
+    """
+    if label >= 0:
+        start = label * NB_PIXELS
+        return slice(start, start + NB_PIXELS)
+    else:
+        return slice(0, ALPHABET_SIZE * NB_PIXELS)
+
+
+def select_transition(label, next_label):
+    """If label and next label are positive, return the coordinate of the corresponding transition feature.
+    Else return the slice of all transition features.
+
+    :param label:
+    :param next_label:
+    :return:
+    """
+    if label >= 0 and next_label >= 0:
+        start = ALPHABET_SIZE * (NB_PIXELS + label) + next_label
+        return slice(start, start + 1)
+    else:
+        start = ALPHABET_SIZE * NB_PIXELS
+        return slice(start, start + ALPHABET_SIZE * ALPHABET_SIZE)
+
+
+def select_bias(label):
+    """If label is positive, return the slice of bias features corresponding to label.
+    Else return the slice of bias features for all labels.
+
+    :param label:
+    :return:
+    """
+    if label >= 0:
+        start = ALPHABET_SIZE * (NB_PIXELS + ALPHABET_SIZE) + label
+        return slice(start, start + 3)
+    else:  # return the whole bias range
+        start = ALPHABET_SIZE * (NB_PIXELS + ALPHABET_SIZE)
+        return slice(start, start + 3 * ALPHABET_SIZE)
+
+
+########################################################################################################################
+# FEATURE CREATION
+########################################################################################################################
+def unary_feature(images, label, position):
+    feat = np.zeros(NB_FEATURES)
+    # image value
+    feat[select_emission(label)] = images[position]
+    # bias
+    feat[select_bias(label)] = [1, position == 0, position == images.shape[0] - 1]
     return feat
 
 
 def binary_feature(label, next_label):
     feat = np.zeros(NB_FEATURES)
-    feat[ALPHABET_SIZE * (NB_PIXELS + label) + next_label] = 1
+    feat[select_transition(label, next_label)] = 1
     return feat
 
 
 def word_feature(images, labels):
     feat = np.zeros(NB_FEATURES)
     if images.shape[0] != labels.shape[0]:
-        raise ValueError("label is not the same size as this word")
+        raise ValueError("Not the same number of letter images and labels.")
     for t in range(images.shape[0]):
-        feat += unary_feature(images, labels[t], t)
+        feat[select_emission(labels[t])] += images[t]
+        feat[select_bias(labels[t])] += [1, t == 0, t == images.shape[0] - 1]
     for t in range(images.shape[0] - 1):
-        feat += binary_feature(labels[t], labels[t + 1])
+        feat[select_transition(labels[t], labels[t + 1])] += 1
     return feat
-
-
-def select_emission(label):
-    start = label * NB_PIXELS
-    return slice(start, start + NB_PIXELS)
-
-
-def select_transition(label, next_label):
-    start = ALPHABET_SIZE * (NB_PIXELS + label) + next_label
-    return slice(start, start + 1)
-
-
-def select_all_transitions():
-    start = ALPHABET_SIZE * NB_PIXELS
-    return slice(start, start + ALPHABET_SIZE * ALPHABET_SIZE)
-
-
-def select_bias(label):
-    start = ALPHABET_SIZE * (NB_PIXELS + ALPHABET_SIZE) + label
-    return slice(start, start + 3)
 
 
 ########################################################################################################################
@@ -233,7 +257,7 @@ def fast_binary_scores(word, weights):
     :return:
     """
     binary_scores = np.empty([word.shape[0] - 1, ALPHABET_SIZE, ALPHABET_SIZE])
-    binary_scores[:] = np.reshape(weights[select_all_transitions()], (ALPHABET_SIZE, ALPHABET_SIZE))
+    binary_scores[:] = np.reshape(weights[select_transition(-1, -1)], (ALPHABET_SIZE, ALPHABET_SIZE))
     # the code below is more understandable but slower
     # for t in range(word.shape[0]-1):
     #    for label in range(ALPHABET_SIZE):
