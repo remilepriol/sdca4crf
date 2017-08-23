@@ -232,7 +232,7 @@ def slow_binary_scores(word, weights):
     return bscores
 
 
-def fast_unary_scores(word, weights):
+def unary_scores(word, weights):
     """Return the unary scores of word given by weights.
 
     :param word:
@@ -249,7 +249,7 @@ def fast_unary_scores(word, weights):
     return unary_scores
 
 
-def fast_binary_scores(word, weights):
+def binary_scores(word, weights):
     """Return the binary scores of word given by weights.
 
     :param word:
