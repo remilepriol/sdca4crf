@@ -154,23 +154,24 @@ def word_feature(images, labels):
     return feat
 
 
-def select_emission(features, label):
+def select_emission(label):
     start = label * NB_PIXELS
-    return features[start:start + NB_PIXELS]
+    return slice(start, start + NB_PIXELS)
 
 
-def select_transition(features, label, next_label):
-    return features[ALPHABET_SIZE * (NB_PIXELS + label) + next_label]
+def select_transition(label, next_label):
+    start = ALPHABET_SIZE * (NB_PIXELS + label) + next_label
+    return slice(start, start + 1)
 
 
-def select_all_transitions(features):
+def select_all_transitions():
     start = ALPHABET_SIZE * NB_PIXELS
-    return features[start:start + ALPHABET_SIZE * ALPHABET_SIZE]
+    return slice(start, start + ALPHABET_SIZE * ALPHABET_SIZE)
 
 
-def select_bias(features, label):
+def select_bias(label):
     start = ALPHABET_SIZE * (NB_PIXELS + ALPHABET_SIZE) + label
-    return features[start:start + 3]
+    return slice(start, start + 3)
 
 
 ########################################################################################################################
@@ -219,8 +220,8 @@ def fast_unary_scores(word, weights):
     for t in range(chain_length):
         bias_selector = np.array([1, t == 0, t == chain_length - 1], dtype=int)
         for label in range(ALPHABET_SIZE):
-            unary_scores[t, label] = np.dot(select_emission(weights, label), word[t]) \
-                                     + np.dot(select_bias(weights, label), bias_selector)
+            unary_scores[t, label] = np.dot(weights[select_emission(label)], word[t]) \
+                                     + np.dot(weights[select_bias(label)], bias_selector)
     return unary_scores
 
 
@@ -232,7 +233,7 @@ def fast_binary_scores(word, weights):
     :return:
     """
     binary_scores = np.empty([word.shape[0] - 1, ALPHABET_SIZE, ALPHABET_SIZE])
-    binary_scores[:] = np.reshape(select_all_transitions(weights), (ALPHABET_SIZE, ALPHABET_SIZE))
+    binary_scores[:] = np.reshape(weights[select_all_transitions()], (ALPHABET_SIZE, ALPHABET_SIZE))
     # the code below is more understandable but slower
     # for t in range(word.shape[0]-1):
     #    for label in range(ALPHABET_SIZE):
