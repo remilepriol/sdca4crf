@@ -44,6 +44,10 @@ def list2word(intlist):
     return ''.join([integer2letter(a) for a in intlist])
 
 
+def word2list(word):
+    return [letter2integer(letter) for letter in word]
+
+
 def letters2wordimage(letters_images):
     word_image = np.zeros([IMAGE_HEIGHT, 2])
     spacing = np.zeros([IMAGE_HEIGHT, 2])
@@ -365,7 +369,7 @@ class Marginals():
             self.unary = np.ones([word_length, ALPHABET_SIZE]) / ALPHABET_SIZE
             self.binary = np.ones([word_length - 1, ALPHABET_SIZE, ALPHABET_SIZE]) / (ALPHABET_SIZE ** 2)
         else:
-            if unary.shape[0] != binary.shape[0] - 1:
+            if unary.shape[0] != binary.shape[0] + 1:
                 raise ValueError("Wrong size of marginals.")
             self.length = unary.shape[0]
             self.unary = unary
