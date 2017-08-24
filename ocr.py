@@ -2,9 +2,10 @@
 import csv
 
 import matplotlib.pyplot as plt
+import numpy as np
 
 # custom imports
-from utils import *
+import utils
 
 ########################################################################################################################
 # CONSTANTS
@@ -281,18 +282,18 @@ def backward_forward(unary_scores, binary_scores):
 
     # backward pass
     backward_messages = np.zeros([chain_length - 1, ALPHABET_SIZE])
-    backward_messages[-1] = logsumexp(binary_scores[-1] + unary_scores[-1])
+    backward_messages[-1] = utils.logsumexp(binary_scores[-1] + unary_scores[-1])
     for t in range(chain_length - 3, -1, -1):
-        backward_messages[t] = logsumexp(binary_scores[t] + unary_scores[t + 1] + backward_messages[t + 1])
+        backward_messages[t] = utils.logsumexp(binary_scores[t] + unary_scores[t + 1] + backward_messages[t + 1])
 
     # we compute the log-partition and include it in the forward messages
-    log_partition = logsumexp(backward_messages[0] + unary_scores[0])
+    log_partition = utils.logsumexp(backward_messages[0] + unary_scores[0])
 
     # forward pass
     forward_messages = np.zeros([chain_length - 1, ALPHABET_SIZE])
-    forward_messages[0] = logsumexp(binary_scores[0].T + unary_scores[0] - log_partition)
+    forward_messages[0] = utils.logsumexp(binary_scores[0].T + unary_scores[0] - log_partition)
     for t in range(1, chain_length - 1):
-        forward_messages[t] = logsumexp(binary_scores[t].T + unary_scores[t] + forward_messages[t - 1])
+        forward_messages[t] = utils.logsumexp(binary_scores[t].T + unary_scores[t] + forward_messages[t - 1])
 
     unary_marginals = np.empty([chain_length, ALPHABET_SIZE])
     unary_marginals[0] = np.exp(unary_scores[0] + backward_messages[0] - log_partition)
@@ -426,15 +427,47 @@ class Marginals():
         return ans
 
     def entropy(self):
-        return entropy(self.binary) - entropy(self.unary[1:-1])
+        return utils.entropy(self.binary) - utils.entropy(self.unary[1:-1])
 
     def kullback_leibler(self, other_marginals):
-        return kullback_leibler(self.binary, other_marginals.binary) \
-               - kullback_leibler(self.unary[1:-1], other_marginals.unary[1:-1])
+        return utils.kullback_leibler(self.binary, other_marginals.binary) \
+               - utils.kullback_leibler(self.unary[1:-1], other_marginals.unary[1:-1])
+
+    def add(self, other_marginals):
+        return Marginals(unary=self.unary + other_marginals.unary,
+                         binary=self.binary + other_marginals.unary)
 
     def subtract(self, other_marginals):
         return Marginals(unary=self.unary - other_marginals.unary,
                          binary=self.binary - other_marginals.unary)
+
+    def multiply(self, other_marginals):
+        return Marginals(unary=self.unary * other_marginals.unary,
+                         binary=self.binary * other_marginals.unary)
+
+    def divide(self, other_marginals):
+        return Marginals(unary=self.unary / other_marginals.unary,
+                         binary=self.binary / other_marginals.unary)
+
+    def multiply_scalar(self, scalar):
+        return Marginals(unary=scalar * self.unary,
+                         binary=scalar * self.binary)
+
+    def square(self):
+        return Marginals(unary=self.unary ** 2, binary=self.binary ** 2)
+
+    def log(self):
+        return Marginals(unary=np.log(np.maximum(1e-16, self.unary)),
+                         binary=np.log(np.maximum(1e-16, self.binary)))
+
+    def inner_product(self, other_marginals):
+        """ Return the special inner product where the marginals on the separations are subtracted.
+
+        :param other_marginals:
+        :return:
+        """
+        return np.sum(self.binary, other_marginals.binary) - \
+               np.sum(self.unary[1:-1] * other_marginals.unary[1:-1])
 
     @staticmethod
     def infer_from_weights(images, weights):
