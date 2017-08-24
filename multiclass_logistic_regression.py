@@ -4,27 +4,6 @@ import random_counters as rc
 from utils import *
 
 
-def optlinesearch(alphai, deltai, a, b, precision, plot=False):
-    """Return the alpha maximizing the score along the ascent direction deltai, and starting from alphai.
-    The function to maximize is concave, thus its derivative u/n is decreasing, thus the border conditions."""
-
-    def u(gamma):
-        return -np.sum(deltai * np.log(np.maximum(alphai + gamma * deltai, 1e-16))) - gamma * a + b
-
-    u0 = u(0)
-    if u0 <= precision:  # 0 is optimal
-        return 0, [u0]
-
-    u1 = u(1)
-    if u1 >= -precision:  # 1 is optimal
-        return 1, [u1]
-
-    def gu(gamma):
-        return -np.sum(deltai ** 2 / np.maximum(alphai + gamma * deltai, 1e-16)) - a
-
-    return optnewton(u, gu, .5, 0, 1, precision=precision)
-
-
 def conditional_probabilities(scores):
     """For each row of scores, return the probability vector that is proportional to exp(score)."""
     smax = np.amax(scores, axis=-1, keepdims=True)  # mode of the score for each x
@@ -142,9 +121,29 @@ class MulticlassLogisticRegression:
         timing = [0]
 
         ##################################################################################
-        # PRE-COMPUTE some coefficients for the line search
+        # PREPARE for the line search
         ##################################################################################
         squared_norm_x = np.sum(x ** 2, axis=-1)
+
+        def optlinesearch(alphai, deltai, a, b, precision):
+            """Return the alpha maximizing the score along the ascent direction deltai, and starting from alphai.
+            The function to maximize is concave, thus its derivative u/n is decreasing, thus the border conditions."""
+
+            def u(gamma):
+                return -np.sum(deltai * np.log(np.maximum(alphai + gamma * deltai, 1e-16))) - gamma * a + b
+
+            u0 = u(0)
+            if u0 <= precision:  # 0 is optimal
+                return 0, [u0]
+
+            u1 = u(1)
+            if u1 >= -precision:  # 1 is optimal
+                return 1, [u1]
+
+            def gu(gamma):
+                return -np.sum(deltai ** 2 / np.maximum(alphai + gamma * deltai, 1e-16)) - a
+
+            return optnewton(u, gu, .5, 0, 1, precision=precision)
 
         ##################################################################################
         # NON-UNIFORM SAMPLING : initialize the sampler
