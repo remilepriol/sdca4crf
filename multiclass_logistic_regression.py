@@ -162,10 +162,10 @@ class MulticlassLogisticRegression:
         ##################################################################################
         # INITIALIZE : the dual and primal variables
         ##################################################################################
-        self.n, self.k = alpha0.shape
         self.n, self.d = x.shape
         if alpha0 is not None:  # cold start
             self.alpha = alpha0.copy()
+            self.n, self.k = alpha0.shape
             self.w = self.dual2primal(x, y)
 
         ##################################################################################
