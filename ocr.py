@@ -2,7 +2,9 @@
 import csv
 
 import matplotlib.pyplot as plt
-import numpy as np
+
+# custom imports
+from utils import *
 
 ########################################################################################################################
 # CONSTANTS
@@ -269,11 +271,6 @@ def binary_scores(images, weights):
 ########################################################################################################################
 # MARGINALIZATION
 ########################################################################################################################
-def logsumexp(v):
-    vmax = np.amax(v, axis=-1, keepdims=True)
-    return vmax.squeeze(axis=-1) + np.log(np.sum(np.exp(v - vmax), axis=-1))
-
-
 def backward_forward(unary_scores, binary_scores):
     # I keep track of the log messages instead of the messages, to favor stability
     chain_length = unary_scores.shape[0]
@@ -308,4 +305,99 @@ def backward_forward(unary_scores, binary_scores):
         binary_marginals[t] = np.exp(forward_messages[t - 1, :, np.newaxis] + unary_scores[t, :, np.newaxis]
                                      + binary_scores[t] + unary_scores[t + 1] + backward_messages[t + 1])
 
-    return unary_marginals, binary_marginals
+    return Marginals(unary=unary_marginals, binary=binary_marginals)
+
+
+########################################################################################################################
+# OBJECT ORIENTED
+########################################################################################################################
+class Features:
+    def __init__(self):
+        self.unary = np.zeros([ALPHABET_SIZE, NB_PIXELS + 3])
+        self.binary = np.zeros([ALPHABET_SIZE, ALPHABET_SIZE])
+
+    def _add_unary(self, images, label, position):
+        self.unary[label, :-3] += images[position]
+        self.unary[label, -3:] += [1, position == 0, position == images.shape[0] - 1]
+
+    def _add_binary(self, label, next_label):
+        self.binary[label, next_label] += 1
+
+    def add_word(self, images, labels):
+        for t in range(images.shape[0]):
+            self._add_unary(images, labels[t], t)
+        for t in range(images.shape[0] - 1):
+            self._add_binary(labels[t], labels[t + 1])
+
+    def add_dictionary(self, images_set, labels_set):
+        for images, labels in zip(images_set, labels_set):
+            self.add_word(images, labels)
+
+    def _add_unary_centroid(self, images, unary_marginals):
+        # tmp is a vertical concatenation the images in the word and the bias terms
+        tmp = np.empty([images.shape[0], NB_PIXELS + 3])
+        tmp[:, :-3] = images
+        tmp[:, -3] = 1
+        tmp[:, -2:] = 0
+        tmp[0, -2] = 1
+        tmp[-1, -1] = 1
+        self.unary += np.dot(unary_marginals.T, tmp)
+
+    def _add_binary_centroid(self, binary_marginals):
+        self.binary += np.sum(binary_marginals, axis=0)
+
+    def add_centroid(self, images, marginals):
+        self._add_unary_centroid(images, marginals.unary)
+        self._add_binary_centroid(marginals.binary)
+
+    def to_array(self):
+        feat = np.empty(NB_FEATURES)
+        feat[select_emission(-1)] = self.unary[:, :-3].flatten()
+        feat[select_transition(-1, -1)] = self.binary.flatten()
+        feat[select_bias(-1)] = self.unary[:, -3:].flatten()
+        return feat
+
+
+class Marginals():
+    def __init__(self, unary=None, binary=None, word_length=None):
+        if unary is None or binary is None:
+            self.length = word_length
+            self.unary = np.ones([word_length, ALPHABET_SIZE]) / ALPHABET_SIZE
+            self.binary = np.ones([word_length - 1, ALPHABET_SIZE, ALPHABET_SIZE]) / (ALPHABET_SIZE ** 2)
+        else:
+            if unary.shape[0] != binary.shape[0] - 1:
+                raise ValueError("Wrong size of marginals.")
+            self.length = unary.shape[0]
+            self.unary = unary
+            self.binary = binary
+
+    def _is_unary_densities(self):
+        return np.isclose(self.unary.sum(axis=1), 1).all()
+
+    def _is_binary_densities(self):
+        return np.isclose(self.binary.sum(axis=(1, 2)), 1).all()
+
+    def is_densities(self):
+        return self._is_unary_densities() and self._is_binary_densities()
+
+    def is_consistent(self):
+        ans = True
+        from_left_binary = np.sum(self.binary, axis=1)
+        from_right_binary = np.sum(self.binary, axis=2)
+        if not np.isclose(from_left_binary, self.unary[1:]).all():
+            ans = False
+            print("Marginalisation of the left of the binary marginals is inconsistent with unary marginals.")
+        if not np.isclose(from_right_binary, self.unary[:-1]).all():
+            ans = False
+            print("Marginalisation of the right of the binary marginals is inconsistent with unary marginals.")
+        if not np.isclose(from_right_binary[1:], from_left_binary[:-1]).all():
+            ans = False
+            print("Marginalisation of the left and right of the binary marginals are inconsistent.")
+        return ans
+
+    def entropy(self):
+        return entropy(self.binary) - entropy(self.unary[1:-1])
+
+    def kullback_leibler(self, other_marginals):
+        return kullback_leibler(self.binary, other_marginals.binary) \
+               - kullback_leibler(self.unary[1:-1], other_marginals.unary[1:-1])
