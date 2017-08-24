@@ -1,7 +1,9 @@
 import time
 
+import numpy as np
+
 import random_counters as rc
-from utils import *
+import utils
 
 
 def conditional_probabilities(scores):
@@ -52,7 +54,7 @@ class MulticlassLogisticRegression:
 
     def dual2primal(self, x, y):
         """Return the vector w given by the optimality condition for a given alpha."""
-        w = np.mean((boolean_encoding(y, self.k) - self.alpha)[:, :, np.newaxis] * x[:, np.newaxis, :], axis=0)
+        w = np.mean((utils.boolean_encoding(y, self.k) - self.alpha)[:, :, np.newaxis] * x[:, np.newaxis, :], axis=0)
         w /= self.reg
         return w
 
@@ -62,7 +64,7 @@ class MulticlassLogisticRegression:
 
     def negloglikelihood(self, x, y):
         scores = self.scores(x)
-        negll = logsumexp(scores)  # log partition function for each data point
+        negll = utils.logsumexp(scores)  # log partition function for each data point
         negll -= scores[np.arange(self.n), y]  # subtract the scores of the real classes
         return negll
 
@@ -125,26 +127,6 @@ class MulticlassLogisticRegression:
         ##################################################################################
         squared_norm_x = np.sum(x ** 2, axis=-1)
 
-        def optlinesearch(alphai, deltai, a, b, precision):
-            """Return the alpha maximizing the score along the ascent direction deltai, and starting from alphai.
-            The function to maximize is concave, thus its derivative u/n is decreasing, thus the border conditions."""
-
-            def u(gamma):
-                return -np.sum(deltai * np.log(np.maximum(alphai + gamma * deltai, 1e-16))) - gamma * a + b
-
-            u0 = u(0)
-            if u0 <= precision:  # 0 is optimal
-                return 0, [u0]
-
-            u1 = u(1)
-            if u1 >= -precision:  # 1 is optimal
-                return 1, [u1]
-
-            def gu(gamma):
-                return -np.sum(deltai ** 2 / np.maximum(alphai + gamma * deltai, 1e-16)) - a
-
-            return optnewton(u, gu, .5, 0, 1, precision=precision)
-
         ##################################################################################
         # NON-UNIFORM SAMPLING : initialize the sampler
         ##################################################################################
@@ -185,7 +167,7 @@ class MulticlassLogisticRegression:
             # DUALITY GAP ESTIMATE : for the non-uniform sampling
             ##################################################################################
             if non_uniformity > 0:
-                sampler.update(kullback_leibler(self.alpha[i], condprob_i), i)
+                sampler.update(utils.kullback_leibler(self.alpha[i], condprob_i), i)
 
             ##################################################################################
             # LINE SEARCH : find the optimal alpha[i]
@@ -193,8 +175,16 @@ class MulticlassLogisticRegression:
             squared_ascent_norm = np.sum(ascent_direction ** 2)
             linear_coeff = squared_norm_x[i] * squared_ascent_norm / self.reg / self.n
             constant_coeff = np.dot(ascent_direction, np.dot(self.w, x[i]))
-            gammaopt, subobjective = optlinesearch(self.alpha[i], ascent_direction,
-                                                   linear_coeff, constant_coeff, precision=1e-16)
+
+            def u(gamma):
+                return -np.sum(ascent_direction * np.log(np.maximum(self.alpha[i] + gamma * ascent_direction, 1e-50))) \
+                       - gamma * linear_coeff + constant_coeff
+
+            def gu(gamma):
+                return -np.sum(ascent_direction ** 2 / np.maximum(self.alpha[i] + gamma * ascent_direction, 1e-50)) \
+                       - linear_coeff
+
+            gammaopt, subobjective = utils.find_root_decreasing(u, gu, precision=1e-16)
             alphai = self.alpha[i] + gammaopt * ascent_direction
 
             ##################################################################################

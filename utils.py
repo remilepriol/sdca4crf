@@ -24,7 +24,7 @@ def boolean_encoding(y, k):
     return ans
 
 
-def optnewton(func, grad, init, lowerbound, upperbound, precision=1e-12, max_iter=50):
+def bounded_newton(func, grad, init, lowerbound, upperbound, precision=1e-12, max_iter=50):
     x = init
     fx = func(x)
     obj = [fx]
@@ -39,3 +39,17 @@ def optnewton(func, grad, init, lowerbound, upperbound, precision=1e-12, max_ite
         fx = func(x)
         obj.append(fx)
     return x, obj
+
+
+def find_root_decreasing(u, gu, precision):
+    """Return the root of a decreasing function u defined on [0,1] with given precision."""
+
+    u0 = u(0)
+    if u0 <= precision:  # 0 is optimal
+        return 0, [u0]
+
+    u1 = u(1)
+    if u1 >= -precision:  # 1 is optimal
+        return 1, [u1]
+
+    return bounded_newton(u, gu, .5, 0, 1, precision=precision)
