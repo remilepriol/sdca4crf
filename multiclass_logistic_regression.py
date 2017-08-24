@@ -1,14 +1,7 @@
 import time
 
-import numpy as np
-
 import random_counters as rc
-
-
-# take care to stabilize the log sum exp
-def logsumexp(v):
-    vmax = np.amax(v, axis=-1, keepdims=True)
-    return vmax.squeeze(axis=-1) + np.log(np.sum(np.exp(v - vmax), axis=-1))
+from utils import *
 
 
 def optnewton(func, grad, init, lowerbound, upperbound, precision=1e-12, max_iter=50):
@@ -49,14 +42,6 @@ def optlinesearch(alphai, deltai, a, b, precision, plot=False):
     return optnewton(u, gu, .5, 0, 1, precision=precision)
 
 
-def boolean_encoding(y, k):
-    """Return the n*k matrix Y whose line i is the one-hot encoding of y_i."""
-    n = y.shape[0]
-    ans = np.zeros([n, k])
-    ans[np.arange(n), y] = 1  #
-    return ans
-
-
 def conditional_probabilities(scores):
     """For each row of scores, return the probability vector that is proportional to exp(score)."""
     smax = np.amax(scores, axis=-1, keepdims=True)  # mode of the score for each x
@@ -64,11 +49,6 @@ def conditional_probabilities(scores):
     partition_functions = np.sum(prob, axis=-1, keepdims=True)
     prob /= partition_functions
     return prob, partition_functions
-
-
-def kullback_leibler(p, q):
-    eps = 1e-50
-    return np.maximum(0, np.sum(p * np.log(np.maximum(p, eps) / np.maximum(q, eps)), axis=-1))
 
 
 class MulticlassLogisticRegression:
