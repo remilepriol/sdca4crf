@@ -1,14 +1,14 @@
 import numpy as np
 
 
-def entropy(proba):
+def entropy(proba, axis=None):
     epsilon = 1e-50
-    return -np.sum(proba * np.log(np.maximum(epsilon, proba)))
+    return -np.sum(proba * np.log(np.maximum(epsilon, proba)), axis=axis)
 
 
-def kullback_leibler(p, q):
+def kullback_leibler(p, q, axis=None):
     eps = 1e-50
-    return np.maximum(0, np.sum(p * np.log(np.maximum(p, eps) / np.maximum(q, eps)), axis=-1))
+    return np.maximum(0, np.sum(p * np.log(np.maximum(p, eps) / np.maximum(q, eps)), axis=axis))
 
 
 def logsumexp(v):
