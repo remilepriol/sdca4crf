@@ -22,3 +22,20 @@ def boolean_encoding(y, k):
     ans = np.zeros([n, k])
     ans[np.arange(n), y] = 1  #
     return ans
+
+
+def optnewton(func, grad, init, lowerbound, upperbound, precision=1e-12, max_iter=50):
+    x = init
+    fx = func(x)
+    obj = [fx]
+    count = 0
+    while np.absolute(fx) > precision and count < max_iter:  # stop condition to avoid cycling over an extremity of 0,1?
+        count += 1
+        gx = grad(x)
+        x -= fx / gx
+        # Make sure x is in (lower bound, upper bound)
+        x = max(lowerbound + precision, x)
+        x = min(upperbound - precision, x)
+        fx = func(x)
+        obj.append(fx)
+    return x, obj
