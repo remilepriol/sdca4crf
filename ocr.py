@@ -309,16 +309,22 @@ def backward_forward(unary_scores, binary_scores):
         binary_marginals[t] = np.exp(forward_messages[t - 1, :, np.newaxis] + unary_scores[t, :, np.newaxis]
                                      + binary_scores[t] + unary_scores[t + 1] + backward_messages[t + 1])
 
-    return Marginals(unary=unary_marginals, binary=binary_marginals)
+    return unary_marginals, binary_marginals
 
 
 ########################################################################################################################
 # OBJECT ORIENTED
 ########################################################################################################################
 class Features:
-    def __init__(self):
-        self.unary = np.zeros([ALPHABET_SIZE, NB_PIXELS + 3])
-        self.binary = np.zeros([ALPHABET_SIZE, ALPHABET_SIZE])
+    def __init__(self, unary=None, binary=None):
+        if unary is None:
+            self.unary = np.zeros([ALPHABET_SIZE, NB_PIXELS + 3])
+        else:
+            self.unary = unary
+        if binary is None:
+            self.binary = np.zeros([ALPHABET_SIZE, ALPHABET_SIZE])
+        else:
+            self.binary = binary
 
     def _add_unary(self, images, label, position):
         self.unary[label, :-3] += images[position]
@@ -337,22 +343,34 @@ class Features:
         for images, labels in zip(images_set, labels_set):
             self.add_word(images, labels)
 
-    def _add_unary_centroid(self, images, unary_marginals):
-        # tmp is a vertical concatenation the images in the word and the bias terms
-        tmp = np.empty([images.shape[0], NB_PIXELS + 3])
-        tmp[:, :-3] = images
-        tmp[:, -3] = 1
-        tmp[:, -2:] = 0
-        tmp[0, -2] = 1
-        tmp[-1, -1] = 1
-        self.unary += np.dot(unary_marginals.T, tmp)
+    def _add_unary_centroid(self, images, unary_marginals=None):
+        if unary_marginals is None:  # assume uniform marginal
+            self.unary[:, :-3] += np.sum(images, axis=0) / ALPHABET_SIZE
+            self.unary[:, -3] = images.shape[0] / ALPHABET_SIZE
+            self.unary[:, -2:] = 1 / ALPHABET_SIZE
+        else:
+            # tmp is a vertical concatenation the images in the word and the bias terms
+            tmp = np.empty([images.shape[0], NB_PIXELS + 3])
+            tmp[:, :-3] = images
+            tmp[:, -3] = 1
+            tmp[:, -2:] = 0
+            tmp[0, -2] = 1
+            tmp[-1, -1] = 1
+            self.unary += np.dot(unary_marginals.T, tmp)
 
-    def _add_binary_centroid(self, binary_marginals):
-        self.binary += np.sum(binary_marginals, axis=0)
+    def _add_binary_centroid(self, binary_marginals=None):
+        if binary_marginals is None:  # assume uniform marginal
+            self.binary += 1 / ALPHABET_SIZE ** 2
+        else:
+            self.binary += np.sum(binary_marginals, axis=0)
 
-    def add_centroid(self, images, marginals):
-        self._add_unary_centroid(images, marginals.unary)
-        self._add_binary_centroid(marginals.binary)
+    def add_centroid(self, images, marginals=None):
+        if marginals is None:  # assume uniform marginal
+            self._add_unary_centroid(images, None)
+            self._add_binary_centroid(None)
+        else:
+            self._add_unary_centroid(images, marginals.unary)
+            self._add_binary_centroid(marginals.binary)
 
     def to_array(self):
         feat = np.empty(NB_FEATURES)
@@ -360,6 +378,14 @@ class Features:
         feat[select_transition(-1, -1)] = self.binary.flatten()
         feat[select_bias(-1)] = self.unary[:, -3:].flatten()
         return feat
+
+    @staticmethod
+    def from_array(feat):
+        unary = np.empty([ALPHABET_SIZE, NB_PIXELS + 3])
+        unary[:, :-3] = feat[select_emission(-1)].reshape([ALPHABET_SIZE, -1])
+        unary[:, -3:] = feat[select_bias(-1)].reshape(ALPHABET_SIZE, -1)
+        binary = feat[select_transition(-1, -1)].reshape(ALPHABET_SIZE, -1)
+        return Features(unary, binary)
 
 
 class Marginals():
@@ -405,3 +431,23 @@ class Marginals():
     def kullback_leibler(self, other_marginals):
         return kullback_leibler(self.binary, other_marginals.binary) \
                - kullback_leibler(self.unary[1:-1], other_marginals.unary[1:-1])
+
+    def subtract(self, other_marginals):
+        return Marginals(unary=self.unary - other_marginals.unary,
+                         binary=self.binary - other_marginals.unary)
+
+    @staticmethod
+    def infer_from_weights(images, weights):
+        uscores = unary_scores(images, weights)
+        bscores = binary_scores(images, weights)
+        umargs, bmargs = backward_forward(uscores, bscores)
+        return Marginals(unary=umargs, binary=bmargs)
+
+    @staticmethod
+    def dirac(labels):
+        word_length = labels.shape[0]
+        umargs = np.zeros([word_length, ALPHABET_SIZE])
+        umargs[np.arange(word_length), labels] = 1
+        bmargs = np.zeros([word_length - 1, ALPHABET_SIZE, ALPHABET_SIZE])
+        bmargs[np.arange(word_length - 1), labels[:-1], labels[1:]] = 1
+        return Marginals(unary=umargs, binary=bmargs)
