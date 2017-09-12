@@ -522,7 +522,7 @@ def radius(word):
     r += 2 * word.shape[0]  # model bias
     r += 2 * 2  # beginning and end of word biases
     r += 2 * (word.shape[0] - 1)  # transitions
-    return r
+    return np.sqrt(r)
 
 
 def radii(words):
@@ -623,10 +623,18 @@ def sdca(x, y, regularization_parameter, npass=5, update_period=5, precision=1e-
     # NON-UNIFORM SAMPLING : initialize the sampler
     ##################################################################################
     if non_uniformity > 0:
-        dgaps = duality_gaps(marginals, weights, regularization_parameter, x)
-        sampler = random_counters.RandomCounters(dgaps)
+        new_marginals = [Marginals.infer_from_weights(imgs, weights) for imgs in x]
+        dgaps = [margs.kullback_leibler(newmargs) for margs, newmargs in zip(marginals, new_marginals)]
         duality_gap = dgaps.mean()
         obj = [duality_gap]
+        if non_uniformity <= 1:  # duality gaps scheme
+            sampler = random_counters.RandomCounters(dgaps)
+        else:  # Csiba et al. scheme #TODO later as this is only true on the joint probabilities.
+            radiuses = radii(x)
+            residues = np.array([np.sqrt(np.sum(margs.subtract(newmargs).binary ** 2)) for margs, newmargs in zip(
+                marginals, new_marginals)])
+            sampler = random_counters.RandomCounters(residues * np.sqrt(radiuses ** 2 + nb_words
+                                                                        * regularization_parameter / 2))
     else:
         obj = [dual_objective]
         duality_gap = 1
@@ -719,8 +727,8 @@ def sdca(x, y, regularization_parameter, npass=5, update_period=5, precision=1e-
 
         if not step_size:
             tmp = marginals[i].entropy()
-            dual_objective += (
-                              tmp - entropies[i] + gammaopt ** 2 * quadratic_coeff + gammaopt * linear_coeff) / nb_words
+            dual_objective += \
+                (tmp - entropies[i] + gammaopt ** 2 * quadratic_coeff + gammaopt * linear_coeff) / nb_words
             entropies[i] = tmp
             annex[-1].append(dual_objective)
 
