@@ -7,8 +7,8 @@ def entropy(proba, axis=None):
 
 
 def kullback_leibler(p, q, axis=None):
-    eps = 1e-50
-    return np.maximum(0, np.sum(p * np.log(np.maximum(p, eps) / np.maximum(q, eps)), axis=axis))
+    epsilon = 1e-50
+    return np.maximum(0, np.sum(p * np.log(np.maximum(p, epsilon) / np.maximum(q, epsilon)), axis=axis))
 
 
 def logsumexp(v):
