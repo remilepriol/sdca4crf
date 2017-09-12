@@ -218,7 +218,7 @@ class MulticlassLogisticRegression:
                 ##################################################################################
                 elif t % (update_period * self.n) == 0:
                     cond_probs, _ = conditional_probabilities(self.scores(x))  # n*k array, like alpha
-                    dual_gaps = kullback_leibler(self.alpha, cond_probs, axis=-1)
+                    dual_gaps = utils.kullback_leibler(self.alpha, cond_probs, axis=-1)
                     dual_gap = np.mean(dual_gaps)
                     obj.append(dual_gap)
                     if non_uniformity > 0:
