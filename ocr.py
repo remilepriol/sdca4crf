@@ -276,7 +276,7 @@ def binary_scores(word_length, weights):
 
 
 ########################################################################################################################
-# MARGINALIZATION
+# ORACLES
 ########################################################################################################################
 def backward_forward(unary_scores, binary_scores):
     # I keep track of the log messages instead of the messages, to favor stability
@@ -313,6 +313,37 @@ def backward_forward(unary_scores, binary_scores):
                                      + binary_scores[t] + unary_scores[t + 1] + backward_messages[t + 1])
 
     return unary_marginals, binary_marginals, log_partition
+
+
+def viterbi(unary_scores, binary_scores):
+    # I keep track of the score instead of the potentials
+    # because summation is more stable than multiplication
+    chain_length = unary_scores.shape[0]
+
+    # backward pass
+    argmax_messages = np.empty([chain_length - 1, ALPHABET_SIZE], dtype=int)
+    max_messages = np.empty([chain_length - 1, ALPHABET_SIZE], dtype=float)
+    tmp = binary_scores[-1] + unary_scores[-1]
+    # Find the arg max
+    argmax_messages[-1] = np.argmax(tmp, axis=-1)
+    # Store the max
+    max_messages[-1] = tmp[np.arange(ALPHABET_SIZE), argmax_messages[-1]]
+    for t in range(chain_length - 3, -1, -1):
+        tmp = binary_scores[t] + unary_scores[t + 1] + max_messages[t + 1]
+        argmax_messages[t] = np.argmax(tmp, axis=-1)
+        max_messages[t] = tmp[np.arange(ALPHABET_SIZE), argmax_messages[t]]
+
+    # Label to be returned
+    global_argmax = np.empty(chain_length, dtype=int)
+
+    # forward pass
+    tmp = max_messages[0] + unary_scores[0]
+    global_argmax[0] = np.argmax(tmp)
+    global_max = tmp[global_argmax[0]]
+    for t in range(1, chain_length):
+        global_argmax[t] = argmax_messages[t - 1, global_argmax[t - 1]]
+
+    return global_argmax, global_max
 
 
 ########################################################################################################################
