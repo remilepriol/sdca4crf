@@ -593,7 +593,7 @@ def uniform_weights(images, labels):
         if word_size != image.shape[0]:
             raise ValueError("Not the same number of labels (%i) and images (%i) inside word." \
                              % (word_size, image.shape[0]))
-        ground_truth_centroid.add_word(label, image)
+        ground_truth_centroid.add_word(image, label)
         uniform_centroid.add_centroid(image)
     ground_truth_centroid = ground_truth_centroid.to_array() / nb_words
     uniform_centroid = uniform_centroid.to_array() / nb_words
