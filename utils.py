@@ -11,9 +11,9 @@ def kullback_leibler(p, q, axis=None):
     return np.maximum(0, np.sum(p * np.log(np.maximum(p, epsilon) / np.maximum(q, epsilon)), axis=axis))
 
 
-def logsumexp(v):
-    vmax = np.amax(v, axis=-1, keepdims=True)
-    return vmax.squeeze(axis=-1) + np.log(np.sum(np.exp(v - vmax), axis=-1))
+def logsumexp(v, axis=-1):
+    vmax = np.amax(v, axis=axis, keepdims=True)
+    return vmax.squeeze(axis=axis) + np.log(np.sum(np.exp(v - vmax), axis=axis))
 
 
 def boolean_encoding(y, k):
