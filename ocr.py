@@ -763,7 +763,7 @@ def sdca(x, y, regularization_parameter, npass=5, update_period=5, precision=1e-
             (tmp - entropies[i] + gammaopt ** 2 * quadratic_coeff + gammaopt * linear_coeff) / nb_words
         entropies[i] = tmp
         # Append relevant variables
-        annex.append([quadratic_coeff, linear_coeff, gammaopt, dual_objective, duality_gap, local_gap, i])
+        annex.append([-quadratic_coeff, -linear_coeff, gammaopt, dual_objective, duality_gap, local_gap, i])
 
         ##################################################################################
         # OBJECTIVES : after each pass over the data, compute the duality gap
