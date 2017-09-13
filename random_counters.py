@@ -48,3 +48,6 @@ class RandomCounters:
                 random_value -= level[index * 2]
                 index = index * 2 + 1
         return index
+
+    def get_score(self, position):
+        return self.score_tree[0][position]
