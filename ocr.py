@@ -503,8 +503,8 @@ class Marginals:
                          binary=self.binary * other_marginals.binary)
 
     def divide(self, other_marginals):
-        return Marginals(unary=self.unary / other_marginals.unary,
-                         binary=self.binary / other_marginals.binary)
+        return Marginals(unary=self.unary / np.maximum(1e-50, other_marginals.unary),
+                         binary=self.binary / np.maximum(1e-50, other_marginals.binary))
 
     def multiply_scalar(self, scalar):
         return Marginals(unary=scalar * self.unary,
