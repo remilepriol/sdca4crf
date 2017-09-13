@@ -97,15 +97,17 @@ def letters_to_labels_and_words(letters):
     labels = []
     allimages = []
     images = []
+    allfolds = []
     for letter in letters:
         labels.append(letter[LETTER_VALUE])
         images.append(letter[FIRST_PIXEL:])
         if letter[NEXT_ID] == -1:
             alllabels.append(np.array(labels))
             allimages.append(np.array(images))
+            allfolds.append(letter[FOLD])
             labels = []
             images = []
-    return np.array(alllabels), np.array(allimages)
+    return np.array(alllabels), np.array(allimages), np.array(allfolds)
 
 
 def extract_wordlengths(letters):
@@ -615,7 +617,7 @@ def duality_gaps(marginals, weights, images):
 
 
 def sdca(x, y, regularization_parameter, npass=5, update_period=5, precision=1e-5, subprecision=1e-16, non_uniformity=0,
-         step_size=False, _debug=False):
+         step_size=None, _debug=False):
     """Update alpha and w with the stochastic dual coordinate ascent algorithm to fit the model to the
     data points x and the labels y.
 
@@ -639,14 +641,18 @@ def sdca(x, y, regularization_parameter, npass=5, update_period=5, precision=1e-
                          % (nb_words, x.shape[0]))
     marginals = uniform_marginals(y)
     weights = uniform_weights(x, y) / regularization_parameter
-    # marginals = gt_marginals(y)
-    # w = np.zeros(ocr.NB_FEATURES)
 
     ##################################################################################
-    # OBJECTIVES
+    # OBJECTIVES : dual objective and duality gaps
     ##################################################################################
     entropies = np.array([margs.entropy() for margs in marginals])
     dual_objective = entropies.mean() - regularization_parameter / 2 * np.sum(weights ** 2)
+
+    new_marginals = [Marginals.infer_from_weights(imgs, weights) for imgs in x]
+    dgaps = np.array([margs.kullback_leibler(newmargs) for margs, newmargs in zip(marginals, new_marginals)])
+    duality_gap = dgaps.mean()
+
+    obj = [duality_gap]
     delta_time = time.time()
     timing = [0]
 
@@ -654,24 +660,18 @@ def sdca(x, y, regularization_parameter, npass=5, update_period=5, precision=1e-
     # NON-UNIFORM SAMPLING : initialize the sampler
     ##################################################################################
     if non_uniformity > 0:
-        new_marginals = [Marginals.infer_from_weights(imgs, weights) for imgs in x]
-        dgaps = [margs.kullback_leibler(newmargs) for margs, newmargs in zip(marginals, new_marginals)]
-        duality_gap = dgaps.mean()
-        obj = [duality_gap]
         if non_uniformity <= 1:  # duality gaps scheme
             sampler = random_counters.RandomCounters(dgaps)
         else:  # Csiba et al. scheme #TODO later as this is only true on the joint probabilities.
             radiuses = radii(x)
             residues = np.array([np.sqrt(np.sum(margs.subtract(newmargs).binary ** 2)) for margs, newmargs in zip(
                 marginals, new_marginals)])
-            sampler = random_counters.RandomCounters(residues * np.sqrt(radiuses ** 2 + nb_words
-                                                                        * regularization_parameter / 2))
-    else:
-        obj = [dual_objective]
-        duality_gap = 1
+            importance_scores = residues * np.sqrt(radiuses ** 2 + nb_words * regularization_parameter / 2)
+            sampler = random_counters.RandomCounters(importance_scores)
+            del importance_scores, residues
 
     ##################################################################################
-    # COUNTERS : to give insights on the algorithm
+    # ANNEX : to give insights on the algorithm
     ##################################################################################
     annex = []
     countneg = 0
@@ -686,7 +686,7 @@ def sdca(x, y, regularization_parameter, npass=5, update_period=5, precision=1e-
         t += 1
 
         ##################################################################################
-        # DRAW : one sample at random.
+        # SAMPLING
         ##################################################################################
         if np.random.rand() > non_uniformity:  # then sample uniformly
             i = np.random.randint(nb_words)
@@ -699,10 +699,11 @@ def sdca(x, y, regularization_parameter, npass=5, update_period=5, precision=1e-
         margs_i = Marginals.infer_from_weights(x[i], weights)
 
         ##################################################################################
-        # DUALITY GAP ESTIMATE : for the non-uniform sampling
+        # DUALITY GAP ESTIMATE
         ##################################################################################
-        if non_uniformity > 0:
-            sampler.update(marginals[i].kullback_leibler(margs_i), i)
+        local_gap = marginals[i].kullback_leibler(margs_i)
+        duality_gap += (local_gap - sampler.get_score(i)) / nb_words
+        sampler.update(marginals[i].kullback_leibler(margs_i), i)
 
         ##################################################################################
         # ASCENT DIRECTION : and primal movement
@@ -714,15 +715,14 @@ def sdca(x, y, regularization_parameter, npass=5, update_period=5, precision=1e-
         # = Centroid of the real features in the opposite of the dual direction
         primal_direction = - primal_direction.to_array() / regularization_parameter / nb_words
 
+        ##################################################################################
+        # LINE SEARCH : find the optimal alpha[i] or use af
+        ##################################################################################
+        quadratic_coeff = regu * np.sum(primal_direction ** 2)
+        linear_coeff = 2 * regu * np.dot(weights, primal_direction)
         if step_size:
             gammaopt = step_size
         else:
-            ##################################################################################
-            # LINE SEARCH : find the optimal alpha[i]
-            ##################################################################################
-            quadratic_coeff = regu * np.sum(primal_direction ** 2)
-            linear_coeff = 2 * regu * np.dot(weights, primal_direction)
-
             # line search function and its derivatives
             # def f(gamma):
             #    newmargs = marginals[i].add(dual_direction.multiply_scalar(gamma))
@@ -737,11 +737,9 @@ def sdca(x, y, regularization_parameter, npass=5, update_period=5, precision=1e-
                 return - dual_direction.inner_product(dual_direction.divide(newmargs)) + 2 * quadratic_coeff
 
             gammaopt, subobjective = utils.find_root_decreasing(gf, ggf, precision=subprecision)
-            if _debug:
-                annex.append([quadratic_coeff, linear_coeff, gammaopt])
 
             ##################################################################################
-            # COUNTERS
+            # ANNEX
             ##################################################################################
             if subobjective[-1] > subprecision:
                 countpos += 1
@@ -756,12 +754,16 @@ def sdca(x, y, regularization_parameter, npass=5, update_period=5, precision=1e-
         marginals[i] = marginals[i].add(dual_direction.multiply_scalar(gammaopt))
         weights += gammaopt * primal_direction
 
-        if not step_size:
-            tmp = marginals[i].entropy()
-            dual_objective += \
-                (tmp - entropies[i] + gammaopt ** 2 * quadratic_coeff + gammaopt * linear_coeff) / nb_words
-            entropies[i] = tmp
-            annex[-1].append(dual_objective)
+        ##################################################################################
+        # ANNEX
+        ##################################################################################
+        # Update the dual objective and the entropy
+        tmp = marginals[i].entropy()
+        dual_objective += \
+            (tmp - entropies[i] + gammaopt ** 2 * quadratic_coeff + gammaopt * linear_coeff) / nb_words
+        entropies[i] = tmp
+        # Append relevant variables
+        annex.append([quadratic_coeff, linear_coeff, gammaopt, dual_objective, duality_gap, local_gap, i])
 
         ##################################################################################
         # OBJECTIVES : after each pass over the data, compute the duality gap
@@ -773,13 +775,13 @@ def sdca(x, y, regularization_parameter, npass=5, update_period=5, precision=1e-
                 t2 = time.time()
                 delta_time += t2 - t1  # Don't count the time spent monitoring the function
             ###################################################################################
-            ## DUALITY GAPS: perform a batch update after every update_period epochs
-            ## To reduce the staleness for the non-uniform sampling
-            ## To monitor the objective and provide a stopping criterion
+            # DUALITY GAPS: perform a batch update after every update_period epochs
+            # To reduce the staleness for the non-uniform sampling
+            # To monitor the objective and provide a stopping criterion
             ##################################################################################
             # if t % (update_period * n) == 0:
             else:
-                dgaps = duality_gaps(marginals, weights, regularization_parameter, x)
+                dgaps = duality_gaps(marginals, weights, x)
                 sampler = random_counters.RandomCounters(dgaps)
                 duality_gap = np.mean(dgaps)
                 obj.append(duality_gap)
@@ -787,9 +789,10 @@ def sdca(x, y, regularization_parameter, npass=5, update_period=5, precision=1e-
             timing.append(time.time() - delta_time)
 
     ##################################################################################
-    # COUNTERS
+    # ANNEX
     ##################################################################################
-    print("Perfect line search : %i \t Negative ls : %i \t Positive ls : %i" % (countzero, countneg, countpos))
+    if step_size:
+        print("Perfect line search : %i \t Negative ls : %i \t Positive ls : %i" % (countzero, countneg, countpos))
 
     ##################################################################################
     # FINISH : convert the objectives to simplify the after process.
