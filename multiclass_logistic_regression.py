@@ -173,7 +173,7 @@ class MulticlassLogisticRegression:
                     sampler.update(utils.kullback_leibler(self.alpha[i], condprob_i), i)
                 elif sampling_scheme == 'csiba':
                     residue = np.sqrt(np.sum(ascent_direction ** 2))
-                    sampler.update(importances[i] * residue)
+                    sampler.update(importances[i] * residue, i)
                 else:
                     raise ValueError("Not a valid sampling scheme. Choose 'csiba' or 'gaps'.")
 
