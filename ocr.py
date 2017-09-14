@@ -280,58 +280,58 @@ def binary_scores(word_length, weights):
 ########################################################################################################################
 # ORACLES
 ########################################################################################################################
-def backward_forward(unary_scores, binary_scores):
+def backward_forward(uscores, bscores):
     # I keep track of the log messages instead of the messages, to favor stability
-    chain_length = unary_scores.shape[0]
+    chain_length = uscores.shape[0]
 
     # backward pass
     backward_messages = np.zeros([chain_length - 1, ALPHABET_SIZE])
-    backward_messages[-1] = utils.logsumexp(binary_scores[-1] + unary_scores[-1])
+    backward_messages[-1] = utils.logsumexp(bscores[-1] + uscores[-1])
     for t in range(chain_length - 3, -1, -1):
-        backward_messages[t] = utils.logsumexp(binary_scores[t] + unary_scores[t + 1] + backward_messages[t + 1])
+        backward_messages[t] = utils.logsumexp(bscores[t] + uscores[t + 1] + backward_messages[t + 1])
 
     # we compute the log-partition and include it in the forward messages
-    log_partition = utils.logsumexp(backward_messages[0] + unary_scores[0])
+    log_partition = utils.logsumexp(backward_messages[0] + uscores[0])
 
     # forward pass
     forward_messages = np.zeros([chain_length - 1, ALPHABET_SIZE])
-    forward_messages[0] = utils.logsumexp(binary_scores[0].T + unary_scores[0] - log_partition)
+    forward_messages[0] = utils.logsumexp(bscores[0].T + uscores[0] - log_partition)
     for t in range(1, chain_length - 1):
-        forward_messages[t] = utils.logsumexp(binary_scores[t].T + unary_scores[t] + forward_messages[t - 1])
+        forward_messages[t] = utils.logsumexp(bscores[t].T + uscores[t] + forward_messages[t - 1])
 
     unary_marginals = np.empty([chain_length, ALPHABET_SIZE])
-    unary_marginals[0] = np.exp(unary_scores[0] + backward_messages[0] - log_partition)
-    unary_marginals[-1] = np.exp(forward_messages[-1] + unary_scores[-1])
+    unary_marginals[0] = np.exp(uscores[0] + backward_messages[0] - log_partition)
+    unary_marginals[-1] = np.exp(forward_messages[-1] + uscores[-1])
     for t in range(1, chain_length - 1):
-        unary_marginals[t] = np.exp(forward_messages[t - 1] + unary_scores[t] + backward_messages[t])
+        unary_marginals[t] = np.exp(forward_messages[t - 1] + uscores[t] + backward_messages[t])
 
     binary_marginals = np.zeros([chain_length - 1, ALPHABET_SIZE, ALPHABET_SIZE])
-    binary_marginals[0] = np.exp(unary_scores[0, :, np.newaxis] + binary_scores[0] + unary_scores[1]
+    binary_marginals[0] = np.exp(uscores[0, :, np.newaxis] + bscores[0] + uscores[1]
                                  + backward_messages[1] - log_partition)
-    binary_marginals[-1] = np.exp(forward_messages[-2, :, np.newaxis] + unary_scores[-2, :, np.newaxis]
-                                  + binary_scores[-1] + unary_scores[-1])
+    binary_marginals[-1] = np.exp(forward_messages[-2, :, np.newaxis] + uscores[-2, :, np.newaxis]
+                                  + bscores[-1] + uscores[-1])
     for t in range(1, chain_length - 2):
-        binary_marginals[t] = np.exp(forward_messages[t - 1, :, np.newaxis] + unary_scores[t, :, np.newaxis]
-                                     + binary_scores[t] + unary_scores[t + 1] + backward_messages[t + 1])
+        binary_marginals[t] = np.exp(forward_messages[t - 1, :, np.newaxis] + uscores[t, :, np.newaxis]
+                                     + bscores[t] + uscores[t + 1] + backward_messages[t + 1])
 
     return unary_marginals, binary_marginals, log_partition
 
 
-def viterbi(unary_scores, binary_scores):
+def viterbi(uscores, bscores):
     # I keep track of the score instead of the potentials
     # because summation is more stable than multiplication
-    chain_length = unary_scores.shape[0]
+    chain_length = uscores.shape[0]
 
     # backward pass
     argmax_messages = np.empty([chain_length - 1, ALPHABET_SIZE], dtype=int)
     max_messages = np.empty([chain_length - 1, ALPHABET_SIZE], dtype=float)
-    tmp = binary_scores[-1] + unary_scores[-1]
+    tmp = bscores[-1] + uscores[-1]
     # Find the arg max
     argmax_messages[-1] = np.argmax(tmp, axis=-1)
     # Store the max
     max_messages[-1] = tmp[np.arange(ALPHABET_SIZE), argmax_messages[-1]]
     for t in range(chain_length - 3, -1, -1):
-        tmp = binary_scores[t] + unary_scores[t + 1] + max_messages[t + 1]
+        tmp = bscores[t] + uscores[t + 1] + max_messages[t + 1]
         argmax_messages[t] = np.argmax(tmp, axis=-1)
         max_messages[t] = tmp[np.arange(ALPHABET_SIZE), argmax_messages[t]]
 
@@ -339,7 +339,7 @@ def viterbi(unary_scores, binary_scores):
     global_argmax = np.empty(chain_length, dtype=int)
 
     # forward pass
-    tmp = max_messages[0] + unary_scores[0]
+    tmp = max_messages[0] + uscores[0]
     global_argmax[0] = np.argmax(tmp)
     global_max = tmp[global_argmax[0]]
     for t in range(1, chain_length):
