@@ -174,6 +174,8 @@ class MulticlassLogisticRegression:
                 elif sampling_scheme == 'csiba':
                     residue = np.sqrt(np.sum(ascent_direction ** 2))
                     sampler.update(importances[i] * residue)
+                else:
+                    raise ValueError("Not a valid sampling scheme. Choose 'csiba' or 'gaps'.")
 
             ##################################################################################
             # LINE SEARCH : find the optimal alpha[i]
@@ -227,7 +229,12 @@ class MulticlassLogisticRegression:
                     dual_gaps = utils.kullback_leibler(self.alpha, cond_probs, axis=-1)
                     obj.append(np.mean(dual_gaps))
                     if non_uniformity > 0:
-                        sampler = rc.RandomCounters(dual_gaps)
+                        if sampling_scheme == 'gaps':
+                            sampler = rc.RandomCounters(dual_gaps)
+                        elif sampling_scheme == 'csiba':
+                            residues = np.sqrt(np.sum((cond_probs - self.alpha) ** 2))
+                            sampler = rc.RandomCounters(residues * importances)
+
                 else:
                     t1 = time.time()
                     obj.append(self.duality_gap(x, y))
