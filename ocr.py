@@ -280,7 +280,7 @@ def binary_scores(word_length, weights):
 ########################################################################################################################
 # ORACLES
 ########################################################################################################################
-def backward_forward(uscores, bscores):
+def sum_product(uscores, bscores):
     # I keep track of the log messages instead of the messages, to favor stability
     chain_length = uscores.shape[0]
 
@@ -521,7 +521,7 @@ class Marginals:
     def infer_from_weights(images, weights):
         uscores = unary_scores(images, weights)
         bscores = binary_scores(images.shape[0], weights)
-        umargs, bmargs, _ = backward_forward(uscores, bscores)
+        umargs, bmargs, _ = sum_product(uscores, bscores)
         return Marginals(unary=umargs, binary=bmargs)
 
     @staticmethod
