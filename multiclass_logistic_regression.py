@@ -88,7 +88,8 @@ class MulticlassLogisticRegression:
     def duality_gap(self, x, y):
         return self.primal_objective(x, y) - self.dual_objective(x, y)
 
-    def sdca(self, x, y, alpha0=None, npass=50, update_period=5, precision=1e-15, non_uniformity=0, _debug=False):
+    def sdca(self, x, y, alpha0=None, npass=50, update_period=5, precision=1e-15, non_uniformity=0,
+             sampling_scheme='gaps', _debug=False):
         """Update self.alpha and self.w with the stochastic dual coordinate ascent algorithm to fit the model to the
         data points x and the labels y.
 
@@ -132,6 +133,7 @@ class MulticlassLogisticRegression:
         ##################################################################################
         if non_uniformity > 0:
             sampler = rc.RandomCounters(np.ones(self.n))
+        importances = np.sqrt(2 * squared_norm_x + self.n * self.reg * 2)
         duality_gap = 1
 
         ##################################################################################
@@ -167,7 +169,11 @@ class MulticlassLogisticRegression:
             # DUALITY GAP ESTIMATE : for the non-uniform sampling
             ##################################################################################
             if non_uniformity > 0:
-                sampler.update(utils.kullback_leibler(self.alpha[i], condprob_i), i)
+                if sampling_scheme == 'gaps':
+                    sampler.update(utils.kullback_leibler(self.alpha[i], condprob_i), i)
+                elif sampling_scheme == 'csiba':
+                    residue = np.sqrt(np.sum(ascent_direction ** 2))
+                    sampler.update(importances[i] * residue)
 
             ##################################################################################
             # LINE SEARCH : find the optimal alpha[i]
