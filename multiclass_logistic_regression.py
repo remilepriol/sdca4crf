@@ -219,8 +219,7 @@ class MulticlassLogisticRegression:
                 elif t % (update_period * self.n) == 0:
                     cond_probs, _ = conditional_probabilities(self.scores(x))  # n*k array, like alpha
                     dual_gaps = utils.kullback_leibler(self.alpha, cond_probs, axis=-1)
-                    dual_gap = np.mean(dual_gaps)
-                    obj.append(dual_gap)
+                    obj.append(np.mean(dual_gaps))
                     if non_uniformity > 0:
                         sampler = rc.RandomCounters(dual_gaps)
                 else:
@@ -228,6 +227,7 @@ class MulticlassLogisticRegression:
                     obj.append(self.duality_gap(x, y))
                     t2 = time.time()
                     delta_time += t2 - t1  # Don't count the time spent monitoring the function
+                duality_gap = obj[-1]
                 timing.append(time.time() - delta_time)
 
         ##################################################################################
