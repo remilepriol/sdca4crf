@@ -454,16 +454,13 @@ class Marginals:
             self.unary = unary
             self.binary = binary
 
-    def _is_unary_densities(self, integral=1):
-        return np.isclose(self.unary.sum(axis=1), integral).all()
+    def are_densities(self, integral=1):
+        return (self.unary >= 0).all() \
+               and np.isclose(self.unary.sum(axis=1), integral).all() \
+               and (self.binary >= 0).all() \
+               and np.isclose(self.binary.sum(axis=(1, 2)), integral).all()
 
-    def _is_binary_densities(self, integral=1):
-        return np.isclose(self.binary.sum(axis=(1, 2)), integral).all()
-
-    def is_densities(self, integral=1):
-        return self._is_unary_densities(integral) and self._is_binary_densities(integral)
-
-    def is_consistent(self):
+    def are_consistent(self):
         ans = True
         from_left_binary = np.sum(self.binary, axis=1)
         from_right_binary = np.sum(self.binary, axis=2)
@@ -700,6 +697,7 @@ def sdca(x, y, regu, npass=5, update_period=5, precision=1e-5, subprecision=1e-1
         # ASCENT DIRECTION : and primal movement
         ##################################################################################
         dual_direction = margs_i.subtract(marginals[i])
+        if dual_direction.
         primal_direction = Features()
         primal_direction.add_centroid(x[i], dual_direction)
         # Centroid of the corrected features in the dual direction
