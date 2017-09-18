@@ -697,7 +697,8 @@ def sdca(x, y, regu, npass=5, update_period=5, precision=1e-5, subprecision=1e-1
         # ASCENT DIRECTION : and primal movement
         ##################################################################################
         dual_direction = margs_i.subtract(marginals[i])
-        if dual_direction.
+        assert dual_direction.are_densities(integral=0)
+        assert dual_direction.are_consistent()
         primal_direction = Features()
         primal_direction.add_centroid(x[i], dual_direction)
         # Centroid of the corrected features in the dual direction
@@ -746,6 +747,8 @@ def sdca(x, y, regu, npass=5, update_period=5, precision=1e-5, subprecision=1e-1
         ##################################################################################
         marginals[i] = marginals[i].add(dual_direction.multiply_scalar(gammaopt))
         weights += gammaopt * primal_direction
+        assert marginals[i].are_densities(1)
+        assert marginals[i].are_consistent()
 
         ##################################################################################
         # ANNEX
