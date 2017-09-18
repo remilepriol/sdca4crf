@@ -445,31 +445,27 @@ class Features:
         plt.title("Bias features")
 
 
-class Marginals:
+class Probability:
     def __init__(self, unary=None, binary=None, word_length=None):
         if unary is None or binary is None:
             self.length = word_length
-            self.unary = np.ones([word_length, ALPHABET_SIZE]) / ALPHABET_SIZE
-            self.binary = np.ones([word_length - 1, ALPHABET_SIZE, ALPHABET_SIZE]) / (ALPHABET_SIZE ** 2)
+            self.unary = np.ones([word_length, ALPHABET_SIZE]) * (-np.log(ALPHABET_SIZE))
+            self.binary = np.ones([word_length - 1, ALPHABET_SIZE, ALPHABET_SIZE]) * (-2 * np.log(ALPHABET_SIZE))
         else:
             if unary.shape[0] != binary.shape[0] + 1:
-                raise ValueError("Wrong size of marginals.")
+                raise ValueError("Wrong size of marginals: %i vs %I" % (unary.shape[0], binary.shape[0]))
             self.length = unary.shape[0]
             self.unary = unary
             self.binary = binary
 
-    def are_positive(self):
-        return (self.unary > 0).all() \
-               and (self.binary > 0).all()
-
     def are_densities(self, integral=1):
-        return np.isclose(self.unary.sum(axis=1), integral).all() \
-               and np.isclose(self.binary.sum(axis=(1, 2)), integral).all()
+        return np.isclose(utils.logsumexp(self.unary, axis=1), np.log(integral)).all() \
+               and np.isclose(utils.logsumexp(self.binary, axis=(1, 2)), np.log(integral)).all()
 
     def are_consistent(self):
         ans = True
-        from_left_binary = np.sum(self.binary, axis=1)
-        from_right_binary = np.sum(self.binary, axis=2)
+        from_left_binary = utils.logsumexp(self.binary, axis=1)
+        from_right_binary = utils.logsumexp(self.binary, axis=2)
         if not np.isclose(from_left_binary, self.unary[1:]).all():
             ans = False
             # print("Marginalisation of the left of the binary marginals is inconsistent with unary marginals.")
@@ -494,38 +490,38 @@ class Marginals:
                np.sum(self.unary[1:-1] * other_marginals.unary[1:-1])
 
     def add(self, other_marginals):
-        return Marginals(unary=self.unary + other_marginals.unary,
-                         binary=self.binary + other_marginals.binary)
+        return Probability(unary=self.unary + other_marginals.unary,
+                           binary=self.binary + other_marginals.binary)
 
     def subtract(self, other_marginals):
-        return Marginals(unary=self.unary - other_marginals.unary,
-                         binary=self.binary - other_marginals.binary)
+        return Probability(unary=self.unary - other_marginals.unary,
+                           binary=self.binary - other_marginals.binary)
 
     def multiply(self, other_marginals):
-        return Marginals(unary=self.unary * other_marginals.unary,
-                         binary=self.binary * other_marginals.binary)
+        return Probability(unary=self.unary * other_marginals.unary,
+                           binary=self.binary * other_marginals.binary)
 
     def divide(self, other_marginals):
-        return Marginals(unary=self.unary / np.maximum(1e-50, other_marginals.unary),
-                         binary=self.binary / np.maximum(1e-50, other_marginals.binary))
+        return Probability(unary=self.unary / np.maximum(1e-50, other_marginals.unary),
+                           binary=self.binary / np.maximum(1e-50, other_marginals.binary))
 
     def multiply_scalar(self, scalar):
-        return Marginals(unary=scalar * self.unary,
-                         binary=scalar * self.binary)
+        return Probability(unary=scalar * self.unary,
+                           binary=scalar * self.binary)
 
     def square(self):
-        return Marginals(unary=self.unary ** 2, binary=self.binary ** 2)
+        return Probability(unary=self.unary ** 2, binary=self.binary ** 2)
 
     def log(self):
-        return Marginals(unary=np.log(np.maximum(1e-50, self.unary)),
-                         binary=np.log(np.maximum(1e-50, self.binary)))
+        return Probability(unary=np.log(np.maximum(1e-50, self.unary)),
+                           binary=np.log(np.maximum(1e-50, self.binary)))
 
     @staticmethod
     def infer_from_weights(images, weights):
         uscores = unary_scores(images, weights)
         bscores = binary_scores(images.shape[0], weights)
         umargs, bmargs, _ = sum_product(uscores, bscores)
-        return Marginals(unary=umargs, binary=bmargs)
+        return Probability(unary=umargs, binary=bmargs)
 
     @staticmethod
     def dirac(labels):
@@ -534,7 +530,7 @@ class Marginals:
         umargs[np.arange(word_length), labels] = 1
         bmargs = np.zeros([word_length - 1, ALPHABET_SIZE, ALPHABET_SIZE])
         bmargs[np.arange(word_length - 1), labels[:-1], labels[1:]] = 1
-        return Marginals(unary=umargs, binary=bmargs)
+        return Probability(unary=umargs, binary=bmargs)
 
     def display(self):
         plt.matshow(self.unary)
@@ -574,7 +570,7 @@ def uniform_marginals(labels):
     nb_words = labels.shape[0]
     margs = np.empty(nb_words, dtype=np.object)
     for i in range(nb_words):
-        margs[i] = Marginals(word_length=labels[i].shape[0])
+        margs[i] = Probability(word_length=labels[i].shape[0])
     return margs
 
 
@@ -583,7 +579,7 @@ def gt_marginals(labels):
     nb_words = labels.shape[0]
     margs = np.empty(nb_words, dtype=np.object)
     for i, lbls in enumerate(labels):
-        margs[i] = Marginals.dirac(lbls)
+        margs[i] = Probability.dirac(lbls)
     return margs
 
 
@@ -614,7 +610,7 @@ def dual_score(weights, marginals, regularization_parameter):
 def duality_gaps(marginals, weights, images):
     ans = []
     for margs, imgs in zip(marginals, images):
-        newmargs = Marginals.infer_from_weights(imgs, weights)
+        newmargs = Probability.infer_from_weights(imgs, weights)
         ans.append(margs.kullback_leibler(newmargs))
     return np.array(ans)
 
@@ -647,7 +643,7 @@ def sdca(x, y, regu, npass=5, update_period=5, precision=1e-5, subprecision=1e-1
         weights = marginals_to_weights(x, y) / regu
     elif init == "random":
         weights = np.random.randn(NB_FEATURES)
-        marginals = np.array([Marginals.infer_from_weights(imgs, weights) for imgs in x])
+        marginals = np.array([Probability.infer_from_weights(imgs, weights) for imgs in x])
         weights = marginals_to_weights(x, y, marginals)
         Features.from_array(weights).display()
     else:
@@ -659,7 +655,7 @@ def sdca(x, y, regu, npass=5, update_period=5, precision=1e-5, subprecision=1e-1
     entropies = np.array([margs.entropy() for margs in marginals])
     dual_objective = entropies.mean() - regu / 2 * np.sum(weights ** 2)
 
-    new_marginals = [Marginals.infer_from_weights(imgs, weights) for imgs in x]
+    new_marginals = [Probability.infer_from_weights(imgs, weights) for imgs in x]
     dgaps = np.array([margs.kullback_leibler(newmargs) for margs, newmargs in zip(marginals, new_marginals)])
     duality_gap = dgaps.mean()
 
@@ -699,7 +695,7 @@ def sdca(x, y, regu, npass=5, update_period=5, precision=1e-5, subprecision=1e-1
         ##################################################################################
         # MARGINALIZATION ORACLE
         ##################################################################################
-        margs_i = Marginals.infer_from_weights(x[i], weights)
+        margs_i = Probability.infer_from_weights(x[i], weights)
         assert margs_i.are_consistent()
         assert margs_i.are_densities(1)
         # assert margs_i.are_positive(), (display_word(y[i],x[i]),
