@@ -454,10 +454,12 @@ class Marginals:
             self.unary = unary
             self.binary = binary
 
-    def are_densities(self, integral=1):
+    def are_positive(self):
         return (self.unary >= 0).all() \
-               and np.isclose(self.unary.sum(axis=1), integral).all() \
-               and (self.binary >= 0).all() \
+               and (self.binary >= 0).all()
+
+    def are_densities(self, integral=1):
+        return np.isclose(self.unary.sum(axis=1), integral).all() \
                and np.isclose(self.binary.sum(axis=(1, 2)), integral).all()
 
     def are_consistent(self):
@@ -748,6 +750,7 @@ def sdca(x, y, regu, npass=5, update_period=5, precision=1e-5, subprecision=1e-1
         marginals[i] = marginals[i].add(dual_direction.multiply_scalar(gammaopt))
         weights += gammaopt * primal_direction
         assert marginals[i].are_densities(1)
+        assert marginals[i].are_positive()
         assert marginals[i].are_consistent()
 
         ##################################################################################
