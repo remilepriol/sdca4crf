@@ -454,14 +454,14 @@ class Marginals:
             self.unary = unary
             self.binary = binary
 
-    def _is_unary_densities(self):
-        return np.isclose(self.unary.sum(axis=1), 1).all()
+    def _is_unary_densities(self, integral=1):
+        return np.isclose(self.unary.sum(axis=1), integral).all()
 
-    def _is_binary_densities(self):
-        return np.isclose(self.binary.sum(axis=(1, 2)), 1).all()
+    def _is_binary_densities(self, integral=1):
+        return np.isclose(self.binary.sum(axis=(1, 2)), integral).all()
 
-    def is_densities(self):
-        return self._is_unary_densities() and self._is_binary_densities()
+    def is_densities(self, integral=1):
+        return self._is_unary_densities(integral) and self._is_binary_densities(integral)
 
     def is_consistent(self):
         ans = True
@@ -469,13 +469,13 @@ class Marginals:
         from_right_binary = np.sum(self.binary, axis=2)
         if not np.isclose(from_left_binary, self.unary[1:]).all():
             ans = False
-            print("Marginalisation of the left of the binary marginals is inconsistent with unary marginals.")
+            # print("Marginalisation of the left of the binary marginals is inconsistent with unary marginals.")
         if not np.isclose(from_right_binary, self.unary[:-1]).all():
             ans = False
-            print("Marginalisation of the right of the binary marginals is inconsistent with unary marginals.")
+            # print("Marginalisation of the right of the binary marginals is inconsistent with unary marginals.")
         if not np.isclose(from_right_binary[1:], from_left_binary[:-1]).all():
             ans = False
-            print("Marginalisation of the left and right of the binary marginals are inconsistent.")
+            # print("Marginalisation of the left and right of the binary marginals are inconsistent.")
         return ans
 
     def entropy(self):
@@ -616,7 +616,7 @@ def duality_gaps(marginals, weights, images):
     return np.array(ans)
 
 
-def sdca(x, y, regularization_parameter, npass=5, update_period=5, precision=1e-5, subprecision=1e-16, non_uniformity=0,
+def sdca(x, y, regu, npass=5, update_period=5, precision=1e-5, subprecision=1e-16, non_uniformity=0,
          step_size=None, _debug=False):
     """Update alpha and w with the stochastic dual coordinate ascent algorithm to fit the model to the
     data points x and the labels y.
@@ -635,18 +635,18 @@ def sdca(x, y, regularization_parameter, npass=5, update_period=5, precision=1e-
     # INITIALIZE : the dual and primal variables
     ##################################################################################
     nb_words = y.shape[0]
-    regu = - regularization_parameter * nb_words / 2
+    scaling = - regu * nb_words / 2
     if nb_words != x.shape[0]:
         raise ValueError("Not the same number of labels (%i) and images (%i) inside training set." \
                          % (nb_words, x.shape[0]))
     marginals = uniform_marginals(y)
-    weights = uniform_weights(x, y) / regularization_parameter
+    weights = uniform_weights(x, y) / regu
 
     ##################################################################################
     # OBJECTIVES : dual objective and duality gaps
     ##################################################################################
     entropies = np.array([margs.entropy() for margs in marginals])
-    dual_objective = entropies.mean() - regularization_parameter / 2 * np.sum(weights ** 2)
+    dual_objective = entropies.mean() - regu / 2 * np.sum(weights ** 2)
 
     new_marginals = [Marginals.infer_from_weights(imgs, weights) for imgs in x]
     dgaps = np.array([margs.kullback_leibler(newmargs) for margs, newmargs in zip(marginals, new_marginals)])
@@ -659,16 +659,7 @@ def sdca(x, y, regularization_parameter, npass=5, update_period=5, precision=1e-
     ##################################################################################
     # NON-UNIFORM SAMPLING : initialize the sampler
     ##################################################################################
-    if non_uniformity > 0:
-        if non_uniformity <= 1:  # duality gaps scheme
-            sampler = random_counters.RandomCounters(dgaps)
-        else:  # Csiba et al. scheme #TODO later as this is only true on the joint probabilities.
-            radiuses = radii(x)
-            residues = np.array([np.sqrt(np.sum(margs.subtract(newmargs).binary ** 2)) for margs, newmargs in zip(
-                marginals, new_marginals)])
-            importance_scores = residues * np.sqrt(radiuses ** 2 + nb_words * regularization_parameter / 2)
-            sampler = random_counters.RandomCounters(importance_scores)
-            del importance_scores, residues
+    sampler = random_counters.RandomCounters(dgaps)
 
     ##################################################################################
     # ANNEX : to give insights on the algorithm
@@ -701,9 +692,9 @@ def sdca(x, y, regularization_parameter, npass=5, update_period=5, precision=1e-
         ##################################################################################
         # DUALITY GAP ESTIMATE
         ##################################################################################
-        local_gap = marginals[i].kullback_leibler(margs_i)
-        duality_gap += (local_gap - sampler.get_score(i)) / nb_words
-        sampler.update(marginals[i].kullback_leibler(margs_i), i)
+        individual_gap = marginals[i].kullback_leibler(margs_i)
+        duality_gap += (individual_gap - sampler.get_score(i)) / nb_words
+        sampler.update(individual_gap, i)
 
         ##################################################################################
         # ASCENT DIRECTION : and primal movement
@@ -713,13 +704,13 @@ def sdca(x, y, regularization_parameter, npass=5, update_period=5, precision=1e-
         primal_direction.add_centroid(x[i], dual_direction)
         # Centroid of the corrected features in the dual direction
         # = Centroid of the real features in the opposite of the dual direction
-        primal_direction = - primal_direction.to_array() / regularization_parameter / nb_words
+        primal_direction = - primal_direction.to_array() / regu / nb_words
 
         ##################################################################################
-        # LINE SEARCH : find the optimal alpha[i] or use af
+        # LINE SEARCH : find the optimal step size gammaopt or use a fixed one
         ##################################################################################
-        quadratic_coeff = regu * np.sum(primal_direction ** 2)
-        linear_coeff = 2 * regu * np.dot(weights, primal_direction)
+        quadratic_coeff = scaling * np.sum(primal_direction ** 2)
+        linear_coeff = 2 * scaling * np.dot(weights, primal_direction)
         if step_size:
             gammaopt = step_size
         else:
@@ -735,6 +726,10 @@ def sdca(x, y, regularization_parameter, npass=5, update_period=5, precision=1e-
             def ggf(gamma):
                 newmargs = marginals[i].add(dual_direction.multiply_scalar(gamma))
                 return - dual_direction.inner_product(dual_direction.divide(newmargs)) + 2 * quadratic_coeff
+
+            # in the divide and in the log, I get warning from python : incorrect numbers, ie I have either
+            # zero either negative values. that's a big big problem. It should not happen since my algo is supposed
+            # to keep us inside the simplex. What can I do to change that?
 
             gammaopt, subobjective = utils.find_root_decreasing(gf, ggf, precision=subprecision)
 
@@ -763,7 +758,7 @@ def sdca(x, y, regularization_parameter, npass=5, update_period=5, precision=1e-
             (tmp - entropies[i] + gammaopt ** 2 * quadratic_coeff + gammaopt * linear_coeff) / nb_words
         entropies[i] = tmp
         # Append relevant variables
-        annex.append([-quadratic_coeff, -linear_coeff, gammaopt, dual_objective, duality_gap, local_gap, i])
+        annex.append([-quadratic_coeff, -linear_coeff, gammaopt, dual_objective, duality_gap, individual_gap, i])
 
         ##################################################################################
         # OBJECTIVES : after each pass over the data, compute the duality gap
@@ -771,7 +766,7 @@ def sdca(x, y, regularization_parameter, npass=5, update_period=5, precision=1e-
         if t % nb_words == 0:
             if non_uniformity <= 0:
                 t1 = time.time()
-                obj.append(dual_score(weights, marginals, regularization_parameter))
+                obj.append(dual_score(weights, marginals, regu))
                 t2 = time.time()
                 delta_time += t2 - t1  # Don't count the time spent monitoring the function
             ###################################################################################
