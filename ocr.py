@@ -377,6 +377,10 @@ class Features:
 
     def add_dictionary(self, images_set, labels_set):
         for images, labels in zip(images_set, labels_set):
+            word_size = labels.shape[0]
+            if word_size != images.shape[0]:
+                raise ValueError("Not the same number of labels (%i) and images (%i) inside word." \
+                                 % (word_size, images.shape[0]))
             self.add_word(images, labels)
 
     def _add_unary_centroid(self, images, unary_marginals=None):
@@ -455,8 +459,8 @@ class Marginals:
             self.binary = binary
 
     def are_positive(self):
-        return (self.unary >= 0).all() \
-               and (self.binary >= 0).all()
+        return (self.unary > 0).all() \
+               and (self.binary > 0).all()
 
     def are_densities(self, integral=1):
         return np.isclose(self.unary.sum(axis=1), integral).all() \
@@ -585,20 +589,20 @@ def gt_marginals(labels):
 
 # Initialize the weights as the centroid of the ground truth features minus the centroid of the
 # features given by the uniform marginals.
-def uniform_weights(images, labels):
+def marginals_to_weights(images, labels, marginals=None):
     nb_words = labels.shape[0]
     ground_truth_centroid = Features()
-    uniform_centroid = Features()
-    for label, image in zip(labels, images):
-        word_size = label.shape[0]
-        if word_size != image.shape[0]:
-            raise ValueError("Not the same number of labels (%i) and images (%i) inside word." \
-                             % (word_size, image.shape[0]))
-        ground_truth_centroid.add_word(image, label)
-        uniform_centroid.add_centroid(image)
-    ground_truth_centroid = ground_truth_centroid.to_array() / nb_words
-    uniform_centroid = uniform_centroid.to_array() / nb_words
-    return ground_truth_centroid - uniform_centroid
+    ground_truth_centroid.add_dictionary(images, labels)
+    marginals_centroid = Features()
+    if marginals is None:  # assume uniform
+        for image in images:
+            marginals_centroid.add_centroid(image)
+    else:
+        for image, margs in zip(images, marginals):
+            marginals_centroid.add_centroid(image, margs)
+    ground_truth_centroid = ground_truth_centroid.to_array()
+    marginals_centroid = marginals_centroid.to_array()
+    return (ground_truth_centroid - marginals_centroid) / nb_words
 
 
 def dual_score(weights, marginals, regularization_parameter):
@@ -616,7 +620,7 @@ def duality_gaps(marginals, weights, images):
 
 
 def sdca(x, y, regu, npass=5, update_period=5, precision=1e-5, subprecision=1e-16, non_uniformity=0,
-         step_size=None, _debug=False):
+         step_size=None, init='uniform', _debug=False):
     """Update alpha and w with the stochastic dual coordinate ascent algorithm to fit the model to the
     data points x and the labels y.
 
@@ -638,8 +642,16 @@ def sdca(x, y, regu, npass=5, update_period=5, precision=1e-5, subprecision=1e-1
     if nb_words != x.shape[0]:
         raise ValueError("Not the same number of labels (%i) and images (%i) inside training set." \
                          % (nb_words, x.shape[0]))
-    marginals = uniform_marginals(y)
-    weights = uniform_weights(x, y) / regu
+    if init == "uniform":
+        marginals = uniform_marginals(y)
+        weights = marginals_to_weights(x, y) / regu
+    elif init == "random":
+        weights = np.random.randn(NB_FEATURES)
+        marginals = np.array([Marginals.infer_from_weights(imgs, weights) for imgs in x])
+        weights = marginals_to_weights(x, y, marginals)
+        Features.from_array(weights).display()
+    else:
+        raise ValueError("Not a valid argument for init: %r" % init)
 
     ##################################################################################
     # OBJECTIVES : dual objective and duality gaps
@@ -651,7 +663,7 @@ def sdca(x, y, regu, npass=5, update_period=5, precision=1e-5, subprecision=1e-1
     dgaps = np.array([margs.kullback_leibler(newmargs) for margs, newmargs in zip(marginals, new_marginals)])
     duality_gap = dgaps.mean()
 
-    obj = [duality_gap]
+    objective = [duality_gap]
     delta_time = time.time()
     timing = [0]
 
@@ -663,10 +675,11 @@ def sdca(x, y, regu, npass=5, update_period=5, precision=1e-5, subprecision=1e-1
     ##################################################################################
     # ANNEX : to give insights on the algorithm
     ##################################################################################
-    annex = []
-    countneg = 0
-    countpos = 0
-    countzero = 0
+    if _debug:
+        annex = []
+        countneg = 0
+        countpos = 0
+        countzero = 0
 
     ##################################################################################
     # MAIN LOOP
@@ -687,6 +700,11 @@ def sdca(x, y, regu, npass=5, update_period=5, precision=1e-5, subprecision=1e-1
         # MARGINALIZATION ORACLE
         ##################################################################################
         margs_i = Marginals.infer_from_weights(x[i], weights)
+        assert margs_i.are_consistent()
+        assert margs_i.are_densities(1)
+        # assert margs_i.are_positive(), (display_word(y[i],x[i]),
+        #                                 margs_i.display(),
+        #                                 Features.from_array(weights).display())
 
         ##################################################################################
         # DUALITY GAP ESTIMATE
@@ -722,6 +740,9 @@ def sdca(x, y, regu, npass=5, update_period=5, precision=1e-5, subprecision=1e-1
 
             def gf(gamma):
                 newmargs = marginals[i].add(dual_direction.multiply_scalar(gamma))
+                assert newmargs.are_densities(1)
+                assert newmargs.are_consistent()
+                # assert newmargs.are_positive(), newmargs.display
                 return - dual_direction.inner_product(newmargs.log()) + gamma * 2 * quadratic_coeff + linear_coeff
 
             def ggf(gamma):
@@ -737,12 +758,13 @@ def sdca(x, y, regu, npass=5, update_period=5, precision=1e-5, subprecision=1e-1
             ##################################################################################
             # ANNEX
             ##################################################################################
-            if subobjective[-1] > subprecision:
-                countpos += 1
-            elif subobjective[-1] < -subprecision:
-                countneg += 1
-            else:
-                countzero += 1
+            if _debug:
+                if subobjective[-1] > subprecision:
+                    countpos += 1
+                elif subobjective[-1] < -subprecision:
+                    countneg += 1
+                else:
+                    countzero += 1
 
         ##################################################################################
         # UPDATE : the primal and dual coordinates
@@ -750,8 +772,10 @@ def sdca(x, y, regu, npass=5, update_period=5, precision=1e-5, subprecision=1e-1
         marginals[i] = marginals[i].add(dual_direction.multiply_scalar(gammaopt))
         weights += gammaopt * primal_direction
         assert marginals[i].are_densities(1)
-        assert marginals[i].are_positive()
         assert marginals[i].are_consistent()
+        # assert marginals[i].are_positive(), (display_word(y[i], x[i]),
+        #                                      marginals[i].display(),
+        #                                      Features.from_array(weights).display())
 
         ##################################################################################
         # ANNEX
@@ -762,41 +786,43 @@ def sdca(x, y, regu, npass=5, update_period=5, precision=1e-5, subprecision=1e-1
             (tmp - entropies[i] + gammaopt ** 2 * quadratic_coeff + gammaopt * linear_coeff) / nb_words
         entropies[i] = tmp
         # Append relevant variables
-        annex.append([-quadratic_coeff, -linear_coeff, gammaopt, dual_objective, duality_gap, individual_gap, i])
+        if _debug:
+            annex.append([-quadratic_coeff, -linear_coeff, gammaopt, dual_objective, duality_gap, individual_gap, i])
 
-        ##################################################################################
-        # OBJECTIVES : after each pass over the data, compute the duality gap
-        ##################################################################################
-        if t % nb_words == 0:
-            if non_uniformity <= 0:
-                t1 = time.time()
-                obj.append(dual_score(weights, marginals, regu))
-                t2 = time.time()
-                delta_time += t2 - t1  # Don't count the time spent monitoring the function
+        if t % (update_period * nb_words) == 0 and non_uniformity > 0:
             ###################################################################################
             # DUALITY GAPS: perform a batch update after every update_period epochs
             # To reduce the staleness for the non-uniform sampling
             # To monitor the objective and provide a stopping criterion
             ##################################################################################
-            # if t % (update_period * n) == 0:
-            else:
-                dgaps = duality_gaps(marginals, weights, x)
-                sampler = random_counters.RandomCounters(dgaps)
-                duality_gap = np.mean(dgaps)
-                obj.append(duality_gap)
-
+            dgaps = duality_gaps(marginals, weights, x)
+            sampler = random_counters.RandomCounters(dgaps)
+            duality_gap = np.mean(dgaps)
+            objective.append(duality_gap)
+            timing.append(time.time() - delta_time)
+        elif t % nb_words == 0:
+            ##################################################################################
+            # OBJECTIVES : after each pass over the data, compute the duality gap
+            ##################################################################################
+            t1 = time.time()
+            duality_gap = np.mean(duality_gaps(marginals, weights, x))
+            objective.append(duality_gap)
+            delta_time += time.time() - t1
             timing.append(time.time() - delta_time)
 
     ##################################################################################
     # ANNEX
     ##################################################################################
-    if step_size:
+    if _debug and step_size:
         print("Perfect line search : %i \t Negative ls : %i \t Positive ls : %i" % (countzero, countneg, countpos))
 
     ##################################################################################
     # FINISH : convert the objectives to simplify the after process.
     ##################################################################################
-    obj = np.array(obj)
-    annex = np.array(annex)
+    objective = np.array(objective)
     timing = np.array(timing)
-    return marginals, weights, obj, timing, annex
+    if _debug:
+        annex = np.array(annex)
+        return marginals, weights, objective, timing, annex
+    else:
+        return marginals, weights, objective, timing
