@@ -446,6 +446,11 @@ class Features:
 
 
 class Probability:
+    """Represent a conditional probability p(y|x) under the form of log-marginals.
+    Can also represent the ascent direction or the score.
+    Then there is no more log, as these numbers can be negative.
+    """
+
     def __init__(self, unary=None, binary=None, word_length=None):
         if unary is None or binary is None:
             self.length = word_length
@@ -459,8 +464,8 @@ class Probability:
             self.binary = binary
 
     def are_densities(self, integral=1):
-        return np.isclose(utils.logsumexp(self.unary, axis=1), np.log(integral)).all() \
-               and np.isclose(utils.logsumexp(self.binary, axis=(1, 2)), np.log(integral)).all()
+        return np.isclose(np.sum(np.exp(self.unary, axis=1)), integral).all() \
+               and np.isclose(np.sum(np.exp(self.binary), axis=(1, 2)), integral).all()
 
     def are_consistent(self):
         ans = True
@@ -478,43 +483,43 @@ class Probability:
         return ans
 
     def entropy(self):
-        return utils.entropy(self.binary) - utils.entropy(self.unary[1:-1])
+        return utils.log_entropy(self.binary) - utils.log_entropy(self.unary[1:-1])
 
     def kullback_leibler(self, other_marginals):
-        return utils.kullback_leibler(self.binary, other_marginals.binary) \
-               - utils.kullback_leibler(self.unary[1:-1], other_marginals.unary[1:-1])
+        return utils.log_kullback_leibler(self.binary, other_marginals.binary) \
+               - utils.log_kullback_leibler(self.unary[1:-1], other_marginals.unary[1:-1])
 
     def inner_product(self, other_marginals):
         """Return the special inner product where the marginals on the separations are subtracted."""
-        return np.sum(self.binary * other_marginals.binary) - \
-               np.sum(self.unary[1:-1] * other_marginals.unary[1:-1])
+        return np.sum(np.exp(self.binary + other_marginals.binary)) - \
+               np.sum(np.exp(self.unary[1:-1] + other_marginals.unary[1:-1]))
 
     def add(self, other_marginals):
+        return Probability(unary=np.log(np.exp(self.unary) + (other_marginals.unary)),
+                           binary=np.log(np.exp(self.binary) + np.exp(other_marginals.binary)))
+
+    def subtract(self, other_marginals):
+        return Probability(unary=np.log(np.exp(self.unary) - np.exp(other_marginals.unary),
+                                        binary=np.log(np.exp(self.binary) - np.exp(other_marginals.binary)))
+
+    def multiply(self, other_marginals):
         return Probability(unary=self.unary + other_marginals.unary,
                            binary=self.binary + other_marginals.binary)
 
-    def subtract(self, other_marginals):
+    def divide(self, other_marginals):
         return Probability(unary=self.unary - other_marginals.unary,
                            binary=self.binary - other_marginals.binary)
 
-    def multiply(self, other_marginals):
-        return Probability(unary=self.unary * other_marginals.unary,
-                           binary=self.binary * other_marginals.binary)
-
-    def divide(self, other_marginals):
-        return Probability(unary=self.unary / np.maximum(1e-50, other_marginals.unary),
-                           binary=self.binary / np.maximum(1e-50, other_marginals.binary))
-
     def multiply_scalar(self, scalar):
-        return Probability(unary=scalar * self.unary,
-                           binary=scalar * self.binary)
+        return Probability(unary=np.log(scalar) + self.unary,
+                           binary=np.log(scalar) + self.binary)
 
     def square(self):
-        return Probability(unary=self.unary ** 2, binary=self.binary ** 2)
+        return Probability(unary=self.unary * 2, binary=self.binary * 2)
 
-    def log(self):
-        return Probability(unary=np.log(np.maximum(1e-50, self.unary)),
-                           binary=np.log(np.maximum(1e-50, self.binary)))
+    def exp(self):
+        return Probability(unary=np.exp(self.unary),
+                           binary=np.exp(self.binary))
 
     @staticmethod
     def infer_from_weights(images, weights):
