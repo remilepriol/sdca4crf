@@ -29,10 +29,10 @@ class RandomCounters:
         for level in self.score_tree[1:]:
             if index + 1 == lower_level.shape[0] and (index + 1) % 2 != 0:  # end of line, transfer
                 level[-1] = lower_level[index]
+                index //= 2
             else:
-                new_index = index // 2
-                level[new_index] = lower_level[2 * new_index] + lower_level[2 * new_index + 1]
-            index //= 2
+                index //= 2
+                level[index] = lower_level[2 * index] + lower_level[2 * index + 1]
             lower_level = level
 
     def sample(self):
