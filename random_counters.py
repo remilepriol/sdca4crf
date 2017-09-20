@@ -51,3 +51,6 @@ class RandomCounters:
 
     def get_score(self, position):
         return self.score_tree[0][position]
+
+    def get_total(self):
+        return self.score_tree[-1][0]
