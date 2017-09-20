@@ -568,26 +568,15 @@ class LogProbability:
         return max(0, utils.log_kullback_leibler(self.binary, other_marginals.binary) \
                    - utils.log_kullback_leibler(self.unary[1:-1], other_marginals.unary[1:-1]))
 
-    def inner_product(self, other):
-        """Return the special inner product where the marginals on the separations are subtracted."""
-        return np.sum(np.exp(self.binary + other.binary)) - \
-               np.sum(np.exp(self.unary[1:-1] + other.unary[1:-1]))
-
-    def multiply(self, other):
-        return LogProbability(unary=self.unary + other.unary,
-                              binary=self.binary + other.binary)
-
-    def divide(self, other):
-        return LogProbability(unary=self.unary - other.unary,
-                              binary=self.binary - other.binary)
-
-    def multiply_scalar(self, scalar):
-        return LogProbability(unary=np.log(scalar) + self.unary,
-                              binary=np.log(scalar) + self.binary)
-
     def convex_combination(self, other, gamma):
-        return LogProbability(unary=np.log((1 - gamma) * np.exp(self.unary) + gamma * np.exp(other.unary)),
-                              binary=np.log((1 - gamma) * np.exp(self.binary) + gamma * np.exp(other.binary)))
+        if gamma == 0:
+            return self
+        elif gamma == 1:
+            return other
+        else:
+            unary = utils.logsumexp(np.array([self.unary + np.log(1 - gamma), other.unary + np.log(gamma)]), axis=0)
+            binary = utils.logsumexp(np.array([self.binary + np.log(1 - gamma), other.binary + np.log(gamma)]), axis=0)
+            return LogProbability(unary=unary, binary=binary)
 
     def inverse(self):
         return LogProbability(unary=-self.unary,
@@ -724,7 +713,7 @@ def sdca(x, y, regu, npass=5, update_period=5, precision=1e-5, subprecision=1e-1
 
     new_marginals = [LogProbability.infer_from_weights(imgs, weights) for imgs in x]
     dgaps = np.array([margs.kullback_leibler(newmargs) for margs, newmargs in zip(marginals, new_marginals)])
-    duality_gap = dgaps.sum()
+    duality_gap = dgaps.sum() / nb_words
 
     objective = [duality_gap]
     delta_time = time.time()
@@ -833,7 +822,7 @@ def sdca(x, y, regu, npass=5, update_period=5, precision=1e-5, subprecision=1e-1
         # DUALITY GAP ESTIMATE
         ##################################################################################
         sampler.update(marginals[i].kullback_leibler(margs_i), i)
-        duality_gap = sampler.get_total()
+        duality_gap = sampler.get_total() / nb_words
         assert duality_gap >= 0, (
             duality_gap,
             sampler.get_score(i),
@@ -860,7 +849,7 @@ def sdca(x, y, regu, npass=5, update_period=5, precision=1e-5, subprecision=1e-1
             t1 = time.time()
             dgaps = duality_gaps(marginals, weights, x)
             sampler = random_counters.RandomCounters(dgaps)
-            duality_gap = sampler.get_total()
+            duality_gap = sampler.get_total() / nb_words
             objective.append(duality_gap)
             # if t % (update_period * nb_words) == 0 and non_uniformity > 0:
             #     pass
