@@ -32,7 +32,7 @@ def boolean_encoding(y, k):
     return ans
 
 
-def bounded_newton(func, grad, init, lowerbound, upperbound, precision=1e-12, max_iter=50):
+def bounded_newton(func, grad, init, lowerbound, upperbound, precision=1e-12, max_iter=20):
     x = init
     fx = func(x)
     obj = [fx]
@@ -42,8 +42,8 @@ def bounded_newton(func, grad, init, lowerbound, upperbound, precision=1e-12, ma
         gx = grad(x)
         x -= fx / gx
         # Make sure x is in (lower bound, upper bound)
-        x = max(lowerbound + precision, x)
-        x = min(upperbound - precision, x)
+        x = max(lowerbound, x)
+        x = min(upperbound, x)
         fx = func(x)
         obj.append(fx)
     return x, obj
