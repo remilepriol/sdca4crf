@@ -42,7 +42,11 @@ def bounded_newton(func, grad, init, lowerbound, upperbound, precision=1e-12, ma
 
 
 def find_root_decreasing(u, gu, precision):
-    """Return the root of a decreasing function u defined on [0,1] with given precision."""
+    """Return the root of a decreasing function u defined on [0,1]
+    with given precision on the function value. (or the objective value?)
+    If the root is lower than zero, return zero.
+    If the root is larger than one, return one.
+    """
 
     u0 = u(0)
     if u0 <= precision:  # 0 is optimal
