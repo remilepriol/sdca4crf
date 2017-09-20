@@ -469,7 +469,7 @@ class Probability:
             self.binary = np.ones([word_length - 1, ALPHABET_SIZE, ALPHABET_SIZE]) / ALPHABET_SIZE ** 2
         else:
             if unary.shape[0] != binary.shape[0] + 1:
-                raise ValueError("Wrong size of marginals: %i vs %I" % (unary.shape[0], binary.shape[0]))
+                raise ValueError("Wrong size of marginals: %i vs %i" % (unary.shape[0], binary.shape[0]))
             self.length = unary.shape[0]
             self.unary = unary
             self.binary = binary
@@ -556,7 +556,7 @@ class LogProbability:
             self.binary = np.ones([word_length - 1, ALPHABET_SIZE, ALPHABET_SIZE]) * (-2 * np.log(ALPHABET_SIZE))
         else:  # take what is given
             if unary.shape[0] != binary.shape[0] + 1:
-                raise ValueError("Wrong size of marginals: %i vs %I" % (unary.shape[0], binary.shape[0]))
+                raise ValueError("Wrong size of marginals: %i vs %i" % (unary.shape[0], binary.shape[0]))
             self.length = unary.shape[0]
             self.unary = unary
             self.binary = binary
@@ -724,7 +724,7 @@ def sdca(x, y, regu, npass=5, update_period=5, precision=1e-5, subprecision=1e-1
 
     new_marginals = [LogProbability.infer_from_weights(imgs, weights) for imgs in x]
     dgaps = np.array([margs.kullback_leibler(newmargs) for margs, newmargs in zip(marginals, new_marginals)])
-    duality_gap = dgaps.mean()
+    duality_gap = dgaps.sum()
 
     objective = [duality_gap]
     delta_time = time.time()
@@ -832,9 +832,13 @@ def sdca(x, y, regu, npass=5, update_period=5, precision=1e-5, subprecision=1e-1
         ##################################################################################
         # DUALITY GAP ESTIMATE
         ##################################################################################
-        individual_gap = marginals[i].kullback_leibler(margs_i)
-        duality_gap += (individual_gap - sampler.get_score(i)) / nb_words
-        sampler.update(individual_gap, i)
+        sampler.update(marginals[i].kullback_leibler(margs_i), i)
+        duality_gap = sampler.get_total()
+        assert duality_gap >= 0, (
+            duality_gap,
+            sampler.get_score(i),
+            nb_words
+        )
 
         ##################################################################################
         # ANNEX
@@ -846,33 +850,32 @@ def sdca(x, y, regu, npass=5, update_period=5, precision=1e-5, subprecision=1e-1
                 (tmp - entropies[i] + gammaopt ** 2 * quadratic_coeff + gammaopt * linear_coeff) / nb_words
             entropies[i] = tmp
             # Append relevant variables
-            annex.append([-quadratic_coeff, -linear_coeff, gammaopt, dual_objective, duality_gap, individual_gap, i])
+            annex.append([-quadratic_coeff, -linear_coeff, gammaopt,
+                          dual_objective, duality_gap, sampler.get_score(i), i])
 
-        if t % (update_period * nb_words) == 0 and non_uniformity > 0:
-            ###################################################################################
-            # DUALITY GAPS: perform a batch update after every update_period epochs
-            # To reduce the staleness for the non-uniform sampling
-            # To monitor the objective and provide a stopping criterion
-            ##################################################################################
-            dgaps = duality_gaps(marginals, weights, x)
-            sampler = random_counters.RandomCounters(dgaps)
-            duality_gap = np.mean(dgaps)
-            objective.append(duality_gap)
-            timing.append(time.time() - delta_time)
-        elif t % nb_words == 0:
+        if t % nb_words == 0:
             ##################################################################################
             # OBJECTIVES : after each pass over the data, compute the duality gap
             ##################################################################################
             t1 = time.time()
-            duality_gap = np.mean(duality_gaps(marginals, weights, x))
+            dgaps = duality_gaps(marginals, weights, x)
+            sampler = random_counters.RandomCounters(dgaps)
+            duality_gap = sampler.get_total()
             objective.append(duality_gap)
-            delta_time += time.time() - t1
+            # if t % (update_period * nb_words) == 0 and non_uniformity > 0:
+            #     pass
+            #     ###################################################################################
+            #     # DUALITY GAPS: perform a batch update after every update_period epochs
+            #     # To reduce the staleness for the non-uniform sampling
+            #     # To monitor the objective and provide a stopping criterion
+            #     ##################################################################################
+            # delta_time += time.time() - t1
             timing.append(time.time() - delta_time)
 
     ##################################################################################
     # ANNEX
     ##################################################################################
-    if _debug and step_size:
+    if _debug and not step_size:
         print("Perfect line search : %i \t Negative ls : %i \t Positive ls : %i" % (countzero, countneg, countpos))
 
     ##################################################################################
