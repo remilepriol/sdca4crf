@@ -499,8 +499,8 @@ class Probability:
                            binary=np.log(np.exp(self.binary) + np.exp(other_marginals.binary)))
 
     def subtract(self, other_marginals):
-        return Probability(unary=np.log(np.exp(self.unary) - np.exp(other_marginals.unary),
-                                        binary=np.log(np.exp(self.binary) - np.exp(other_marginals.binary)))
+        return Probability(unary=np.log(np.exp(self.unary) - np.exp(other_marginals.unary)),
+                           binary=np.log(np.exp(self.binary) - np.exp(other_marginals.binary)))
 
     def multiply(self, other_marginals):
         return Probability(unary=self.unary + other_marginals.unary,
@@ -547,6 +547,80 @@ class Probability:
         plt.yticks(range(26), [ALPHABET[x] for x in range(26)])
         plt.colorbar(fraction=0.046, pad=0.04)
         plt.title("sum of binary marginals")
+
+
+class LogProbability:
+    """Represent a conditional probability p(y|x) under the form of log-marginals."""
+
+    def __init__(self, unary=None, binary=None, word_length=None):
+        if unary is None or binary is None:
+            self.length = word_length
+            self.unary = np.ones([word_length, ALPHABET_SIZE]) * (-np.log(ALPHABET_SIZE))
+            self.binary = np.ones([word_length - 1, ALPHABET_SIZE, ALPHABET_SIZE]) * (-2 * np.log(ALPHABET_SIZE))
+        else:
+            if unary.shape[0] != binary.shape[0] + 1:
+                raise ValueError("Wrong size of marginals: %i vs %I" % (unary.shape[0], binary.shape[0]))
+            self.length = unary.shape[0]
+            self.unary = unary
+            self.binary = binary
+
+    def are_densities(self, integral=1):
+        return np.isclose(np.sum(np.exp(self.unary, axis=1)), integral).all() \
+               and np.isclose(np.sum(np.exp(self.binary), axis=(1, 2)), integral).all()
+
+    def are_consistent(self):
+        ans = True
+        from_left_binary = utils.logsumexp(self.binary, axis=1)
+        from_right_binary = utils.logsumexp(self.binary, axis=2)
+        if not np.isclose(from_left_binary, self.unary[1:]).all():
+            ans = False
+            # print("Marginalisation of the left of the binary marginals is inconsistent with unary marginals.")
+        if not np.isclose(from_right_binary, self.unary[:-1]).all():
+            ans = False
+            # print("Marginalisation of the right of the binary marginals is inconsistent with unary marginals.")
+        if not np.isclose(from_right_binary[1:], from_left_binary[:-1]).all():
+            ans = False
+            # print("Marginalisation of the left and right of the binary marginals are inconsistent.")
+        return ans
+
+    def entropy(self):
+        return utils.log_entropy(self.binary) - utils.log_entropy(self.unary[1:-1])
+
+    def kullback_leibler(self, other_marginals):
+        return utils.log_kullback_leibler(self.binary, other_marginals.binary) \
+               - utils.log_kullback_leibler(self.unary[1:-1], other_marginals.unary[1:-1])
+
+    def inner_product(self, other_marginals):
+        """Return the special inner product where the marginals on the separations are subtracted."""
+        return np.sum(np.exp(self.binary + other_marginals.binary)) - \
+               np.sum(np.exp(self.unary[1:-1] + other_marginals.unary[1:-1]))
+
+    # def add(self, other_marginals):
+    #     return Probability(unary=np.log(np.exp(self.unary) + (other_marginals.unary)),
+    #                        binary=np.log(np.exp(self.binary) + np.exp(other_marginals.binary)))
+    #
+    # def subtract(self, other_marginals):
+    #     return Probability(unary=np.log(np.exp(self.unary) - np.exp(other_marginals.unary)),
+    #                        binary=np.log(np.exp(self.binary) - np.exp(other_marginals.binary)))
+
+    def multiply(self, other_marginals):
+        return LogProbability(unary=self.unary + other_marginals.unary,
+                              binary=self.binary + other_marginals.binary)
+
+    def divide(self, other_marginals):
+        return LogProbability(unary=self.unary - other_marginals.unary,
+                              binary=self.binary - other_marginals.binary)
+
+    def multiply_scalar(self, scalar):
+        return LogProbability(unary=np.log(scalar) + self.unary,
+                              binary=np.log(scalar) + self.binary)
+
+    def square(self):
+        return LogProbability(unary=self.unary * 2, binary=self.binary * 2)
+
+    def to_probability(self):
+        return Probability(unary=np.exp(self.unary),
+                           binary=np.exp(self.binary))
 
 
 ########################################################################################################################
