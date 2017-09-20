@@ -5,6 +5,7 @@ def entropy(proba, axis=None):
     epsilon = 1e-50
     return -np.sum(proba * np.log(np.maximum(epsilon, proba)), axis=axis)
 
+
 def kullback_leibler(p, q, axis=None):
     epsilon = 1e-50
     return np.maximum(0, np.sum(p * np.log(np.maximum(p, epsilon) / np.maximum(q, epsilon)), axis=axis))

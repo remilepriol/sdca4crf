@@ -28,6 +28,8 @@ IMAGE_WIDTH = 8
 NB_PIXELS = IMAGE_HEIGHT * IMAGE_WIDTH
 NB_FEATURES = ALPHABET_SIZE * (NB_PIXELS + ALPHABET_SIZE + 3)
 
+MAX_LENGTH = 20
+
 
 ########################################################################################################################
 # UTILITIES
@@ -493,8 +495,8 @@ class Probability:
 
     def inner_product(self, other_marginals):
         """Return the special inner product where the marginals on the separations are subtracted."""
-        return np.sum(np.exp(self.binary + other_marginals.binary)) - \
-               np.sum(np.exp(self.unary[1:-1] + other_marginals.unary[1:-1]))
+        return np.sum(self.binary + other_marginals.binary) - \
+               np.sum(self.unary[1:-1] + other_marginals.unary[1:-1])
 
     def add(self, other_marginals):
         return Probability(unary=self.unary + other_marginals.unary,
@@ -560,31 +562,36 @@ class LogProbability:
             self.binary = binary
 
     def entropy(self):
-        return utils.log_entropy(self.binary) - utils.log_entropy(self.unary[1:-1])
+        return max(0, utils.log_entropy(self.binary) - utils.log_entropy(self.unary[1:-1]))
 
     def kullback_leibler(self, other_marginals):
-        return utils.log_kullback_leibler(self.binary, other_marginals.binary) \
-               - utils.log_kullback_leibler(self.unary[1:-1], other_marginals.unary[1:-1])
+        return max(0, utils.log_kullback_leibler(self.binary, other_marginals.binary) \
+                   - utils.log_kullback_leibler(self.unary[1:-1], other_marginals.unary[1:-1]))
 
-    def inner_product(self, other_marginals):
+    def inner_product(self, other):
         """Return the special inner product where the marginals on the separations are subtracted."""
-        return np.sum(np.exp(self.binary + other_marginals.binary)) - \
-               np.sum(np.exp(self.unary[1:-1] + other_marginals.unary[1:-1]))
+        return np.sum(np.exp(self.binary + other.binary)) - \
+               np.sum(np.exp(self.unary[1:-1] + other.unary[1:-1]))
 
-    def multiply(self, other_marginals):
-        return LogProbability(unary=self.unary + other_marginals.unary,
-                              binary=self.binary + other_marginals.binary)
+    def multiply(self, other):
+        return LogProbability(unary=self.unary + other.unary,
+                              binary=self.binary + other.binary)
 
-    def divide(self, other_marginals):
-        return LogProbability(unary=self.unary - other_marginals.unary,
-                              binary=self.binary - other_marginals.binary)
+    def divide(self, other):
+        return LogProbability(unary=self.unary - other.unary,
+                              binary=self.binary - other.binary)
 
     def multiply_scalar(self, scalar):
         return LogProbability(unary=np.log(scalar) + self.unary,
                               binary=np.log(scalar) + self.binary)
 
-    def square(self):
-        return LogProbability(unary=self.unary * 2, binary=self.binary * 2)
+    def convex_combination(self, other, gamma):
+        return LogProbability(unary=np.log((1 - gamma) * np.exp(self.unary) + gamma * np.exp(other.unary)),
+                              binary=np.log((1 - gamma) * np.exp(self.binary) + gamma * np.exp(other.binary)))
+
+    def inverse(self):
+        return LogProbability(unary=-self.unary,
+                              binary=-self.binary)
 
     def to_probability(self):
         return Probability(unary=np.exp(self.unary),
@@ -619,16 +626,20 @@ def radii(words):
 
 
 # initialize with uniform marginals
-def uniform_marginals(labels):
+def uniform_marginals(labels, log=False):
     nb_words = labels.shape[0]
     margs = np.empty(nb_words, dtype=np.object)
+    if log:
+        references = np.array([LogProbability(word_length=t) for t in range(1, MAX_LENGTH)])
+    else:
+        references = np.array([Probability(word_length=t) for t in range(1, MAX_LENGTH)])
     for i in range(nb_words):
-        margs[i] = Probability(word_length=labels[i].shape[0])
+        margs[i] = references[labels[i].shape[0] - 1]
     return margs
 
 
 # Or marginals from the ground truth
-def gt_marginals(labels):
+def empirical_marginals(labels):
     nb_words = labels.shape[0]
     margs = np.empty(nb_words, dtype=np.object)
     for i, lbls in enumerate(labels):
@@ -638,7 +649,7 @@ def gt_marginals(labels):
 
 # Initialize the weights as the centroid of the ground truth features minus the centroid of the
 # features given by the uniform marginals.
-def marginals_to_weights(images, labels, marginals=None):
+def marginals_to_weights(images, labels, marginals=None, log=False):
     nb_words = labels.shape[0]
     ground_truth_centroid = Features()
     ground_truth_centroid.add_dictionary(images, labels)
@@ -648,7 +659,10 @@ def marginals_to_weights(images, labels, marginals=None):
             marginals_centroid.add_centroid(image)
     else:
         for image, margs in zip(images, marginals):
-            marginals_centroid.add_centroid(image, margs)
+            if log:
+                marginals_centroid.add_centroid(image, margs.to_probability())
+            else:
+                marginals_centroid.add_centroid(image, margs)
     ground_truth_centroid = ground_truth_centroid.to_array()
     marginals_centroid = marginals_centroid.to_array()
     return (ground_truth_centroid - marginals_centroid) / nb_words
@@ -663,7 +677,7 @@ def dual_score(weights, marginals, regularization_parameter):
 def duality_gaps(marginals, weights, images):
     ans = []
     for margs, imgs in zip(marginals, images):
-        newmargs = Probability.infer_from_weights(imgs, weights)
+        newmargs = LogProbability.infer_from_weights(imgs, weights)
         ans.append(margs.kullback_leibler(newmargs))
     return np.array(ans)
 
@@ -692,12 +706,12 @@ def sdca(x, y, regu, npass=5, update_period=5, precision=1e-5, subprecision=1e-1
         raise ValueError("Not the same number of labels (%i) and images (%i) inside training set." \
                          % (nb_words, x.shape[0]))
     if init == "uniform":
-        marginals = uniform_marginals(y)
+        marginals = uniform_marginals(y, log=True)
         weights = marginals_to_weights(x, y) / regu
     elif init == "random":
         weights = np.random.randn(NB_FEATURES)
-        marginals = np.array([Probability.infer_from_weights(imgs, weights) for imgs in x])
-        weights = marginals_to_weights(x, y, marginals)
+        marginals = np.array([LogProbability.infer_from_weights(imgs, weights) for imgs in x])
+        weights = marginals_to_weights(x, y, marginals, log=True)
         Features.from_array(weights).display()
     else:
         raise ValueError("Not a valid argument for init: %r" % init)
@@ -708,7 +722,7 @@ def sdca(x, y, regu, npass=5, update_period=5, precision=1e-5, subprecision=1e-1
     entropies = np.array([margs.entropy() for margs in marginals])
     dual_objective = entropies.mean() - regu / 2 * np.sum(weights ** 2)
 
-    new_marginals = [Probability.infer_from_weights(imgs, weights) for imgs in x]
+    new_marginals = [LogProbability.infer_from_weights(imgs, weights) for imgs in x]
     dgaps = np.array([margs.kullback_leibler(newmargs) for margs, newmargs in zip(marginals, new_marginals)])
     duality_gap = dgaps.mean()
 
@@ -724,11 +738,10 @@ def sdca(x, y, regu, npass=5, update_period=5, precision=1e-5, subprecision=1e-1
     ##################################################################################
     # ANNEX : to give insights on the algorithm
     ##################################################################################
-    if _debug:
-        annex = []
-        countneg = 0
-        countpos = 0
-        countzero = 0
+    annex = []
+    countneg = 0
+    countpos = 0
+    countzero = 0
 
     ##################################################################################
     # MAIN LOOP
@@ -748,24 +761,17 @@ def sdca(x, y, regu, npass=5, update_period=5, precision=1e-5, subprecision=1e-1
         ##################################################################################
         # MARGINALIZATION ORACLE
         ##################################################################################
-        margs_i = Probability.infer_from_weights(x[i], weights)
-        assert margs_i.are_consistent()
-        assert margs_i.are_densities(1)
+        margs_i = LogProbability.infer_from_weights(x[i], weights)
+        # assert margs_i.are_consistent()
+        # assert margs_i.are_densities(1)
         # assert margs_i.are_positive(), (display_word(y[i],x[i]),
         #                                 margs_i.display(),
         #                                 Features.from_array(weights).display())
 
         ##################################################################################
-        # DUALITY GAP ESTIMATE
-        ##################################################################################
-        individual_gap = marginals[i].kullback_leibler(margs_i)
-        duality_gap += (individual_gap - sampler.get_score(i)) / nb_words
-        sampler.update(individual_gap, i)
-
-        ##################################################################################
         # ASCENT DIRECTION : and primal movement
         ##################################################################################
-        dual_direction = margs_i.subtract(marginals[i])
+        dual_direction = margs_i.to_probability().subtract(marginals[i].to_probability())
         assert dual_direction.are_densities(integral=0)
         assert dual_direction.are_consistent()
         primal_direction = Features()
@@ -788,19 +794,16 @@ def sdca(x, y, regu, npass=5, update_period=5, precision=1e-5, subprecision=1e-1
             #    return  newmargs.entropy() + gamma**2 * quadratic_coeff + gamma * linear_coeff
 
             def gf(gamma):
-                newmargs = marginals[i].add(dual_direction.multiply_scalar(gamma))
-                assert newmargs.are_densities(1)
-                assert newmargs.are_consistent()
+                newmargs = marginals[i].convex_combination(margs_i, gamma)
+                # assert newmargs.are_densities(1)
+                # assert newmargs.are_consistent()
                 # assert newmargs.are_positive(), newmargs.display
-                return - dual_direction.inner_product(newmargs.log()) + gamma * 2 * quadratic_coeff + linear_coeff
+                return - dual_direction.inner_product(newmargs) + gamma * 2 * quadratic_coeff + linear_coeff
 
             def ggf(gamma):
-                newmargs = marginals[i].add(dual_direction.multiply_scalar(gamma))
-                return - dual_direction.inner_product(dual_direction.divide(newmargs)) + 2 * quadratic_coeff
-
-            # in the divide and in the log, I get warning from python : incorrect numbers, ie I have either
-            # zero either negative values. that's a big big problem. It should not happen since my algo is supposed
-            # to keep us inside the simplex. What can I do to change that?
+                newmargs = marginals[i].convex_combination(margs_i, gamma)
+                return - dual_direction.square().inner_product(newmargs.inverse().to_probability()) \
+                       + 2 * quadratic_coeff
 
             gammaopt, subobjective = utils.find_root_decreasing(gf, ggf, precision=subprecision)
 
@@ -818,24 +821,31 @@ def sdca(x, y, regu, npass=5, update_period=5, precision=1e-5, subprecision=1e-1
         ##################################################################################
         # UPDATE : the primal and dual coordinates
         ##################################################################################
-        marginals[i] = marginals[i].add(dual_direction.multiply_scalar(gammaopt))
+        marginals[i] = marginals[i].convex_combination(margs_i, gammaopt)
         weights += gammaopt * primal_direction
-        assert marginals[i].are_densities(1)
-        assert marginals[i].are_consistent()
+        # assert marginals[i].are_densities(1)
+        # assert marginals[i].are_consistent()
         # assert marginals[i].are_positive(), (display_word(y[i], x[i]),
         #                                      marginals[i].display(),
         #                                      Features.from_array(weights).display())
 
         ##################################################################################
+        # DUALITY GAP ESTIMATE
+        ##################################################################################
+        individual_gap = marginals[i].kullback_leibler(margs_i)
+        duality_gap += (individual_gap - sampler.get_score(i)) / nb_words
+        sampler.update(individual_gap, i)
+
+        ##################################################################################
         # ANNEX
         ##################################################################################
-        # Update the dual objective and the entropy
-        tmp = marginals[i].entropy()
-        dual_objective += \
-            (tmp - entropies[i] + gammaopt ** 2 * quadratic_coeff + gammaopt * linear_coeff) / nb_words
-        entropies[i] = tmp
-        # Append relevant variables
         if _debug:
+            # Update the dual objective and the entropy
+            tmp = marginals[i].entropy()
+            dual_objective += \
+                (tmp - entropies[i] + gammaopt ** 2 * quadratic_coeff + gammaopt * linear_coeff) / nb_words
+            entropies[i] = tmp
+            # Append relevant variables
             annex.append([-quadratic_coeff, -linear_coeff, gammaopt, dual_objective, duality_gap, individual_gap, i])
 
         if t % (update_period * nb_words) == 0 and non_uniformity > 0:
