@@ -280,7 +280,14 @@ def binary_scores(word_length, weights):
 ########################################################################################################################
 # ORACLES
 ########################################################################################################################
-def sum_product(uscores, bscores):
+def sum_product(uscores, bscores, log=False):
+    """Apply the sum-product algorithm on a chain
+
+    :param uscores: array T*Alphabet, scores on individual nodes
+    :param bscores: array (T-1)*Alphabet, scores on the edges
+    :param log: if True, return the log-marginals
+    :return: marginals on nodes, marginals on edges, log-partition
+    """
     # I keep track of the log messages instead of the messages, to favor stability
     chain_length = uscores.shape[0]
 
@@ -300,21 +307,22 @@ def sum_product(uscores, bscores):
         forward_messages[t] = utils.logsumexp(bscores[t].T + uscores[t] + forward_messages[t - 1])
 
     unary_marginals = np.empty([chain_length, ALPHABET_SIZE])
-    unary_marginals[0] = np.exp(uscores[0] + backward_messages[0] - log_partition)
-    unary_marginals[-1] = np.exp(forward_messages[-1] + uscores[-1])
+    unary_marginals[0] = uscores[0] + backward_messages[0] - log_partition
+    unary_marginals[-1] = forward_messages[-1] + uscores[-1]
     for t in range(1, chain_length - 1):
-        unary_marginals[t] = np.exp(forward_messages[t - 1] + uscores[t] + backward_messages[t])
+        unary_marginals[t] = forward_messages[t - 1] + uscores[t] + backward_messages[t]
 
-    binary_marginals = np.zeros([chain_length - 1, ALPHABET_SIZE, ALPHABET_SIZE])
-    binary_marginals[0] = np.exp(uscores[0, :, np.newaxis] + bscores[0] + uscores[1]
-                                 + backward_messages[1] - log_partition)
-    binary_marginals[-1] = np.exp(forward_messages[-2, :, np.newaxis] + uscores[-2, :, np.newaxis]
-                                  + bscores[-1] + uscores[-1])
+    binary_marginals = np.empty([chain_length - 1, ALPHABET_SIZE, ALPHABET_SIZE])
+    binary_marginals[0] = uscores[0, :, np.newaxis] + bscores[0] + uscores[1] + backward_messages[1] - log_partition
+    binary_marginals[-1] = forward_messages[-2, :, np.newaxis] + uscores[-2, :, np.newaxis] + bscores[-1] + uscores[-1]
     for t in range(1, chain_length - 2):
-        binary_marginals[t] = np.exp(forward_messages[t - 1, :, np.newaxis] + uscores[t, :, np.newaxis]
-                                     + bscores[t] + uscores[t + 1] + backward_messages[t + 1])
+        binary_marginals[t] = forward_messages[t - 1, :, np.newaxis] + uscores[t, :, np.newaxis] + bscores[t] + uscores[
+            t + 1] + backward_messages[t + 1]
 
-    return unary_marginals, binary_marginals, log_partition
+    if log:
+        return LogProbability(unary_marginals, binary_marginals), log_partition
+    else:
+        return Probability(np.exp(unary_marginals), np.exp(binary_marginals)), log_partition
 
 
 def viterbi(uscores, bscores):
@@ -449,7 +457,7 @@ class Probability:
     """Represent a conditional probability p(y|x) under the form of MARGINALS.
     Can also represent the ascent direction or the score.
     Ony has a finite precision on the small numbers.
-    Inappropriate to handle the dervatives of the entropy or the KL.
+    Inappropriate to handle the derivatives of the entropy or the KL.
     """
 
     def __init__(self, unary=None, binary=None, word_length=None):
@@ -514,13 +522,6 @@ class Probability:
     def to_logprobability(self):
         return LogProbability(unary=np.log(self.unary),
                               binary=np.log(self.binary))
-
-    @staticmethod
-    def infer_from_weights(images, weights):
-        uscores = unary_scores(images, weights)
-        bscores = binary_scores(images.shape[0], weights)
-        umargs, bmargs, _ = sum_product(uscores, bscores)
-        return Probability(unary=umargs, binary=bmargs)
 
     @staticmethod
     def dirac(labels):
@@ -588,6 +589,12 @@ class LogProbability:
     def to_probability(self):
         return Probability(unary=np.exp(self.unary),
                            binary=np.exp(self.binary))
+
+    @staticmethod
+    def infer_from_weights(images, weights):
+        uscores = unary_scores(images, weights)
+        bscores = binary_scores(images.shape[0], weights)
+        return sum_product(uscores, bscores, log=True)[0]
 
 
 ########################################################################################################################
