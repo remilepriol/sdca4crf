@@ -190,7 +190,7 @@ class MulticlassLogisticRegression:
                 newproba = np.maximum(self.alpha[i] + gamma * ascent_direction, 1e-50)
                 fgamma = -np.sum(ascent_direction * np.log(newproba)) - gamma * linear_coeff + constant_coeff
                 gfgamma = -np.sum(ascent_direction ** 2 / newproba) - linear_coeff
-                return fgamma, gfgamma
+                return fgamma, fgamma / gfgamma
 
             gammaopt, subobjective = utils.find_root_decreasing(evaluator=evaluator, precision=1e-16)
             alphai = self.alpha[i] + gammaopt * ascent_direction

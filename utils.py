@@ -36,7 +36,7 @@ def bounded_newton(evaluator, init, lowerbound, upperbound, precision=1e-12, max
     """Return the root x0 of a function u defined on [lowerbound, upperbound] with given precision,
     using Newton-Raphson method
 
-    :param evaluator: function that return the value of u and its first derivative
+    :param evaluator: function that return the values u(x) and u(x)/u'(x)
     :param init: initial point x
     :param lowerbound:
     :param upperbound:
@@ -51,7 +51,7 @@ def bounded_newton(evaluator, init, lowerbound, upperbound, precision=1e-12, max
     while np.absolute(fx) > precision and count < max_iter:
         # stop condition to avoid cycling over an extremity of the segment
         count += 1
-        x -= fx / gx
+        x -= gx
         # Make sure x is in (lower bound, upper bound)
         x = max(lowerbound, x)
         x = min(upperbound, x)
@@ -65,7 +65,7 @@ def find_root_decreasing(evaluator, precision):
     The root can be smaller than 0, in which case, return 0.
     The root can be larger than 1, in which case, return 1.
 
-    :param evaluator: function that return the value of u and its derivative.
+    :param evaluator: function that return the values u(x) and u(x)/u'(x)
     :param precision: maximum value of |u(x)| so that x is returned
     :return: x an approximate root of u
     """

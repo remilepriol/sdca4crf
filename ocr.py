@@ -805,10 +805,10 @@ def sdca(x, y, regu, npass=5, update_period=5, precision=1e-5, subprecision=1e-1
         if step_size:
             gammaopt = step_size
         else:
-            print("dual direction")
-            print(dual_direction.square().to_logprobability())
-            print("new marginals")
-            print(margs_i)
+            # print("dual direction")
+            # print(dual_direction.square().to_logprobability())
+            # print("new marginals")
+            # print(margs_i)
 
             def evaluator(gamma):
                 # line search function and its derivatives
@@ -818,10 +818,13 @@ def sdca(x, y, regu, npass=5, update_period=5, precision=1e-5, subprecision=1e-1
                 # assert newmargs.are_positive(), newmargs.display
                 # fgamma = newmargs.entropy() + gamma ** 2 * quadratic_coeff + gamma * linear_coeff
                 gfgamma = - dual_direction.inner_product(newmargs) + gamma * 2 * quadratic_coeff + linear_coeff
+                if gfgamma == 0:
+                    return gfgamma, 0
                 logvalue = dual_direction.square().to_logprobability().subtract(newmargs).logsumexp()
-                print(gamma, "\t", logvalue)
-                ggfgamma = - np.exp(logvalue) + 2 * quadratic_coeff
-                return gfgamma, ggfgamma
+                logvalue += np.log(1 - 2 * quadratic_coeff * np.exp(-logvalue))  # stable logsumexp
+                logvalue = np.log(np.absolute(gfgamma)) - logvalue
+                gfdggf = - np.sign(gfgamma) * np.exp(logvalue)  # gf(x)/ggf(x)
+                return gfgamma, gfdggf
 
             # if t == 500:
             #     return f, gf, ggf, quadratic_coeff, linear_coeff, dual_direction, marginals[i], margs_i
