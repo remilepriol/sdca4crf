@@ -32,6 +32,27 @@ def boolean_encoding(y, k):
     return ans
 
 
+def find_root_decreasing(evaluator, precision):
+    """Return the root x0 of a decreasing function u defined on [0,1] with given precision.
+    The root can be smaller than 0, in which case, return 0.
+    The root can be larger than 1, in which case, return 1.
+
+    :param evaluator: function that return the values u(x) and u(x)/u'(x)
+    :param precision: maximum value of |u(x)| so that x is returned
+    :return: x an approximate root of u
+    """
+
+    u0, _ = evaluator(0)
+    if u0 <= precision:  # 0 is optimal
+        return 0, [u0]
+
+    u1, _ = evaluator(1)
+    if u1 >= -precision:  # 1 is optimal
+        return 1, [u1]
+
+    return bounded_newton(evaluator, .5, 0, 1, precision=precision)
+
+
 def bounded_newton(evaluator, init, lowerbound, upperbound, precision=1e-12, max_iter=20):
     """Return the root x0 of a function u defined on [lowerbound, upperbound] with given precision,
     using Newton-Raphson method
@@ -60,22 +81,92 @@ def bounded_newton(evaluator, init, lowerbound, upperbound, precision=1e-12, max
     return x, obj
 
 
-def find_root_decreasing(evaluator, precision):
-    """Return the root x0 of a decreasing function u defined on [0,1] with given precision.
-    The root can be smaller than 0, in which case, return 0.
-    The root can be larger than 1, in which case, return 1.
+# define MAXIT 100 Maximum allowed number of iterations.
+def safe_newton(evaluator, lowerbound, upperbound, precision, max_iter=100):
+    """Using a combination of Newton-Raphson and bisection, find the root of a function bracketed between lowerbound
+    and upperbound.
 
-    :param evaluator: function that return the values u(x) and u(x)/u'(x)
-    :param precision: maximum value of |u(x)| so that x is returned
-    :return: x an approximate root of u
+    :param evaluator: user-supplied routine that returns both the function value u(x) and u(x)/u'(x).
+    :param lowerbound: point smaller than the root
+    :param upperbound: point larger than the root
+    :param precision: accuracy on the root value rts
+    :param max_iter: maximum number of iteration
+    :return: The root, returned as the value rts
     """
 
-    u0, _ = evaluator(0)
-    if u0 <= precision:  # 0 is optimal
-        return 0, [u0]
+    fl, dl = evaluator(lowerbound)
+    fh, dl = evaluator(upperbound)
+    if (fl > 0 and fh > 0) or (fl < 0 and fh < 0):
+        raise ValueError("Root must be bracketed in [lower bound, upper bound]")
+    if fl == 0:
+        return lowerbound
+    if fh == 0:
+        return upperbound
 
-    u1, _ = evaluator(1)
-    if u1 >= -precision:  # 1 is optimal
-        return 1, [u1]
+    if fl < 0:  # Orient the search so that f(xl) < 0.
+        xl, xh = lowerbound, upperbound
+    else:
+        xh, xl = lowerbound, upperbound
 
-    return bounded_newton(evaluator, .5, 0, 1, precision=precision)
+    rts = (xl + xh) / 2  # Initialize the guess for root
+    dxold = abs(upperbound - lowerbound)  # the “stepsize before last"
+    dx = dxold  # and the last step
+
+    f, fdf = evaluator(rts)
+    obj = [[f, fdf]]
+
+    for _ in np.arange(max_iter):  # Loop over allowed iterations.
+        rtsold = rts
+        rts -= fdf
+        if (rts - xh) * (rts - xl) > 0 or abs(fdf) > abs(dxold) / 2:
+            # Bisect if Newton out of range, or not converging fast enough
+            dxold = dx
+            dx = (xh - xl) / 2
+            rts = xl + dx
+            if xl == rts:  # change in root is negligible
+                return rts, np.array(obj)
+        else:  # Newton step (already applied pn rts)
+            dxold = dx
+            dx = fdf
+            if rtsold == rts:  # change in root is negligible
+                return rts, np.array(obj)
+        if abs(dx) < precision:  # Convergence criterion.
+            return rts, np.array(obj)
+        f, fdf = evaluator(rts)  # the one new function evaluation per iteration
+        obj.append([f, dx])
+        if f < 0:  # maintain the bracket on the root
+            xl = rts
+        else:
+            xh = rts
+
+    raise RuntimeError("Maximum number of iterations exceeded in safe_newton")
+
+
+
+
+
+    # || (fabs(2.0*f) > fabs(dxold*df))) { or not decreasing fast enough. dxold=dx;
+    # dx=0.5*(xh-xl);
+    # rts=xl+dx;
+    # (j=1;j<=MAXIT;j++) {
+    # if ((((rts-xh)*df-f)*((rts-xl)*df-f) > 0.0) Bisect if Newton out of range,
+    # if (xl == rts) return rts; } else {
+    # dxold=dx;
+    # dx=f/df;
+    # temp=rts;
+    # rts -= dx;
+    # if (temp == rts) return rts;
+    # Change in root is negligible. Newton step acceptable. Take it.
+    # }
+    # if (fabs(dx) < xacc) return rts; (*funcd)(rts,&f,&df);
+    # The one new function evaluation per iteration.
+    # Convergence criterion.
+    # Sample page from NUMERICAL RECIPES IN C: THE ART OF SCIENTIFIC COMPUTING (ISBN 0-521-43108-5)
+    # Copyright (C) 1988-1992 by Cambridge University Press. Programs Copyright (C) 1988-1992 by Numerical Recipes Software.
+    # Permission is granted for internet users to make one paper copy for their own personal use. Further reproduction, or any copying of machine- readable files (including this one) to any server computer, is strictly prohibited. To order Numerical Recipes books or CDROMs, visit website http://www.nr.com or call 1-800-872-7423 (North America only), or send email to directcustserv@cambridge.org (outside North America).
+    # 9.4 Newton-Raphson Method Using Derivative 367
+    # if (f < 0.0) Maintain the bracket on the root. xl=rts;
+    # else xh=rts;
+    # }
+    # nrerror(); return 0.0; Never get here.
+    # }
