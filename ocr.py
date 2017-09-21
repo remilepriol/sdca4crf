@@ -699,7 +699,7 @@ def duality_gaps(marginals, weights, images):
     return np.array(ans)
 
 
-def sdca(x, y, regu, npass=5, update_period=5, precision=1e-5, subprecision=1e-16, non_uniformity=0,
+def sdca(x, y, regu=1, npass=5, update_period=5, precision=1e-5, subprecision=1e-16, non_uniformity=0,
          step_size=None, init='uniform', _debug=False):
     """Update alpha and w with the stochastic dual coordinate ascent algorithm to fit the model to the
     data points x and the labels y.
@@ -722,7 +722,11 @@ def sdca(x, y, regu, npass=5, update_period=5, precision=1e-5, subprecision=1e-1
     if nb_words != x.shape[0]:
         raise ValueError("Not the same number of labels (%i) and images (%i) inside training set." \
                          % (nb_words, x.shape[0]))
-    if init == "uniform":
+
+    if isinstance(init, np.ndarray):  # assume that init contains the marginals for a warm start.
+        marginals = init
+        weights = marginals_to_weights(x, y, marginals, log=True)
+    elif init == "uniform":
         marginals = uniform_marginals(y, log=True)
         weights = marginals_to_weights(x, y) / regu
     elif init == "random":
@@ -804,6 +808,7 @@ def sdca(x, y, regu, npass=5, update_period=5, precision=1e-5, subprecision=1e-1
         linear_coeff = 2 * scaling * np.dot(weights, primal_direction)
         if step_size:
             gammaopt = step_size
+            subobjective = []
         else:
             # print("dual direction")
             # print(dual_direction.square().to_logprobability())
@@ -826,8 +831,8 @@ def sdca(x, y, regu, npass=5, update_period=5, precision=1e-5, subprecision=1e-1
                 gfdggf = - np.sign(gfgamma) * np.exp(logvalue)  # gf(x)/ggf(x)
                 return gfgamma, gfdggf
 
-            # if t == 500:
-            #     return f, gf, ggf, quadratic_coeff, linear_coeff, dual_direction, marginals[i], margs_i
+            # if t == 50:
+            #     return evaluator, quadratic_coeff, linear_coeff, dual_direction, marginals[i], margs_i
 
             gammaopt, subobjective = utils.find_root_decreasing(evaluator=evaluator, precision=subprecision)
 
@@ -847,11 +852,6 @@ def sdca(x, y, regu, npass=5, update_period=5, precision=1e-5, subprecision=1e-1
         ##################################################################################
         marginals[i] = marginals[i].convex_combination(margs_i, gammaopt)
         weights += gammaopt * primal_direction
-        # assert marginals[i].are_densities(1)
-        # assert marginals[i].are_consistent()
-        # assert marginals[i].are_positive(), (display_word(y[i], x[i]),
-        #                                      marginals[i].display(),
-        #                                      Features.from_array(weights).display())
 
         ##################################################################################
         # DUALITY GAP ESTIMATE
@@ -874,10 +874,10 @@ def sdca(x, y, regu, npass=5, update_period=5, precision=1e-5, subprecision=1e-1
                 (tmp - entropies[i] + gammaopt ** 2 * quadratic_coeff + gammaopt * linear_coeff) / nb_words
             entropies[i] = tmp
             # Append relevant variables
-            annex.append([-quadratic_coeff, -linear_coeff, gammaopt,
-                          dual_objective, duality_gap, sampler.get_score(i), i])
+            annex.append([np.log10(-quadratic_coeff), -linear_coeff / np.sqrt(-quadratic_coeff), gammaopt,
+                          dual_objective, np.log10(duality_gap), sampler.get_score(i), i, len(subobjective)])
 
-        if t % nb_words == 0:
+        if t % (update_period * nb_words) == 0:
             ##################################################################################
             # OBJECTIVES : after each pass over the data, compute the duality gap
             ##################################################################################
