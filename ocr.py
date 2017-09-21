@@ -359,7 +359,27 @@ def viterbi(uscores, bscores):
 
 
 ########################################################################################################################
-# OBJECT ORIENTED
+# RADIUS
+########################################################################################################################
+def radius(word):
+    # The factor 2 comes from the difference : ground truth - other label
+    r = 2 * np.sum(word ** 2)  # emission
+    r += 2 * word.shape[0]  # model bias
+    r += 2 * 2  # beginning and end of word biases
+    r += 2 * (word.shape[0] - 1)  # transitions
+    return np.sqrt(r)
+
+
+def radii(words):
+    nb_words = words.shape[0]
+    rs = np.empty(nb_words)
+    for i in range(nb_words):
+        rs[i] = radius(words[i])
+    return rs
+
+
+########################################################################################################################
+# FEATURES
 ########################################################################################################################
 class Features:
     def __init__(self, unary=None, binary=None):
@@ -455,7 +475,37 @@ class Features:
         plt.title("Bias features")
 
 
-class Probability:
+########################################################################################################################
+# PROBABILITIES
+########################################################################################################################
+class Chain:
+    """Represent anything that is decomposable over the nodes and adges of a chain."""
+
+    def __init__(self, unary, binary):
+        if unary.shape[0] != binary.shape[0] + 1:
+            raise ValueError("Wrong size of marginals: %i vs %i" % (unary.shape[0], binary.shape[0]))
+        self.unary = unary
+        self.binary = binary
+
+    def __str__(self):
+        return "unary: \n" + np.array_str(self.unary) + "\n binary: \n" + np.array_str(self.binary)
+
+    def __repr__(self):
+        return "unary: \n" + np.array_repr(self.unary) + "\n binary: \n" + np.array_repr(self.binary)
+
+    def display(self):
+        plt.matshow(self.unary)
+        plt.xticks(range(26), [ALPHABET[x] for x in range(26)])
+        plt.colorbar(fraction=0.046, pad=0.04)
+        plt.title("unary marginals")
+        plt.matshow(self.binary.sum(axis=0))
+        plt.xticks(range(26), [ALPHABET[x] for x in range(26)])
+        plt.yticks(range(26), [ALPHABET[x] for x in range(26)])
+        plt.colorbar(fraction=0.046, pad=0.04)
+        plt.title("sum of binary marginals")
+
+
+class Probability(Chain):
     """Represent a conditional probability p(y|x) under the form of MARGINALS.
     Can also represent the ascent direction or the score.
     Ony has a finite precision on the small numbers.
@@ -464,15 +514,10 @@ class Probability:
 
     def __init__(self, unary=None, binary=None, word_length=None):
         if unary is None or binary is None:
-            self.length = word_length
             self.unary = np.ones([word_length, ALPHABET_SIZE]) / ALPHABET_SIZE
             self.binary = np.ones([word_length - 1, ALPHABET_SIZE, ALPHABET_SIZE]) / ALPHABET_SIZE ** 2
         else:
-            if unary.shape[0] != binary.shape[0] + 1:
-                raise ValueError("Wrong size of marginals: %i vs %i" % (unary.shape[0], binary.shape[0]))
-            self.length = unary.shape[0]
-            self.unary = unary
-            self.binary = binary
+            Chain.__init__(unary, binary)
 
     def are_densities(self, integral=1):
         return np.isclose(np.sum(self.unary, axis=1), integral).all() \
@@ -493,30 +538,38 @@ class Probability:
             # print("Marginalisation of the left and right of the binary marginals are inconsistent.")
         return ans
 
-    def inner_product(self, other_marginals):
+    def sum(self):
         """Return the special inner product where the marginals on the separations are subtracted."""
-        return np.sum(self.binary + other_marginals.binary) - \
-               np.sum(self.unary[1:-1] + other_marginals.unary[1:-1])
+        return np.sum(self.binary) - np.sum(self.unary[1:-1])
 
-    def add(self, other_marginals):
-        return Probability(unary=self.unary + other_marginals.unary,
-                           binary=self.binary + other_marginals.binary)
+    def subtract(self, other):
+        return Probability(unary=self.unary - other.unary,
+                           binary=self.binary - other.binary)
 
-    def subtract(self, other_marginals):
-        return Probability(unary=self.unary - other_marginals.unary,
-                           binary=self.binary - other_marginals.binary)
+    def multiply(self, other):
+        return Probability(unary=self.unary * other.unary,
+                           binary=self.binary * other.binary)
 
-    def multiply(self, other_marginals):
-        return Probability(unary=self.unary * other_marginals.unary,
-                           binary=self.binary * other_marginals.binary)
+    def inner_product(self, other):
+        """Return the special inner product where the marginals on the separations are subtracted."""
+        return self.multiply(other).sum()
 
-    def divide(self, other_marginals):
-        return Probability(unary=self.unary / other_marginals.unary,
-                           binary=self.binary / other_marginals.binary)
-
-    def multiply_scalar(self, scalar):
-        return Probability(unary=scalar * self.unary,
-                           binary=scalar * self.binary)
+    # def special_function(self, newmargs):
+    #   """To handle the second derivative in th eline search"""
+    #     unary_filter = (self.unary != 0)
+    #     binary_filter = (self.binary != 0)
+    #
+    # def add(self, other):
+    #     return Probability(unary=self.unary + other.unary,
+    #                        binary=self.binary + other.binary)
+    #
+    # def divide(self, other):
+    #     return Probability(unary=self.unary / other.unary,
+    #                        binary=self.binary / other.binary)
+    #
+    # def multiply_scalar(self, scalar):
+    #     return Probability(unary=scalar * self.unary,
+    #                        binary=scalar * self.binary)
 
     def square(self):
         return Probability(unary=self.unary ** 2, binary=self.binary ** 2)
@@ -534,39 +587,23 @@ class Probability:
         bmargs[np.arange(word_length - 1), labels[:-1], labels[1:]] = 1
         return Probability(unary=umargs, binary=bmargs)
 
-    def display(self):
-        plt.matshow(self.unary)
-        plt.xticks(range(26), [ALPHABET[x] for x in range(26)])
-        plt.colorbar(fraction=0.046, pad=0.04)
-        plt.title("unary marginals")
-        plt.matshow(self.binary.sum(axis=0))
-        plt.xticks(range(26), [ALPHABET[x] for x in range(26)])
-        plt.yticks(range(26), [ALPHABET[x] for x in range(26)])
-        plt.colorbar(fraction=0.046, pad=0.04)
-        plt.title("sum of binary marginals")
 
-
-class LogProbability:
+class LogProbability(Chain):
     """Represent a conditional probability p(y|x) under the form of LOG-marginals."""
 
     def __init__(self, unary=None, binary=None, word_length=None):
         if unary is None or binary is None:  # assume uniform
-            self.length = word_length
             self.unary = np.ones([word_length, ALPHABET_SIZE]) * (-np.log(ALPHABET_SIZE))
             self.binary = np.ones([word_length - 1, ALPHABET_SIZE, ALPHABET_SIZE]) * (-2 * np.log(ALPHABET_SIZE))
         else:  # take what is given
-            if unary.shape[0] != binary.shape[0] + 1:
-                raise ValueError("Wrong size of marginals: %i vs %i" % (unary.shape[0], binary.shape[0]))
-            self.length = unary.shape[0]
-            self.unary = unary
-            self.binary = binary
+            Chain.__init__(unary, binary)
 
     def entropy(self):
         return max(0, utils.log_entropy(self.binary) - utils.log_entropy(self.unary[1:-1]))
 
-    def kullback_leibler(self, other_marginals):
-        return max(0, utils.log_kullback_leibler(self.binary, other_marginals.binary) \
-                   - utils.log_kullback_leibler(self.unary[1:-1], other_marginals.unary[1:-1]))
+    def kullback_leibler(self, other):
+        return max(0, utils.log_kullback_leibler(self.binary, other.binary) \
+                   - utils.log_kullback_leibler(self.unary[1:-1], other.unary[1:-1]))
 
     def convex_combination(self, other, gamma):
         if gamma == 0:
@@ -578,9 +615,18 @@ class LogProbability:
             binary = utils.logsumexp(np.array([self.binary + np.log(1 - gamma), other.binary + np.log(gamma)]), axis=0)
             return LogProbability(unary=unary, binary=binary)
 
+    def subtract(self, other):
+        return LogProbability(unary=self.unary - other.unary,
+                              binary=self.binary - other.binary)
+
     def inverse(self):
         return LogProbability(unary=-self.unary,
                               binary=-self.binary)
+
+    def logsumexp(self):
+        themax = max(np.amax(self.unary[1:-1]), np.amax(self.binary))
+        return themax + np.log(np.sum(np.exp(self.binary - themax)) -
+                               np.sum(np.exp(self.unary[1:-1] - themax)))
 
     def to_probability(self):
         return Probability(unary=np.exp(self.unary),
@@ -594,26 +640,8 @@ class LogProbability:
 
 
 ########################################################################################################################
-# NEW STUFF
+# INITIALIZATION
 ########################################################################################################################
-
-def radius(word):
-    # The factor 2 comes from the difference : ground truth - other label
-    r = 2 * np.sum(word ** 2)  # emission
-    r += 2 * word.shape[0]  # model bias
-    r += 2 * 2  # beginning and end of word biases
-    r += 2 * (word.shape[0] - 1)  # transitions
-    return np.sqrt(r)
-
-
-def radii(words):
-    nb_words = words.shape[0]
-    rs = np.empty(nb_words)
-    for i in range(nb_words):
-        rs[i] = radius(words[i])
-    return rs
-
-
 # initialize with uniform marginals
 def uniform_marginals(labels, log=False):
     nb_words = labels.shape[0]
@@ -778,9 +806,9 @@ def sdca(x, y, regu, npass=5, update_period=5, precision=1e-5, subprecision=1e-1
             gammaopt = step_size
         else:
             # line search function and its derivatives
-            # def f(gamma):
-            #    newmargs = marginals[i].add(dual_direction.multiply_scalar(gamma))
-            #    return  newmargs.entropy() + gamma**2 * quadratic_coeff + gamma * linear_coeff
+            def f(gamma):
+                newmargs = marginals[i].convex_combination(margs_i, gamma)
+                return newmargs.entropy() + gamma ** 2 * quadratic_coeff + gamma * linear_coeff
 
             def gf(gamma):
                 newmargs = marginals[i].convex_combination(margs_i, gamma)
@@ -791,8 +819,14 @@ def sdca(x, y, regu, npass=5, update_period=5, precision=1e-5, subprecision=1e-1
 
             def ggf(gamma):
                 newmargs = marginals[i].convex_combination(margs_i, gamma)
-                return - dual_direction.square().inner_product(newmargs.inverse().to_probability()) \
-                       + 2 * quadratic_coeff
+                logvalue = dual_direction.square().to_logprobability().subtract(newmargs).logsumexp()
+                print(gamma, "\t", logvalue)
+                print(dual_direction)
+                print(newmargs)
+                return - np.exp(logvalue) + 2 * quadratic_coeff
+
+            # if t == 500:
+            #     return f, gf, ggf, quadratic_coeff, linear_coeff, dual_direction, marginals[i], margs_i
 
             gammaopt, subobjective = utils.find_root_decreasing(gf, ggf, precision=subprecision)
 
