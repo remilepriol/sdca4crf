@@ -623,10 +623,11 @@ class LogProbability(Chain):
         return LogProbability(unary=-self.unary,
                               binary=-self.binary)
 
-    def logsumexp(self):
-        themax = max(np.amax(self.unary[1:-1]), np.amax(self.binary))
+    def logsumexp(self, to_add):
+        themax = max(np.amax(self.unary[1:-1]), np.amax(self.binary), to_add)
         return themax + np.log(np.sum(np.exp(self.binary - themax)) -
-                               np.sum(np.exp(self.unary[1:-1] - themax)))
+                               np.sum(np.exp(self.unary[1:-1] - themax)) +
+                               to_add * np.exp(-themax))
 
     def to_probability(self):
         return Probability(unary=np.exp(self.unary),
@@ -825,8 +826,8 @@ def sdca(x, y, regu=1, npass=5, update_period=5, precision=1e-5, subprecision=1e
                 gfgamma = - dual_direction.inner_product(newmargs) + gamma * 2 * quadratic_coeff + linear_coeff
                 if gfgamma == 0:
                     return gfgamma, 0
-                logvalue = dual_direction.square().to_logprobability().subtract(newmargs).logsumexp()
-                logvalue += np.log(1 - 2 * quadratic_coeff * np.exp(-logvalue))  # stable logsumexp
+                logvalue = dual_direction.square().to_logprobability() \
+                    .subtract(newmargs).logsumexp(- 2 * quadratic_coeff)  # stable logsumexp
                 logvalue = np.log(np.absolute(gfgamma)) - logvalue
                 gfdggf = - np.sign(gfgamma) * np.exp(logvalue)  # gf(x)/ggf(x)
                 return gfgamma, gfdggf
