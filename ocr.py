@@ -809,28 +809,24 @@ def sdca(x, y, regu, npass=5, update_period=5, precision=1e-5, subprecision=1e-1
             print(dual_direction.square().to_logprobability())
             print("new marginals")
             print(margs_i)
-            # line search function and its derivatives
-            def f(gamma):
-                newmargs = marginals[i].convex_combination(margs_i, gamma)
-                return newmargs.entropy() + gamma ** 2 * quadratic_coeff + gamma * linear_coeff
 
-            def gf(gamma):
+            def evaluator(gamma):
+                # line search function and its derivatives
                 newmargs = marginals[i].convex_combination(margs_i, gamma)
                 # assert newmargs.are_densities(1)
                 # assert newmargs.are_consistent()
                 # assert newmargs.are_positive(), newmargs.display
-                return - dual_direction.inner_product(newmargs) + gamma * 2 * quadratic_coeff + linear_coeff
-
-            def ggf(gamma):
-                newmargs = marginals[i].convex_combination(margs_i, gamma)
+                # fgamma = newmargs.entropy() + gamma ** 2 * quadratic_coeff + gamma * linear_coeff
+                gfgamma = - dual_direction.inner_product(newmargs) + gamma * 2 * quadratic_coeff + linear_coeff
                 logvalue = dual_direction.square().to_logprobability().subtract(newmargs).logsumexp()
                 print(gamma, "\t", logvalue)
-                return - np.exp(logvalue) + 2 * quadratic_coeff
+                ggfgamma = - np.exp(logvalue) + 2 * quadratic_coeff
+                return gfgamma, ggfgamma
 
             # if t == 500:
             #     return f, gf, ggf, quadratic_coeff, linear_coeff, dual_direction, marginals[i], margs_i
 
-            gammaopt, subobjective = utils.find_root_decreasing(gf, ggf, precision=subprecision)
+            gammaopt, subobjective = utils.find_root_decreasing(evaluator=evaluator, precision=subprecision)
 
             ##################################################################################
             # ANNEX

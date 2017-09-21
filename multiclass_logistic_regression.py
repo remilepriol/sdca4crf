@@ -184,15 +184,15 @@ class MulticlassLogisticRegression:
             linear_coeff = squared_norm_x[i] * squared_ascent_norm / self.reg / self.n
             constant_coeff = np.dot(ascent_direction, np.dot(self.w, x[i]))
 
-            def u(gamma):
-                return -np.sum(ascent_direction * np.log(np.maximum(self.alpha[i] + gamma * ascent_direction, 1e-50))) \
-                       - gamma * linear_coeff + constant_coeff
+            def evaluator(gamma):
+                # Evaluate the first and second derivatives of the dual objective with respect to gamma
+                # We have to find a root of this function
+                newproba = np.maximum(self.alpha[i] + gamma * ascent_direction, 1e-50)
+                fgamma = -np.sum(ascent_direction * np.log(newproba)) - gamma * linear_coeff + constant_coeff
+                gfgamma = -np.sum(ascent_direction ** 2 / newproba) - linear_coeff
+                return fgamma, gfgamma
 
-            def gu(gamma):
-                return -np.sum(ascent_direction ** 2 / np.maximum(self.alpha[i] + gamma * ascent_direction, 1e-50)) \
-                       - linear_coeff
-
-            gammaopt, subobjective = utils.find_root_decreasing(u, gu, precision=1e-16)
+            gammaopt, subobjective = utils.find_root_decreasing(evaluator=evaluator, precision=1e-16)
             alphai = self.alpha[i] + gammaopt * ascent_direction
 
             ##################################################################################
