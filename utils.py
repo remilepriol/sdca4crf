@@ -50,7 +50,7 @@ def find_root_decreasing(evaluator, precision):
     if u1 >= -precision:  # 1 is optimal
         return 1, [u1]
 
-    return bounded_newton(evaluator, .5, 0, 1, precision=precision)
+    return safe_newton(evaluator, 0, 1, precision=precision)
 
 
 def bounded_newton(evaluator, init, lowerbound, upperbound, precision=1e-12, max_iter=20):
@@ -113,7 +113,7 @@ def safe_newton(evaluator, lowerbound, upperbound, precision, max_iter=100):
     dx = dxold  # and the last step
 
     f, fdf = evaluator(rts)
-    obj = [[f, fdf]]
+    obj = [[f]]
 
     for _ in np.arange(max_iter):  # Loop over allowed iterations.
         rtsold = rts
@@ -133,7 +133,7 @@ def safe_newton(evaluator, lowerbound, upperbound, precision, max_iter=100):
         if abs(dx) < precision:  # Convergence criterion.
             return rts, np.array(obj)
         f, fdf = evaluator(rts)  # the one new function evaluation per iteration
-        obj.append([f, dx])
+        obj.append([f])
         if f < 0:  # maintain the bracket on the root
             xl = rts
         else:
