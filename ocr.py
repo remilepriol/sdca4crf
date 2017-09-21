@@ -517,7 +517,7 @@ class Probability(Chain):
             self.unary = np.ones([word_length, ALPHABET_SIZE]) / ALPHABET_SIZE
             self.binary = np.ones([word_length - 1, ALPHABET_SIZE, ALPHABET_SIZE]) / ALPHABET_SIZE ** 2
         else:
-            Chain.__init__(unary, binary)
+            Chain.__init__(self, unary, binary)
 
     def are_densities(self, integral=1):
         return np.isclose(np.sum(self.unary, axis=1), integral).all() \
@@ -596,7 +596,7 @@ class LogProbability(Chain):
             self.unary = np.ones([word_length, ALPHABET_SIZE]) * (-np.log(ALPHABET_SIZE))
             self.binary = np.ones([word_length - 1, ALPHABET_SIZE, ALPHABET_SIZE]) * (-2 * np.log(ALPHABET_SIZE))
         else:  # take what is given
-            Chain.__init__(unary, binary)
+            Chain.__init__(self, unary, binary)
 
     def entropy(self):
         return max(0, utils.log_entropy(self.binary) - utils.log_entropy(self.unary[1:-1]))
@@ -805,6 +805,10 @@ def sdca(x, y, regu, npass=5, update_period=5, precision=1e-5, subprecision=1e-1
         if step_size:
             gammaopt = step_size
         else:
+            print("dual direction")
+            print(dual_direction.square().to_logprobability())
+            print("new marginals")
+            print(margs_i)
             # line search function and its derivatives
             def f(gamma):
                 newmargs = marginals[i].convex_combination(margs_i, gamma)
@@ -821,8 +825,6 @@ def sdca(x, y, regu, npass=5, update_period=5, precision=1e-5, subprecision=1e-1
                 newmargs = marginals[i].convex_combination(margs_i, gamma)
                 logvalue = dual_direction.square().to_logprobability().subtract(newmargs).logsumexp()
                 print(gamma, "\t", logvalue)
-                print(dual_direction)
-                print(newmargs)
                 return - np.exp(logvalue) + 2 * quadratic_coeff
 
             # if t == 500:
