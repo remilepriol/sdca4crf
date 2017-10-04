@@ -141,32 +141,3 @@ def safe_newton(evaluator, lowerbound, upperbound, precision, max_iter=100):
 
     raise RuntimeError("Maximum number of iterations exceeded in safe_newton")
 
-
-
-
-
-    # || (fabs(2.0*f) > fabs(dxold*df))) { or not decreasing fast enough. dxold=dx;
-    # dx=0.5*(xh-xl);
-    # rts=xl+dx;
-    # (j=1;j<=MAXIT;j++) {
-    # if ((((rts-xh)*df-f)*((rts-xl)*df-f) > 0.0) Bisect if Newton out of range,
-    # if (xl == rts) return rts; } else {
-    # dxold=dx;
-    # dx=f/df;
-    # temp=rts;
-    # rts -= dx;
-    # if (temp == rts) return rts;
-    # Change in root is negligible. Newton step acceptable. Take it.
-    # }
-    # if (fabs(dx) < xacc) return rts; (*funcd)(rts,&f,&df);
-    # The one new function evaluation per iteration.
-    # Convergence criterion.
-    # Sample page from NUMERICAL RECIPES IN C: THE ART OF SCIENTIFIC COMPUTING (ISBN 0-521-43108-5)
-    # Copyright (C) 1988-1992 by Cambridge University Press. Programs Copyright (C) 1988-1992 by Numerical Recipes Software.
-    # Permission is granted for internet users to make one paper copy for their own personal use. Further reproduction, or any copying of machine- readable files (including this one) to any server computer, is strictly prohibited. To order Numerical Recipes books or CDROMs, visit website http://www.nr.com or call 1-800-872-7423 (North America only), or send email to directcustserv@cambridge.org (outside North America).
-    # 9.4 Newton-Raphson Method Using Derivative 367
-    # if (f < 0.0) Maintain the bracket on the root. xl=rts;
-    # else xh=rts;
-    # }
-    # nrerror(); return 0.0; Never get here.
-    # }
