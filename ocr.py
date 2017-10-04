@@ -816,13 +816,12 @@ def sdca(x, y, regu=1, npass=5, update_period=5, precision=1e-5, subprecision=1e
             # print("new marginals")
             # print(margs_i)
 
-            def evaluator(gamma):
+            def evaluator(gamma, returnf=False):
                 # line search function and its derivatives
                 newmargs = marginals[i].convex_combination(margs_i, gamma)
                 # assert newmargs.are_densities(1)
                 # assert newmargs.are_consistent()
                 # assert newmargs.are_positive(), newmargs.display
-                # fgamma = newmargs.entropy() + gamma ** 2 * quadratic_coeff + gamma * linear_coeff
                 gfgamma = - dual_direction.inner_product(newmargs) + gamma * 2 * quadratic_coeff + linear_coeff
                 if gfgamma == 0:
                     return gfgamma, 0
@@ -830,12 +829,38 @@ def sdca(x, y, regu=1, npass=5, update_period=5, precision=1e-5, subprecision=1e
                     .subtract(newmargs).logsumexp(- 2 * quadratic_coeff)  # stable logsumexp
                 logvalue = np.log(np.absolute(gfgamma)) - logvalue
                 gfdggf = - np.sign(gfgamma) * np.exp(logvalue)  # gf(x)/ggf(x)
-                return gfgamma, gfdggf
+                if returnf:
+                    entropy = newmargs.entropy()
+                    norm = gamma ** 2 * quadratic_coeff + gamma * linear_coeff
+                    return entropy, norm, gfgamma, gfdggf
+                else:
+                    return gfgamma, gfdggf
 
+            gammaopt, subobjective = utils.find_root_decreasing(evaluator=evaluator, precision=subprecision)
+
+            ##################################################################################
+            # DEBUGGING
+            ##################################################################################
             # if t == 50:
             #     return evaluator, quadratic_coeff, linear_coeff, dual_direction, marginals[i], margs_i
 
-            gammaopt, subobjective = utils.find_root_decreasing(evaluator=evaluator, precision=subprecision)
+            # Plot the line search curves
+            # whentoplot = 25
+            # if t == whentoplot * nb_words:
+            #     fig, axs = plt.subplots(nrows=1, ncols=3, figsize=(12, 4))
+            # if 0 <= t - whentoplot * nb_words < 10:
+            # if t % int(npass * nb_words / 6) == 0:
+            #     segment = np.linspace(0, 1, 100)
+            #     funcvalues = np.array([evaluator(gam, returnf=True) for gam in segment]).T
+            #     fig, axs = plt.subplots(nrows=1, ncols=3, figsize=(12, 2))
+            #     axs[0].plot(segment, funcvalues[0], label="entropy")
+            #     axs[0].plot(segment, funcvalues[1], label="norm")
+            #     axs[0].plot(segment, funcvalues[0] + funcvalues[1], label="line search")
+            #     axs[0].legend(loc='best')
+            #     axs[1].plot(segment, funcvalues[2])
+            #     axs[2].plot(segment, funcvalues[3])
+            #     for ax in axs:
+            #         ax.vlines(gammaopt, *ax.get_ylim())
 
             ##################################################################################
             # ANNEX
@@ -847,6 +872,12 @@ def sdca(x, y, regu=1, npass=5, update_period=5, precision=1e-5, subprecision=1e
                     countneg += 1
                 else:
                     countzero += 1
+
+        # Plot the distribution of gradient values over the data
+        if t == 100 * nb_words:
+            slopes = get_slopes(marginals, weights, x, regu)
+            plt.hist(slopes, 50)
+            break
 
         ##################################################################################
         # UPDATE : the primal and dual coordinates
@@ -913,3 +944,22 @@ def sdca(x, y, regu=1, npass=5, update_period=5, precision=1e-5, subprecision=1e
         return marginals, weights, objective, timing, annex
     else:
         return marginals, weights, objective, timing
+
+
+def get_slopes(marginals, weights, images, regu):
+    nb_words = marginals.shape[0]
+    ans = []
+    for margs, imgs in zip(marginals, images):
+        newmargs = LogProbability.infer_from_weights(imgs, weights)
+        dual_direction = newmargs.to_probability().subtract(margs.to_probability())
+        assert dual_direction.are_densities(integral=0)
+        assert dual_direction.are_consistent()
+
+        primal_direction = Features()
+        primal_direction.add_centroid(imgs, dual_direction)
+        primal_direction = - primal_direction.to_array() / regu / nb_words
+
+        slope = - dual_direction.inner_product(newmargs) - regu * nb_words * np.dot(weights, primal_direction)
+        ans.append(slope)
+
+    return ans
