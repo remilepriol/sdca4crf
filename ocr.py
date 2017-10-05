@@ -4,6 +4,7 @@ import time
 
 import matplotlib.pyplot as plt
 import numpy as np
+from tqdm import tqdm
 
 import random_counters
 # custom imports
@@ -702,7 +703,7 @@ def duality_gaps(marginals, weights, images):
 
 def sdca(x, y, regu=1, npass=5, update_period=5, precision=1e-5, subprecision=1e-16, non_uniformity=0,
          step_size=None, init='uniform', _debug=False):
-    """Update alpha and w with the stochastic dual coordinate ascent algorithm to fit the model to the
+    """Update alpha and weights with the stochastic dual coordinate ascent algorithm to fit the model to the
     data points x and the labels y.
 
     :param x: data points organized by rows
@@ -768,9 +769,10 @@ def sdca(x, y, regu=1, npass=5, update_period=5, precision=1e-5, subprecision=1e
     ##################################################################################
     # MAIN LOOP
     ##################################################################################
-    t = 0
-    while t < nb_words * npass and duality_gap > precision:
-        t += 1
+    for t in tqdm(range(nb_words * npass)):
+        if duality_gap > precision:
+            break
+
 
         ##################################################################################
         # SAMPLING
@@ -806,7 +808,7 @@ def sdca(x, y, regu=1, npass=5, update_period=5, precision=1e-5, subprecision=1e
         # LINE SEARCH : find the optimal step size gammaopt or use a fixed one
         ##################################################################################
         quadratic_coeff = scaling * np.sum(primal_direction ** 2)
-        linear_coeff = 2 * scaling * np.dot(weights, primal_direction)
+        # linear_coeff = 2 * scaling * np.dot(weights, primal_direction)
         if step_size:
             gammaopt = step_size
             subobjective = []
@@ -886,15 +888,9 @@ def sdca(x, y, regu=1, npass=5, update_period=5, precision=1e-5, subprecision=1e
         weights += gammaopt * primal_direction
 
         ##################################################################################
-        # DUALITY GAP ESTIMATE
+        # NON-UNIFORM SAMPLING
         ##################################################################################
         sampler.update(marginals[i].kullback_leibler(margs_i), i)
-        duality_gap = sampler.get_total() / nb_words
-        assert duality_gap >= 0, (
-            duality_gap,
-            sampler.get_score(i),
-            nb_words
-        )
 
         ##################################################################################
         # ANNEX
@@ -905,9 +901,11 @@ def sdca(x, y, regu=1, npass=5, update_period=5, precision=1e-5, subprecision=1e
             dual_objective += \
                 (tmp - entropies[i] + gammaopt ** 2 * quadratic_coeff + gammaopt * linear_coeff) / nb_words
             entropies[i] = tmp
+            # update the duality gap estimate
+            duality_gap_estimate = sampler.get_total() / nb_words
             # Append relevant variables
             annex.append([np.log10(-quadratic_coeff), -linear_coeff / np.sqrt(-quadratic_coeff), gammaopt,
-                          dual_objective, np.log10(duality_gap), sampler.get_score(i), i, len(subobjective)])
+                          dual_objective, np.log10(duality_gap_estimate), sampler.get_score(i), i, len(subobjective)])
 
         if t % (update_period * nb_words) == 0:
             ##################################################################################
