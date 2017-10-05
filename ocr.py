@@ -183,69 +183,8 @@ def select_bias(label):
 
 
 ########################################################################################################################
-# FEATURE CREATION
-########################################################################################################################
-def unary_feature(images, label, position):
-    feat = np.zeros(NB_FEATURES)
-    # image value
-    feat[select_emission(label)] = images[position]
-    # bias
-    feat[select_bias(label)] = [1, position == 0, position == images.shape[0] - 1]
-    return feat
-
-
-def binary_feature(label, next_label):
-    feat = np.zeros(NB_FEATURES)
-    feat[select_transition(label, next_label)] = 1
-    return feat
-
-
-def word_feature(images, labels):
-    feat = np.zeros(NB_FEATURES)
-    if images.shape[0] != labels.shape[0]:
-        raise ValueError("Not the same number of letter images and labels.")
-    for t in range(images.shape[0]):
-        feat[select_emission(labels[t])] += images[t]
-        feat[select_bias(labels[t])] += [1, t == 0, t == images.shape[0] - 1]
-    for t in range(images.shape[0] - 1):
-        feat[select_transition(labels[t], labels[t + 1])] += 1
-    return feat
-
-
-########################################################################################################################
 # SCORES
 ########################################################################################################################
-def slow_unary_scores(word, weights):
-    """Return the unary scores of word given by weights. This function is defined for the sake of clarity.
-    A faster version is given below.
-
-    :param word:
-    :param weights:
-    :return:
-    """
-    uscores = np.zeros([word.shape[0], ALPHABET_SIZE])
-    for t in range(word.shape[0]):
-        for label in range(ALPHABET_SIZE):
-            uscores[t, label] = np.dot(weights, unary_feature(word, label, t))
-    return uscores
-
-
-def slow_binary_scores(word, weights):
-    """Return the binary scores of word given by weights. This function is defined for the sake of clarity.
-    A faster version is given below.
-
-    :param word:
-    :param weights:
-    :return:
-    """
-    bscores = np.zeros([word.shape[0] - 1, ALPHABET_SIZE, ALPHABET_SIZE])
-    for t in range(word.shape[0] - 1):
-        for label in range(ALPHABET_SIZE):
-            for next_label in range(ALPHABET_SIZE):
-                bscores[t, label, next_label] = np.dot(weights, binary_feature(label, next_label))
-    return bscores
-
-
 def unary_scores(images, weights):
     """Return the unary scores of word given by weights.
 
@@ -270,8 +209,7 @@ def binary_scores(word_length, weights):
     :param weights:
     :return:
     """
-    bscores = np.empty([word_length - 1, ALPHABET_SIZE, ALPHABET_SIZE])
-    bscores[:] = np.reshape(weights[select_transition(-1, -1)], (ALPHABET_SIZE, ALPHABET_SIZE))
+    bscores = (word_length - 1) * [np.reshape(weights[select_transition(-1, -1)], (ALPHABET_SIZE, ALPHABET_SIZE))]
     # the code below is more understandable but slower
     # for t in range(word.shape[0]-1):
     #    for label in range(ALPHABET_SIZE):
@@ -287,7 +225,7 @@ def sum_product(uscores, bscores, log=False):
     """Apply the sum-product algorithm on a chain
 
     :param uscores: array T*Alphabet, scores on individual nodes
-    :param bscores: array (T-1)*Alphabet, scores on the edges
+    :param bscores: array (T-1)*Alphabet*Alphabet, scores on the edges
     :param log: if True, return the log-marginals
     :return: marginals on nodes, marginals on edges, log-partition
     """
