@@ -291,9 +291,9 @@ class Features:
         return np.sum(self.emission ** 2) + np.sum(self.bias ** 2) + np.sum(self.transition ** 2)
 
     def inner_product(self, other):
-        return np.dot(self.emission, other.emission) + \
-               np.dot(self.bias, other.bias) + \
-               np.dot(self.transition, other.transition)
+        return np.sum(self.emission * other.emission) + \
+               np.sum(self.bias * other.bias) + \
+               np.sum(self.transition * other.transition)
 
     def display(self):
         emissions = letters2wordimage(self.emission)
