@@ -136,55 +136,7 @@ def unique_words(words_labels):
 
 
 ########################################################################################################################
-# FEATURE SELECTION
-########################################################################################################################
-def select_emission(label):
-    """If label is positive, return the slice of emission features corresponding to label.
-    Else return the slice of emission features for all labels.
-
-    :param label:
-    :return:
-    """
-    if label >= 0:
-        start = label * NB_PIXELS
-        return slice(start, start + NB_PIXELS)
-    else:
-        return slice(0, ALPHABET_SIZE * NB_PIXELS)
-
-
-def select_transition(label, next_label):
-    """If label and next label are positive, return the coordinate of the corresponding transition feature.
-    Else return the slice of all transition features.
-
-    :param label:
-    :param next_label:
-    :return:
-    """
-    if label >= 0 and next_label >= 0:
-        start = ALPHABET_SIZE * (NB_PIXELS + label) + next_label
-        return slice(start, start + 1)
-    else:
-        start = ALPHABET_SIZE * NB_PIXELS
-        return slice(start, start + ALPHABET_SIZE * ALPHABET_SIZE)
-
-
-def select_bias(label):
-    """If label is positive, return the slice of bias features corresponding to label.
-    Else return the slice of bias features for all labels.
-
-    :param label:
-    :return:
-    """
-    if label >= 0:
-        start = ALPHABET_SIZE * (NB_PIXELS + ALPHABET_SIZE) + label
-        return slice(start, start + 3)
-    else:  # return the whole bias range
-        start = ALPHABET_SIZE * (NB_PIXELS + ALPHABET_SIZE)
-        return slice(start, start + 3 * ALPHABET_SIZE)
-
-
-########################################################################################################################
-# RADIUS
+# RADIUS OF THE FEATURES
 ########################################################################################################################
 def radius(word):
     # The factor 2 comes from the difference : ground truth - other label
@@ -326,22 +278,6 @@ class Features:
         return np.dot(self.emission, other.emission) + \
                np.dot(self.bias, other.bias) + \
                np.dot(self.transition, other.transition)
-
-    # Obsolete
-    def to_array(self):
-        feat = np.empty(NB_FEATURES)
-        feat[select_emission(-1)] = self.emission.flatten()
-        feat[select_transition(-1, -1)] = self.transition.flatten()
-        feat[select_bias(-1)] = self.bias.flatten()
-        return feat
-
-    # obsolete
-    @staticmethod
-    def from_array(feat):
-        emission = feat[select_emission(-1)].reshape([ALPHABET_SIZE, -1])
-        bias = feat[select_bias(-1)].reshape(ALPHABET_SIZE, -1)
-        transition = feat[select_transition(-1, -1)].reshape(ALPHABET_SIZE, -1)
-        return Features(emission, bias, transition)
 
     def display(self):
         emissions = letters2wordimage(self.emission)
