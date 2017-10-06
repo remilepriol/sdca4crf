@@ -218,6 +218,7 @@ def binary_scores(word_length, weights):
     #            binary_scores[t,label,next_label] = select_transition(weights,label,next_label)
     return bscores
 
+
 ########################################################################################################################
 # RADIUS
 ########################################################################################################################
@@ -244,20 +245,22 @@ def radii(words):
 class Features:
     def __init__(self, unary=None, binary=None):
         if unary is None:
-            self.unary = np.zeros([ALPHABET_SIZE, NB_PIXELS + 3])
+            self.emission = np.zeros([ALPHABET_SIZE, NB_PIXELS])
+            self.bias = np.zeros([ALPHABET_SIZE, 3])
         else:
-            self.unary = unary
+            self.emission = unary[:, :NB_PIXELS]
+            self.bias = unary[:, NB_PIXELS:]
         if binary is None:
-            self.binary = np.zeros([ALPHABET_SIZE, ALPHABET_SIZE])
+            self.transition = np.zeros([ALPHABET_SIZE, ALPHABET_SIZE])
         else:
-            self.binary = binary
+            self.transition = binary
 
     def _add_unary(self, images, label, position):
-        self.unary[label, :-3] += images[position]
-        self.unary[label, -3:] += [1, position == 0, position == images.shape[0] - 1]
+        self.emission[label] += images[position]
+        self.bias[label] += [1, position == 0, position == images.shape[0] - 1]
 
     def _add_binary(self, label, next_label):
-        self.binary[label, next_label] += 1
+        self.transition[label, next_label] += 1
 
     def add_word(self, images, labels):
         for t in range(images.shape[0]):
@@ -275,24 +278,20 @@ class Features:
 
     def _add_unary_centroid(self, images, unary_marginals=None):
         if unary_marginals is None:  # assume uniform marginal
-            self.unary[:, :-3] += np.sum(images, axis=0) / ALPHABET_SIZE
-            self.unary[:, -3] = images.shape[0] / ALPHABET_SIZE
-            self.unary[:, -2:] = 1 / ALPHABET_SIZE
+            self.emission += np.sum(images, axis=0) / ALPHABET_SIZE
+            self.bias[:, 0] += images.shape[0] / ALPHABET_SIZE
+            self.bias[:, 1:] += 1 / ALPHABET_SIZE
         else:
-            # tmp is a vertical concatenation of the images in the word and the bias terms
-            tmp = np.empty([images.shape[0], NB_PIXELS + 3])
-            tmp[:, :-3] = images
-            tmp[:, -3] = 1
-            tmp[:, -2:] = 0
-            tmp[0, -2] = 1
-            tmp[-1, -1] = 1
-            self.unary += np.dot(unary_marginals.T, tmp)
+            self.emission += np.dot(unary_marginals.T, images)
+            self.bias[:, 0] += np.sum(unary_marginals, axis=0)
+            self.bias[:, 1] += unary_marginals[0]
+            self.bias[:, 2] += unary_marginals[-1]
 
     def _add_binary_centroid(self, binary_marginals=None):
         if binary_marginals is None:  # assume uniform marginal
-            self.binary += 1 / ALPHABET_SIZE ** 2
+            self.transition += 1 / ALPHABET_SIZE ** 2
         else:
-            self.binary += np.sum(binary_marginals, axis=0)
+            self.transition += np.sum(binary_marginals, axis=0)
 
     def add_centroid(self, images, marginals=None):
         if marginals is None:  # assume uniform marginal
@@ -304,9 +303,9 @@ class Features:
 
     def to_array(self):
         feat = np.empty(NB_FEATURES)
-        feat[select_emission(-1)] = self.unary[:, :-3].flatten()
-        feat[select_transition(-1, -1)] = self.binary.flatten()
-        feat[select_bias(-1)] = self.unary[:, -3:].flatten()
+        feat[select_emission(-1)] = self.emission.flatten()
+        feat[select_transition(-1, -1)] = self.transition.flatten()
+        feat[select_bias(-1)] = self.bias.flatten()
         return feat
 
     @staticmethod
@@ -318,18 +317,18 @@ class Features:
         return Features(unary, binary)
 
     def display(self):
-        emissions = letters2wordimage(self.unary[:, :-3])
+        emissions = letters2wordimage(self.emission)
         plt.matshow(emissions)
         ticks_positions = np.linspace(0, emissions.shape[1], ALPHABET_SIZE + 2).astype(int)[1:-1]
         plt.xticks(ticks_positions, list(ALPHABET))
         plt.colorbar(fraction=0.046, pad=0.04)
-        plt.matshow(self.binary)
+        plt.matshow(self.transition)
         plt.xticks(range(26), [ALPHABET[x] for x in range(26)])
         plt.yticks(range(26), [ALPHABET[x] for x in range(26)])
         plt.colorbar(fraction=0.046, pad=0.04)
         plt.title("Transition Features")
         rescale_bias = np.array([1 / 7.5, 1, 1])
-        plt.matshow((self.unary[:, -3:] * rescale_bias).T)
+        plt.matshow((self.bias * rescale_bias).T)
         plt.xticks(range(26), [ALPHABET[x] for x in range(26)])
         plt.colorbar(fraction=0.046, pad=0.04)
         plt.title("Bias features")
