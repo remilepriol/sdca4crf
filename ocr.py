@@ -461,6 +461,19 @@ class LogProbability(Chain):
         return LogProbability(unary=-self.unary,
                               binary=-self.binary)
 
+    def smart_subtract(self, other):
+        """Gives the ascent direction without numerical issues"""
+
+        max_unary = np.maximum(self.unary, other.unary)
+        unary = np.exp(max_unary) * (np.exp(self.unary - max_unary)
+                                     - np.exp(other.unary - max_unary))
+
+        max_binary = np.maximum(self.binary, other.binary)
+        binary = np.exp(max_binary) * (np.exp(self.binary - max_binary)
+                                       - np.exp(other.binary - max_binary))
+
+        return Probability(unary=unary, binary=binary)
+
     def logsumexp(self, to_add):
         themax = max(np.amax(self.unary[1:-1]), np.amax(self.binary), to_add)
         return themax + np.log(np.sum(np.exp(self.binary - themax)) -
@@ -597,9 +610,6 @@ def sdca(x, y, regu=1, npass=5, update_period=5, precision=1e-5, subprecision=1e
 
     weights.multiply_scalar(1 / regu, inplace=True)
 
-    if _debug:
-        weights.display()
-
     ##################################################################################
     # OBJECTIVES : dual objective and duality gaps
     ##################################################################################
@@ -656,12 +666,13 @@ def sdca(x, y, regu=1, npass=5, update_period=5, precision=1e-5, subprecision=1e
         ##################################################################################
         # NON-UNIFORM SAMPLING
         ##################################################################################
-        sampler.update(marginals[i].kullback_leibler(beta_i), i)
+        individual_gap = marginals[i].kullback_leibler(beta_i)
+        sampler.update(individual_gap, i)
 
         ##################################################################################
         # ASCENT DIRECTION : and primal movement
         ##################################################################################
-        dual_direction = beta_i.to_probability().subtract(alpha_i.to_probability())
+        dual_direction = beta_i.smart_subtract(alpha_i)
         assert dual_direction.are_densities(integral=0)
         assert dual_direction.are_consistent()
         primal_direction = Features()
@@ -675,6 +686,11 @@ def sdca(x, y, regu=1, npass=5, update_period=5, precision=1e-5, subprecision=1e
         ##################################################################################
         quadratic_coeff = scaling * primal_direction.squared_norm()
         linear_coeff = 2 * scaling * weights.inner_product(primal_direction)
+
+        slope = - dual_direction.inner_product(alpha_i) + linear_coeff
+        reverse_gap = beta_i.kullback_leibler(alpha_i)
+        assert np.isclose(slope, individual_gap + reverse_gap, atol=1e-10)
+
         if step_size:
             gammaopt = step_size
             subobjective = []
@@ -804,4 +820,3 @@ def sdca(x, y, regu=1, npass=5, update_period=5, precision=1e-5, subprecision=1e
         return marginals, weights, objective, timing, annex
     else:
         return marginals, weights, objective, timing
-
