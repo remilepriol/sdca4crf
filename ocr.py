@@ -641,21 +641,27 @@ def sdca(x, y, regu=1, npass=5, update_period=5, precision=1e-5, subprecision=1e
             i = np.random.randint(nb_words)
         else:  # sample proportionally to the duality gaps
             i = sampler.sample()
+        alpha_i = marginals[i]
 
         ##################################################################################
         # MARGINALIZATION ORACLE
         ##################################################################################
-        margs_i = weights.infer_probabilities(x[i], log=True)
-        # assert margs_i.are_consistent()
-        # assert margs_i.are_densities(1)
-        # assert margs_i.are_positive(), (display_word(y[i],x[i]),
-        #                                 margs_i.display(),
+        beta_i = weights.infer_probabilities(x[i], log=True)
+        # assert beta_i.are_consistent()
+        # assert beta_i.are_densities(1)
+        # assert beta_i.are_positive(), (display_word(y[i],x[i]),
+        #                                 beta_i.display(),
         #                                 Features.from_array(weights).display())
+
+        ##################################################################################
+        # NON-UNIFORM SAMPLING
+        ##################################################################################
+        sampler.update(marginals[i].kullback_leibler(beta_i), i)
 
         ##################################################################################
         # ASCENT DIRECTION : and primal movement
         ##################################################################################
-        dual_direction = margs_i.to_probability().subtract(marginals[i].to_probability())
+        dual_direction = beta_i.to_probability().subtract(alpha_i.to_probability())
         assert dual_direction.are_densities(integral=0)
         assert dual_direction.are_consistent()
         primal_direction = Features()
@@ -676,11 +682,11 @@ def sdca(x, y, regu=1, npass=5, update_period=5, precision=1e-5, subprecision=1e
             # print("dual direction")
             # print(dual_direction.square().to_logprobability())
             # print("new marginals")
-            # print(margs_i)
+            # print(beta_i)
 
             def evaluator(gamma, returnf=False):
                 # line search function and its derivatives
-                newmargs = marginals[i].convex_combination(margs_i, gamma)
+                newmargs = alpha_i.convex_combination(beta_i, gamma)
                 # assert newmargs.are_densities(1)
                 # assert newmargs.are_consistent()
                 # assert newmargs.are_positive(), newmargs.display
@@ -704,7 +710,7 @@ def sdca(x, y, regu=1, npass=5, update_period=5, precision=1e-5, subprecision=1e
             # DEBUGGING
             ##################################################################################
             # if t == 50:
-            #     return evaluator, quadratic_coeff, linear_coeff, dual_direction, marginals[i], margs_i
+            #     return evaluator, quadratic_coeff, linear_coeff, dual_direction, alpha_i, beta_i
 
             # Plot the line search curves
             # whentoplot = 25
@@ -744,13 +750,8 @@ def sdca(x, y, regu=1, npass=5, update_period=5, precision=1e-5, subprecision=1e
         ##################################################################################
         # UPDATE : the primal and dual coordinates
         ##################################################################################
-        marginals[i] = marginals[i].convex_combination(margs_i, gammaopt)
+        marginals[i] = alpha_i.convex_combination(beta_i, gammaopt)
         weights = weights.add(primal_direction.multiply_scalar(gammaopt, inplace=False))
-
-        ##################################################################################
-        # NON-UNIFORM SAMPLING
-        ##################################################################################
-        sampler.update(marginals[i].kullback_leibler(margs_i), i)
 
         ##################################################################################
         # ANNEX
