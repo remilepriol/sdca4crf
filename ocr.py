@@ -184,42 +184,6 @@ def select_bias(label):
 
 
 ########################################################################################################################
-# SCORES
-########################################################################################################################
-def unary_scores(images, weights):
-    """Return the unary scores of word given by weights.
-
-    :param images:
-    :param weights:
-    :return:
-    """
-    chain_length = images.shape[0]
-    uscores = np.zeros([chain_length, ALPHABET_SIZE])
-    for t in range(chain_length):
-        bias_selector = np.array([1, t == 0, t == chain_length - 1], dtype=int)
-        for label in range(ALPHABET_SIZE):
-            uscores[t, label] = np.dot(weights[select_emission(label)], images[t]) \
-                                + np.dot(weights[select_bias(label)], bias_selector)
-    return uscores
-
-
-def binary_scores(word_length, weights):
-    """Return the binary scores of word given by weights.
-
-    :param word_length:
-    :param weights:
-    :return:
-    """
-    bscores = (word_length - 1) * [np.reshape(weights[select_transition(-1, -1)], (ALPHABET_SIZE, ALPHABET_SIZE))]
-    # the code below is more understandable but slower
-    # for t in range(word.shape[0]-1):
-    #    for label in range(ALPHABET_SIZE):
-    #        for next_label in range(ALPHABET_SIZE):
-    #            binary_scores[t,label,next_label] = select_transition(weights,label,next_label)
-    return bscores
-
-
-########################################################################################################################
 # RADIUS
 ########################################################################################################################
 def radius(word):
@@ -243,18 +207,25 @@ def radii(words):
 # FEATURES
 ########################################################################################################################
 class Features:
-    def __init__(self, unary=None, binary=None):
-        if unary is None:
+    """Features i used to store features associated to a certain word, as well as the weights of the model."""
+
+    def __init__(self, emission=None, bias=None, transition=None):
+        if emission is None:
             self.emission = np.zeros([ALPHABET_SIZE, NB_PIXELS])
+        else:
+            self.emission = emission
+        if bias is None:
             self.bias = np.zeros([ALPHABET_SIZE, 3])
         else:
-            self.emission = unary[:, :NB_PIXELS]
-            self.bias = unary[:, NB_PIXELS:]
-        if binary is None:
+            self.bias = bias
+        if transition is None:
             self.transition = np.zeros([ALPHABET_SIZE, ALPHABET_SIZE])
         else:
-            self.transition = binary
+            self.transition = transition
 
+    #########################################
+    # Construction operations
+    #########################################
     def _add_unary(self, images, label, position):
         self.emission[label] += images[position]
         self.bias[label] += [1, position == 0, position == images.shape[0] - 1]
@@ -301,6 +272,62 @@ class Features:
             self._add_unary_centroid(images, marginals.unary)
             self._add_binary_centroid(marginals.binary)
 
+    #########################################
+    # Score functions (from weights to proba)
+    #########################################
+    def unary_scores(self, images):
+        """Return the unary scores of word when self encode the weights of the model.
+
+        :param images: T*d, each line is a letter image.
+        :return: unary scores T*K, each case is a score for one image and one label.
+        """
+        chain_length = images.shape[0]
+        uscores = np.dot(images, self.emission.T)
+        uscores += self.bias[:, 0]  # model bias
+        uscores[0] += self.bias[:, 1]  # beginning of word bias
+        uscores[-1] += self.bias[:, 2]  # end of word bias
+        return uscores
+
+    def binary_scores(self, images):
+        """Return the binary scores of a word when self encode the weights of the model.
+
+        :param images: images T*d, each line is a letter image.
+        :return: binary scores (T-1)*K*K, each case is the transition score between two labels for a given position.
+        """
+        return (images.shape[0] - 1) * [self.transition]
+
+    #########################################
+    # Arithmetic operations
+    #########################################
+    def multiply_scalar(self, scalar, inplace=False):
+        if inplace:
+            self.emission *= scalar
+            self.bias *= scalar
+            self.transition *= scalar
+        else:
+            return Features(self.emission * scalar, self.bias * scalar, self.transition * scalar)
+
+    def combine(self, other, operator):
+        emission = operator(self.emission, other.emission)
+        bias = operator(self.bias, other.bias)
+        transition = operator(self.transition, other.transition)
+        return Features(emission, bias, transition)
+
+    def add(self, other):
+        return self.combine(other, np.add)
+
+    def subtract(self, other):
+        return self.combine(other, np.subtract)
+
+    def squared_norm(self):
+        return np.sum(self.emission ** 2) + np.sum(self.bias ** 2) + np.sum(self.transition ** 2)
+
+    def inner_product(self, other):
+        return np.dot(self.emission, other.emission) + \
+               np.dot(self.bias, other.bias) + \
+               np.dot(self.transition, other.transition)
+
+    # Obsolete
     def to_array(self):
         feat = np.empty(NB_FEATURES)
         feat[select_emission(-1)] = self.emission.flatten()
@@ -308,13 +335,13 @@ class Features:
         feat[select_bias(-1)] = self.bias.flatten()
         return feat
 
+    # obsolete
     @staticmethod
     def from_array(feat):
-        unary = np.empty([ALPHABET_SIZE, NB_PIXELS + 3])
-        unary[:, :-3] = feat[select_emission(-1)].reshape([ALPHABET_SIZE, -1])
-        unary[:, -3:] = feat[select_bias(-1)].reshape(ALPHABET_SIZE, -1)
-        binary = feat[select_transition(-1, -1)].reshape(ALPHABET_SIZE, -1)
-        return Features(unary, binary)
+        emission = feat[select_emission(-1)].reshape([ALPHABET_SIZE, -1])
+        bias = feat[select_bias(-1)].reshape(ALPHABET_SIZE, -1)
+        transition = feat[select_transition(-1, -1)].reshape(ALPHABET_SIZE, -1)
+        return Features(emission, bias, transition)
 
     def display(self):
         emissions = letters2wordimage(self.emission)
@@ -474,7 +501,7 @@ class LogProbability(Chain):
             binary = utils.logsumexp(np.array([self.binary + np.log(1 - gamma), other.binary + np.log(gamma)]), axis=0)
             return LogProbability(unary=unary, binary=binary)
 
-    def subtract(self, other):
+    def divide(self, other):
         return LogProbability(unary=self.unary - other.unary,
                               binary=self.binary - other.binary)
 
@@ -494,8 +521,8 @@ class LogProbability(Chain):
 
     @staticmethod
     def infer_from_weights(images, weights):
-        uscores = unary_scores(images, weights)
-        bscores = binary_scores(images.shape[0], weights)
+        uscores = weights.unary_scores(images)
+        bscores = weights.binary_scores(images)
         umargs, bmargs, _ = oracles.chain_sum_product(uscores, bscores, log=True)
         return LogProbability(umargs, bmargs)
 
@@ -527,27 +554,32 @@ def empirical_marginals(labels):
 
 # Initialize the weights as the centroid of the ground truth features minus the centroid of the
 # features given by the uniform marginals.
-def marginals_to_weights(images, labels, marginals=None, log=False):
+def marginals_to_centroid(images, labels, marginals=None, log=False):
     nb_words = labels.shape[0]
+
     ground_truth_centroid = Features()
     ground_truth_centroid.add_dictionary(images, labels)
+
     marginals_centroid = Features()
     if marginals is None:  # assume uniform
         for image in images:
             marginals_centroid.add_centroid(image)
+
+    elif log:
+        for image, margs in zip(images, marginals):
+            marginals_centroid.add_centroid(image, margs.to_probability())
+
     else:
         for image, margs in zip(images, marginals):
-            if log:
-                marginals_centroid.add_centroid(image, margs.to_probability())
-            else:
-                marginals_centroid.add_centroid(image, margs)
-    ground_truth_centroid = ground_truth_centroid.to_array()
-    marginals_centroid = marginals_centroid.to_array()
-    return (ground_truth_centroid - marginals_centroid) / nb_words
+            marginals_centroid.add_centroid(image, margs)
+
+    corrected_features_centroid = ground_truth_centroid.subtract(marginals_centroid)
+    corrected_features_centroid.multiply_scalar(1 / nb_words, inplace=True)
+    return corrected_features_centroid
 
 
 def dual_score(weights, marginals, regularization_parameter):
-    ans = - regularization_parameter / 2 * np.sum(weights ** 2)
+    ans = - regularization_parameter / 2 * weights.squared_norm()
     ans += sum([margs.entropy() for margs in marginals]) / marginals.shape[0]
     return ans
 
@@ -586,23 +618,27 @@ def sdca(x, y, regu=1, npass=5, update_period=5, precision=1e-5, subprecision=1e
 
     if isinstance(init, np.ndarray):  # assume that init contains the marginals for a warm start.
         marginals = init
-        weights = marginals_to_weights(x, y, marginals, log=True)
+        weights = marginals_to_centroid(x, y, marginals, log=True)
     elif init == "uniform":
         marginals = uniform_marginals(y, log=True)
-        weights = marginals_to_weights(x, y) / regu
+        weights = marginals_to_centroid(x, y)
     elif init == "random":
         weights = np.random.randn(NB_FEATURES)
         marginals = np.array([LogProbability.infer_from_weights(imgs, weights) for imgs in x])
-        weights = marginals_to_weights(x, y, marginals, log=True)
-        Features.from_array(weights).display()
+        weights = marginals_to_centroid(x, y, marginals, log=True)
     else:
         raise ValueError("Not a valid argument for init: %r" % init)
+
+    weights.multiply_scalar(1 / regu, inplace=True)
+
+    if _debug:
+        weights.display()
 
     ##################################################################################
     # OBJECTIVES : dual objective and duality gaps
     ##################################################################################
     entropies = np.array([margs.entropy() for margs in marginals])
-    dual_objective = entropies.mean() - regu / 2 * np.sum(weights ** 2)
+    dual_objective = entropies.mean() - regu / 2 * weights.squared_norm()
 
     new_marginals = [LogProbability.infer_from_weights(imgs, weights) for imgs in x]
     dgaps = np.array([margs.kullback_leibler(newmargs) for margs, newmargs in zip(marginals, new_marginals)])
@@ -660,13 +696,13 @@ def sdca(x, y, regu=1, npass=5, update_period=5, precision=1e-5, subprecision=1e
         primal_direction.add_centroid(x[i], dual_direction)
         # Centroid of the corrected features in the dual direction
         # = Centroid of the real features in the opposite of the dual direction
-        primal_direction = - primal_direction.to_array() / regu / nb_words
+        primal_direction.multiply_scalar(-1 / regu / nb_words, inplace=True)
 
         ##################################################################################
         # LINE SEARCH : find the optimal step size gammaopt or use a fixed one
         ##################################################################################
-        quadratic_coeff = scaling * np.sum(primal_direction ** 2)
-        linear_coeff = 2 * scaling * np.dot(weights, primal_direction)
+        quadratic_coeff = scaling * primal_direction.squared_norm()
+        linear_coeff = 2 * scaling * weights.inner_product(primal_direction)
         if step_size:
             gammaopt = step_size
             subobjective = []
@@ -686,7 +722,7 @@ def sdca(x, y, regu=1, npass=5, update_period=5, precision=1e-5, subprecision=1e
                 if gfgamma == 0:
                     return gfgamma, 0
                 logvalue = dual_direction.square().to_logprobability() \
-                    .subtract(newmargs).logsumexp(- 2 * quadratic_coeff)  # stable logsumexp
+                    .divide(newmargs).logsumexp(- 2 * quadratic_coeff)  # stable logsumexp
                 logvalue = np.log(np.absolute(gfgamma)) - logvalue
                 gfdggf = - np.sign(gfgamma) * np.exp(logvalue)  # gf(x)/ggf(x)
                 if returnf:
@@ -743,7 +779,7 @@ def sdca(x, y, regu=1, npass=5, update_period=5, precision=1e-5, subprecision=1e
         # UPDATE : the primal and dual coordinates
         ##################################################################################
         marginals[i] = marginals[i].convex_combination(margs_i, gammaopt)
-        weights += gammaopt * primal_direction
+        weights = weights.add(primal_direction.multiply_scalar(gammaopt, inplace=False))
 
         ##################################################################################
         # NON-UNIFORM SAMPLING
@@ -806,6 +842,7 @@ def sdca(x, y, regu=1, npass=5, update_period=5, precision=1e-5, subprecision=1e
 def get_slopes(marginals, weights, images, regu):
     nb_words = marginals.shape[0]
     ans = []
+
     for margs, imgs in zip(marginals, images):
         newmargs = LogProbability.infer_from_weights(imgs, weights)
         dual_direction = newmargs.to_probability().subtract(margs.to_probability())
@@ -814,9 +851,10 @@ def get_slopes(marginals, weights, images, regu):
 
         primal_direction = Features()
         primal_direction.add_centroid(imgs, dual_direction)
-        primal_direction = - primal_direction.to_array() / regu / nb_words
+        primal_direction.multiply_scalar(-1 / regu / nb_words, inplace=True)
 
-        slope = - dual_direction.inner_product(newmargs) - regu * nb_words * np.dot(weights, primal_direction)
+        slope = - dual_direction.inner_product(newmargs) \
+                - regu * nb_words * weights.inner_product(primal_direction)
         ans.append(slope)
 
     return ans
