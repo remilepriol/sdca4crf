@@ -537,6 +537,27 @@ def duality_gaps(marginals, weights, images):
     return np.array(ans)
 
 
+def get_slopes(marginals, weights, images, regu):
+    nb_words = marginals.shape[0]
+    ans = []
+
+    for margs, imgs in zip(marginals, images):
+        newmargs = weights.infer_probabilities(imgs, log=True)
+        dual_direction = newmargs.to_probability().subtract(margs.to_probability())
+        assert dual_direction.are_densities(integral=0)
+        assert dual_direction.are_consistent()
+
+        primal_direction = Features()
+        primal_direction.add_centroid(imgs, dual_direction)
+        primal_direction.multiply_scalar(-1 / regu / nb_words, inplace=True)
+
+        slope = - dual_direction.inner_product(newmargs) \
+                - regu * nb_words * weights.inner_product(primal_direction)
+        ans.append(slope)
+
+    return ans
+
+
 def sdca(x, y, regu=1, npass=5, update_period=5, precision=1e-5, subprecision=1e-16, non_uniformity=0,
          step_size=None, init='uniform', _debug=False):
     """Update alpha and weights with the stochastic dual coordinate ascent algorithm to fit the model to the
@@ -783,23 +804,3 @@ def sdca(x, y, regu=1, npass=5, update_period=5, precision=1e-5, subprecision=1e
     else:
         return marginals, weights, objective, timing
 
-
-def get_slopes(marginals, weights, images, regu):
-    nb_words = marginals.shape[0]
-    ans = []
-
-    for margs, imgs in zip(marginals, images):
-        newmargs = weights.infer_probabilities(imgs, log=True)
-        dual_direction = newmargs.to_probability().subtract(margs.to_probability())
-        assert dual_direction.are_densities(integral=0)
-        assert dual_direction.are_consistent()
-
-        primal_direction = Features()
-        primal_direction.add_centroid(imgs, dual_direction)
-        primal_direction.multiply_scalar(-1 / regu / nb_words, inplace=True)
-
-        slope = - dual_direction.inner_product(newmargs) \
-                - regu * nb_words * weights.inner_product(primal_direction)
-        ans.append(slope)
-
-    return ans
