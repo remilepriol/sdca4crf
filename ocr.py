@@ -629,9 +629,8 @@ def sdca(x, y, regu=1, npass=5, update_period=5, precision=1e-5, subprecision=1e
     # MAIN LOOP
     ##################################################################################
     for t in tqdm(range(nb_words * npass)):
-        if duality_gap > precision:
+        if duality_gap < precision:
             break
-
 
         ##################################################################################
         # SAMPLING
@@ -770,7 +769,7 @@ def sdca(x, y, regu=1, npass=5, update_period=5, precision=1e-5, subprecision=1e
             ##################################################################################
             # OBJECTIVES : after each pass over the data, compute the duality gap
             ##################################################################################
-            t1 = time.time()
+            # t1 = time.time()
             dgaps = duality_gaps(marginals, weights, x)
             sampler = random_counters.RandomCounters(dgaps)
             duality_gap = sampler.get_total() / nb_words
@@ -783,7 +782,8 @@ def sdca(x, y, regu=1, npass=5, update_period=5, precision=1e-5, subprecision=1e
             #     # To monitor the objective and provide a stopping criterion
             #     ##################################################################################
             # delta_time += time.time() - t1
-            timing.append(time.time() - delta_time)
+            t2 = time.time()
+            timing.append(t2 - delta_time)
 
     ##################################################################################
     # ANNEX
