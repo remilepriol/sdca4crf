@@ -167,7 +167,8 @@ class MulticlassLogisticRegression:
             ##################################################################################
             scores_i = self.scores(x[i])
             logbetai, _ = conditional_probabilities(scores_i, log=True)
-            ascent_direction = np.exp(logbetai) - np.exp(logalphai)
+            max_proba = np.maximum(logalphai, logbetai)
+            ascent_direction = np.exp(max_proba) * (np.exp(logbetai - max_proba) - np.exp(logalphai - max_proba))
 
             # stopping condition
             individual_gap = utils.log_kullback_leibler(logalphai, logbetai)
