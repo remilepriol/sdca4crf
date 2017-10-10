@@ -12,11 +12,11 @@ def kullback_leibler(p, q, axis=None):
 
 
 def log_entropy(logproba, axis=None):
-    return -np.sum(np.exp(logproba) * logproba, axis=axis)
+    return -np.sum(np.where(logproba != - np.inf, np.exp(logproba) * logproba, 0), axis=axis)
 
 
 def log_kullback_leibler(logp, logq, axis=None):
-    return np.sum(np.exp(logp) * (logp - logq), axis=axis)
+    return np.sum(np.where(logp != - np.inf, np.exp(logp) * (logp - logq), 0), axis=axis)
 
 
 def logsumexp(v, axis=-1):
@@ -109,7 +109,7 @@ def safe_newton(evaluator, lowerbound, upperbound, precision, max_iter=100):
         xh, xl = lowerbound, upperbound
 
     rts = (xl + xh) / 2  # Initialize the guess for root
-    dxold = abs(upperbound - lowerbound)  # the “stepsize before last"
+    dxold = abs(upperbound - lowerbound)  # the "stepsize before last"
     dx = dxold  # and the last step
 
     f, fdf = evaluator(rts)
