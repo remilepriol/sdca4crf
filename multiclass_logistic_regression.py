@@ -13,9 +13,9 @@ def conditional_probabilities(scores, log=False):
     log_partitions = logsumexp(scores, axis=-1, keepdims=True)
     scores = scores - log_partitions
     if log:
-        return scores, log_partitions
+        return scores, np.squeeze(log_partitions)
     else:
-        return np.exp(scores), np.exp(log_partitions)
+        return np.exp(scores), np.squeeze(np.exp(log_partitions))
 
 
 class MulticlassLogisticRegression:
@@ -164,16 +164,28 @@ class MulticlassLogisticRegression:
 
             ##################################################################################
             # FUNCTION ESTIMATE : for the ascent
+            # note that the scores are computed with the real features
+            # there is no correction with the ground truth here
             ##################################################################################
             scores_i = self.scores(x[i])
-            logbetai, _ = conditional_probabilities(scores_i, log=True)
+            logbetai, log_partition_i = conditional_probabilities(scores_i, log=True)
             max_proba = np.maximum(logalphai, logbetai)
             ascent_direction = np.exp(max_proba) * (np.exp(logbetai - max_proba) - np.exp(logalphai - max_proba))
 
-            # stopping condition
-            individual_gap = utils.log_kullback_leibler(logalphai, logbetai)
-            if individual_gap < precision:
+            # duality gaps
+            reverse_gap = utils.log_kullback_leibler(logbetai, logalphai)
+            divergence_gap = utils.log_kullback_leibler(logalphai, logbetai)
+            if divergence_gap < precision:
                 continue
+
+            weights_dot_wi = - np.dot(np.exp(logalphai), scores_i)
+            entropy_i = utils.log_entropy(logalphai)
+            fenchel_gap = log_partition_i - entropy_i + weights_dot_wi
+            assert np.isclose(divergence_gap, fenchel_gap, atol=min(precision, 1e-10)), \
+                print(" iteration %i \n divergence %f \n fenchel gap %f \n log_partition %f \n"
+                      " entropy %f \n w^T A_i alpha_i %f \n reverse divergence %f " % (
+                          t, divergence_gap, fenchel_gap, log_partition_i, entropy_i, weights_dot_wi, reverse_gap))
+
             residue = np.sqrt(np.sum(ascent_direction ** 2))
 
             ##################################################################################
@@ -181,7 +193,7 @@ class MulticlassLogisticRegression:
             ##################################################################################
             if non_uniformity > 0:
                 if sampling_scheme == 'gaps':
-                    sampler.update(individual_gap, i)
+                    sampler.update(divergence_gap, i)
                 elif sampling_scheme == 'csiba':
                     sampler.update(importances[i] * residue, i)
                 else:
@@ -196,12 +208,11 @@ class MulticlassLogisticRegression:
 
             # check that the slope in 0 is big enough as demanded by the theory
             slope = np.dot(ascent_direction, logbetai - logalphai)
-            reverse_gap = utils.log_kullback_leibler(logbetai, logalphai)
-            assert np.isclose(slope, individual_gap + reverse_gap, atol=precision) \
+            assert np.isclose(slope, divergence_gap + reverse_gap, atol=precision) \
                    and reverse_gap >= residue ** 2 / 2, print(
                 "iteration : %i | data point : %i | slope : %.2e "
                 "\n individual gap = %.2e | reverse gap = %.2e | sum = %.2e | residue^2/2 = %.2e" % (
-                    t, i, slope, individual_gap, reverse_gap, individual_gap + reverse_gap, residue ** 2 / 2),
+                    t, i, slope, divergence_gap, reverse_gap, divergence_gap + reverse_gap, residue ** 2 / 2),
                 "\n alpha i : ", np.exp(logalphai),
                 "\n beta i : ", np.exp(logbetai),
                 "\n ascent direction :", ascent_direction,
