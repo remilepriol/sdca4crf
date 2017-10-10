@@ -258,11 +258,11 @@ class Features:
     def infer_probabilities(self, images, log):
         uscores = self.unary_scores(images)
         bscores = self.binary_scores(images)
-        umargs, bmargs, _ = oracles.chain_sum_product(uscores, bscores, log=log)
+        umargs, bmargs, partition = oracles.chain_sum_product(uscores, bscores, log=log)
         if log:
-            return LogProbability(umargs, bmargs)
+            return LogProbability(umargs, bmargs), partition
         else:
-            return Probability(umargs, bmargs)
+            return Probability(umargs, bmargs), partition
 
     #########################################
     # Arithmetic operations
@@ -545,7 +545,7 @@ def dual_score(weights, marginals, regularization_parameter):
 def duality_gaps(marginals, weights, images):
     ans = []
     for margs, imgs in zip(marginals, images):
-        newmargs = weights.infer_probabilities(imgs, log=True)
+        newmargs, _ = weights.infer_probabilities(imgs, log=True)
         ans.append(margs.kullback_leibler(newmargs))
     return np.array(ans)
 
@@ -555,7 +555,7 @@ def get_slopes(marginals, weights, images, regu):
     ans = []
 
     for margs, imgs in zip(marginals, images):
-        newmargs = weights.infer_probabilities(imgs, log=True)
+        newmargs, _ = weights.infer_probabilities(imgs, log=True)
         dual_direction = newmargs.to_probability().subtract(margs.to_probability())
         assert dual_direction.are_densities(integral=0)
         assert dual_direction.are_consistent()
@@ -603,7 +603,7 @@ def sdca(x, y, regu=1, npass=5, update_period=5, precision=1e-5, subprecision=1e
         weights = marginals_to_centroid(x, y)
     elif init == "random":
         weights = Features(random=True)
-        marginals = np.array([weights.infer_probabilities(imgs, log=True) for imgs in x])
+        marginals, _ = np.array([weights.infer_probabilities(imgs, log=True) for imgs in x])
         weights = marginals_to_centroid(x, y, marginals, log=True)
     else:
         raise ValueError("Not a valid argument for init: %r" % init)
@@ -616,7 +616,7 @@ def sdca(x, y, regu=1, npass=5, update_period=5, precision=1e-5, subprecision=1e
     entropies = np.array([margs.entropy() for margs in marginals])
     dual_objective = entropies.mean() - regu / 2 * weights.squared_norm()
 
-    new_marginals = [weights.infer_probabilities(imgs, log=True) for imgs in x]
+    new_marginals, _ = [weights.infer_probabilities(imgs, log=True) for imgs in x]
     dgaps = np.array([margs.kullback_leibler(newmargs) for margs, newmargs in zip(marginals, new_marginals)])
     duality_gap = dgaps.sum() / nb_words
 
@@ -654,32 +654,32 @@ def sdca(x, y, regu=1, npass=5, update_period=5, precision=1e-5, subprecision=1e
         alpha_i = marginals[i]
 
         ##################################################################################
-        # MARGINALIZATION ORACLE
+        # MARGINALIZATION ORACLE and ASCENT DIRECTION
         ##################################################################################
-        beta_i = weights.infer_probabilities(x[i], log=True)
+        beta_i, logpartition = weights.infer_probabilities(x[i], log=True)
         # assert beta_i.are_consistent()
         # assert beta_i.are_densities(1)
         # assert beta_i.are_positive(), (display_word(y[i],x[i]),
         #                                 beta_i.display(),
         #                                 Features.from_array(weights).display())
-
-        ##################################################################################
-        # NON-UNIFORM SAMPLING
-        ##################################################################################
-        individual_gap = marginals[i].kullback_leibler(beta_i)
-        sampler.update(individual_gap, i)
+        dual_direction = beta_i.smart_subtract(alpha_i)
+        assert dual_direction.are_densities(integral=0)
+        assert dual_direction.are_consistent()
 
         ##################################################################################
         # ASCENT DIRECTION : and primal movement
         ##################################################################################
-        dual_direction = beta_i.smart_subtract(alpha_i)
-        assert dual_direction.are_densities(integral=0)
-        assert dual_direction.are_consistent()
         primal_direction = Features()
         primal_direction.add_centroid(x[i], dual_direction)
         # Centroid of the corrected features in the dual direction
         # = Centroid of the real features in the opposite of the dual direction
         primal_direction.multiply_scalar(-1 / regu / nb_words, inplace=True)
+
+        ##################################################################################
+        # INTERESTING VALUES
+        ##################################################################################
+        individual_gap = marginals[i].kullback_leibler(beta_i)
+        sampler.update(individual_gap, i)
 
         ##################################################################################
         # LINE SEARCH : find the optimal step size gammaopt or use a fixed one
