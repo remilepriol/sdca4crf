@@ -9,7 +9,6 @@ from tqdm import tqdm
 import random_counters
 # custom imports
 import utils
-
 ########################################################################################################################
 # CONSTANTS
 ########################################################################################################################
@@ -708,7 +707,7 @@ def sdca(x, y, regu=1, npass=5, update_period=5, precision=1e-5, subprecision=1e
     # MAIN LOOP
     ##################################################################################
     for t in tqdm(range(nb_words * npass)):
-        if duality_gap > precision:
+        if duality_gap < precision:
             break
 
 
