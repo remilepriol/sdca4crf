@@ -657,21 +657,21 @@ def sdca(x, y, regu=1, npass=5, update_period=5, precision=1e-5, subprecision=1e
     # INITIALIZE : the dual and primal variables
     ##################################################################################
     nb_words = y.shape[0]
-    scaling = - regu * nb_words / 2
+    scaling = - regu * nb_words
     if nb_words != x.shape[0]:
         raise ValueError("Not the same number of labels (%i) and images (%i) inside training set." \
                          % (nb_words, x.shape[0]))
 
     if isinstance(init, np.ndarray):  # assume that init contains the marginals for a warm start.
         marginals = init
-        weights = marginals_to_weights(x, y, marginals, log=True)
+        weights = marginals_to_weights(x, y, marginals, log=True) / regu
     elif init == "uniform":
         marginals = uniform_marginals(y, log=True)
         weights = marginals_to_weights(x, y) / regu
     elif init == "random":
         weights = np.random.randn(NB_FEATURES)
         marginals = np.array([LogProbability.infer_from_weights(imgs, weights) for imgs in x])
-        weights = marginals_to_weights(x, y, marginals, log=True)
+        weights = marginals_to_weights(x, y, marginals, log=True) / regu
         Features.from_array(weights).display()
     else:
         raise ValueError("Not a valid argument for init: %r" % init)
@@ -710,7 +710,8 @@ def sdca(x, y, regu=1, npass=5, update_period=5, precision=1e-5, subprecision=1e
         if duality_gap < precision:
             break
 
-
+        # import pdb
+        # pdb.set_trace()
         ##################################################################################
         # SAMPLING
         ##################################################################################
@@ -745,7 +746,7 @@ def sdca(x, y, regu=1, npass=5, update_period=5, precision=1e-5, subprecision=1e
         # LINE SEARCH : find the optimal step size gammaopt or use a fixed one
         ##################################################################################
         quadratic_coeff = scaling * np.sum(primal_direction ** 2)
-        # linear_coeff = 2 * scaling * np.dot(weights, primal_direction)
+        linear_coeff = scaling * np.dot(weights, primal_direction)
         if step_size:
             gammaopt = step_size
             subobjective = []
