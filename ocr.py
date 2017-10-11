@@ -447,16 +447,16 @@ class LogProbability(Chain):
         else:  # take what is given
             Chain.__init__(self, unary, binary)
 
-    def entropy(self):
+    def entropy(self, precision=1e-10):
         ans = utils.log_entropy(self.binary) - utils.log_entropy(self.unary[1:-1])
-        assert ans >= 0, (self, ans)
-        return ans
+        assert ans >= -precision, (self, ans)
+        return max(ans, 0)
 
-    def kullback_leibler(self, other):
+    def kullback_leibler(self, other, precision=1e-10):
         ans = utils.log_kullback_leibler(self.binary, other.binary) \
               - utils.log_kullback_leibler(self.unary[1:-1], other.unary[1:-1])
-        assert ans >= 0, (self, ans)
-        return ans
+        assert ans >= -precision, (self, ans)
+        return max(ans, 0)
 
     def convex_combination(self, other, gamma):
         if gamma == 0:
@@ -530,23 +530,23 @@ def empirical_marginals(labels):
 def marginals_to_centroid(images, labels, marginals=None, log=False):
     nb_words = labels.shape[0]
 
-    ground_truth_centroid = Features()
-    ground_truth_centroid.add_dictionary(images, labels)
+    ground_truth_sum = Features()
+    ground_truth_sum.add_dictionary(images, labels)
 
-    marginals_centroid = Features()
+    marginals_sum = Features()
     if marginals is None:  # assume uniform
         for image in images:
-            marginals_centroid.add_centroid(image)
+            marginals_sum.add_centroid(image)
 
     elif log:
         for image, margs in zip(images, marginals):
-            marginals_centroid.add_centroid(image, margs.to_probability())
+            marginals_sum.add_centroid(image, margs.to_probability())
 
     else:
         for image, margs in zip(images, marginals):
-            marginals_centroid.add_centroid(image, margs)
+            marginals_sum.add_centroid(image, margs)
 
-    corrected_features_centroid = ground_truth_centroid.subtract(marginals_centroid)
+    corrected_features_centroid = ground_truth_sum.subtract(marginals_sum)
     corrected_features_centroid.multiply_scalar(1 / nb_words, inplace=True)
     return corrected_features_centroid
 
@@ -707,24 +707,24 @@ def sdca(x, y, regu=1, npass=5, update_period=5, precision=1e-5, subprecision=1e
         primaldir_squared_norm = primal_direction.squared_norm()
         weights_dot_primaldir = weights.inner_product(primal_direction)
 
-        entropy_i = entropies[i]  # entropy of alpha_i
-        divergence_gap = marginals[i].kullback_leibler(beta_i)
+        divergence_gap = alpha_i.kullback_leibler(beta_i)
         reverse_gap = beta_i.kullback_leibler(alpha_i)
 
         # Compare the fenchel duality gap and the KL between alpha_i and beta_i.
         # They should be equal.
-        weights_i = Features()
-        weights_i.add_centroid(x[i], alpha_i.to_probability())
-        weights_i.multiply_scalar(-1, inplace=True)
-        # weights_i.add_word(x[i], y[i])
-        weights_dot_wi = weights.inner_product(weights_i)
-        fenchel_gap = log_partition_i - entropy_i + weights_dot_wi
-        assert np.isclose(divergence_gap, fenchel_gap), \
-            print(" iteration %i \n divergence %.5e \n fenchel gap %.5e \n log_partition %f \n"
-                  " entropy %.5e \n w^T A_i alpha_i %f \n reverse divergence %f " % (
-                      t, divergence_gap, fenchel_gap, log_partition_i, entropy_i, weights_dot_wi, reverse_gap))
+        # entropy_i = entropies[i]  # entropy of alpha_i
+        # weights_i = Features()
+        # weights_i.add_centroid(x[i], alpha_i.to_probability())
+        # weights_i.multiply_scalar(-1, inplace=True)
+        # # weights_i.add_word(x[i], y[i])
+        # weights_dot_wi = weights.inner_product(weights_i)
+        # fenchel_gap = log_partition_i - entropy_i + weights_dot_wi
+        # assert np.isclose(divergence_gap, fenchel_gap), \
+        #     print(" iteration %i \n divergence %.5e \n fenchel gap %.5e \n log_partition %f \n"
+        #           " entropy %.5e \n w^T A_i alpha_i %f \n reverse divergence %f " % (
+        #               t, divergence_gap, fenchel_gap, log_partition_i, entropy_i, weights_dot_wi, reverse_gap))
 
-        sampler.update(fenchel_gap, i)
+        sampler.update(divergence_gap, i)
 
         duality_gap_estimate = sampler.get_total() / nb_words
 
@@ -837,7 +837,7 @@ def sdca(x, y, regu=1, npass=5, update_period=5, precision=1e-5, subprecision=1e
                           gammaopt,
                           dual_objective,
                           np.log10(duality_gap_estimate),
-                          fenchel_gap,
+                          divergence_gap,
                           i,
                           len(subobjective)])
 
