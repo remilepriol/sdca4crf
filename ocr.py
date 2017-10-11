@@ -424,8 +424,8 @@ class Probability(Chain):
     #                        binary=scalar * self.binary)
 
     def to_logprobability(self):
-        return LogProbability(unary=np.log(self.unary),
-                              binary=np.log(self.binary))
+        return LogProbability(unary=np.where(self.unary == 0, np.log(self.unary), -np.inf),
+                              binary=np.where(self.binary == 0, np.log(self.binary), -np.inf))
 
     @staticmethod
     def dirac(labels):
