@@ -12,11 +12,13 @@ def kullback_leibler(p, q, axis=None):
 
 
 def log_entropy(logproba, axis=None):
-    return -np.sum(np.exp(logproba) * logproba, axis=axis)
+    themax = np.amax(logproba)
+    return -np.exp(themax) * np.sum(np.exp(logproba - themax) * logproba, axis=axis)
 
 
 def log_kullback_leibler(logp, logq, axis=None):
-    return np.sum(np.exp(logp) * (logp - logq), axis=axis)
+    themax = np.amax(logp)
+    return np.exp(themax) * np.sum(np.exp(logp - themax) * (logp - logq), axis=axis)
 
 
 def logsumexp(v, axis=-1):
@@ -42,17 +44,15 @@ def find_root_decreasing(evaluator, precision):
     :return: x an approximate root of u
     """
 
-    # Useless and almost redundant with safe_newton
+    u0, _ = evaluator(0)
+    if u0 <= precision:  # 0 is optimal
+        return 0, [u0]
 
-    # u0, _ = evaluator(0)
-    # if u0 <= precision:  # 0 is optimal
-    #     return 0, [u0]
-    #
-    # u1, _ = evaluator(1)
-    # if u1 >= -precision:  # 1 is optimal
-    #     return 1, [u1]
+    u1, _ = evaluator(1)
+    if u1 >= -precision:  # 1 is optimal
+        return 1, [u1]
 
-    return safe_newton(evaluator, 0, 1, precision=precision)
+    return safe_newton(evaluator, 0, 1, u0, u1, precision=precision)
 
 
 def bounded_newton(evaluator, init, lowerbound, upperbound, precision=1e-12, max_iter=20):
@@ -84,7 +84,7 @@ def bounded_newton(evaluator, init, lowerbound, upperbound, precision=1e-12, max
 
 
 # define MAXIT 100 Maximum allowed number of iterations.
-def safe_newton(evaluator, lowerbound, upperbound, precision, max_iter=200):
+def safe_newton(evaluator, lowerbound, upperbound, flower, fupper, precision, max_iter=200):
     """Using a combination of Newton-Raphson and bisection, find the root of a function bracketed between lowerbound
     and upperbound.
 
@@ -96,16 +96,14 @@ def safe_newton(evaluator, lowerbound, upperbound, precision, max_iter=200):
     :return: The root, returned as the value rts
     """
 
-    fl, _ = evaluator(lowerbound)
-    fh, _ = evaluator(upperbound)
-    if (fl > 0 and fh > 0) or (fl < 0 and fh < 0):
+    if (flower > 0 and fupper > 0) or (flower < 0 and fupper < 0):
         raise ValueError("Root must be bracketed in [lower bound, upper bound]")
-    if fl == 0:
+    if flower == 0:
         return lowerbound
-    if fh == 0:
+    if fupper == 0:
         return upperbound
 
-    if fl < 0:  # Orient the search so that f(xl) < 0.
+    if flower < 0:  # Orient the search so that f(xl) < 0.
         xl, xh = lowerbound, upperbound
     else:
         xh, xl = lowerbound, upperbound
