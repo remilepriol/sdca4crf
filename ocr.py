@@ -307,18 +307,19 @@ class Features:
                np.sum(self.transition * other.transition)
 
     def display(self):
+        cmap = "Greys"
         emissions = letters2wordimage(self.emission)
-        plt.matshow(emissions)
+        plt.matshow(emissions, cmap=cmap)
         ticks_positions = np.linspace(0, emissions.shape[1], ALPHABET_SIZE + 2).astype(int)[1:-1]
         plt.xticks(ticks_positions, list(ALPHABET))
         plt.colorbar(fraction=0.046, pad=0.04)
-        plt.matshow(self.transition)
+        plt.matshow(self.transition, cmap=cmap)
         plt.xticks(range(26), [ALPHABET[x] for x in range(26)])
         plt.yticks(range(26), [ALPHABET[x] for x in range(26)])
         plt.colorbar(fraction=0.046, pad=0.04)
         plt.title("Transition Features")
         rescale_bias = np.array([1 / 7.5, 1, 1])
-        plt.matshow((self.bias * rescale_bias).T)
+        plt.matshow((self.bias * rescale_bias).T, cmap=cmap)
         plt.xticks(range(26), [ALPHABET[x] for x in range(26)])
         plt.colorbar(fraction=0.046, pad=0.04)
         plt.title("Bias features")
@@ -424,8 +425,8 @@ class Probability(Chain):
     #                        binary=scalar * self.binary)
 
     def to_logprobability(self):
-        return LogProbability(unary=np.where(self.unary == 0, np.log(self.unary), -np.inf),
-                              binary=np.where(self.binary == 0, np.log(self.binary), -np.inf))
+        return LogProbability(unary=np.where(self.unary == 0, -np.inf, np.log(self.unary)),
+                              binary=np.where(self.binary == 0, -np.inf, np.log(self.binary)))
 
     @staticmethod
     def dirac(labels):
