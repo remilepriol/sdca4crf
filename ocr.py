@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from tqdm import tqdm
 
+import oracles
 import random_counters
 # custom imports
 import utils
@@ -134,170 +135,7 @@ def unique_words(words_labels):
 
 
 ########################################################################################################################
-# FEATURE SELECTION
-########################################################################################################################
-def select_emission(label):
-    """If label is positive, return the slice of emission features corresponding to label.
-    Else return the slice of emission features for all labels.
-
-    :param label:
-    :return:
-    """
-    if label >= 0:
-        start = label * NB_PIXELS
-        return slice(start, start + NB_PIXELS)
-    else:
-        return slice(0, ALPHABET_SIZE * NB_PIXELS)
-
-
-def select_transition(label, next_label):
-    """If label and next label are positive, return the coordinate of the corresponding transition feature.
-    Else return the slice of all transition features.
-
-    :param label:
-    :param next_label:
-    :return:
-    """
-    if label >= 0 and next_label >= 0:
-        start = ALPHABET_SIZE * (NB_PIXELS + label) + next_label
-        return slice(start, start + 1)
-    else:
-        start = ALPHABET_SIZE * NB_PIXELS
-        return slice(start, start + ALPHABET_SIZE * ALPHABET_SIZE)
-
-
-def select_bias(label):
-    """If label is positive, return the slice of bias features corresponding to label.
-    Else return the slice of bias features for all labels.
-
-    :param label:
-    :return:
-    """
-    if label >= 0:
-        start = ALPHABET_SIZE * (NB_PIXELS + ALPHABET_SIZE) + label
-        return slice(start, start + 3)
-    else:  # return the whole bias range
-        start = ALPHABET_SIZE * (NB_PIXELS + ALPHABET_SIZE)
-        return slice(start, start + 3 * ALPHABET_SIZE)
-
-
-########################################################################################################################
-# SCORES
-########################################################################################################################
-def unary_scores(images, weights):
-    """Return the unary scores of word given by weights.
-
-    :param images:
-    :param weights:
-    :return:
-    """
-    chain_length = images.shape[0]
-    uscores = np.zeros([chain_length, ALPHABET_SIZE])
-    for t in range(chain_length):
-        bias_selector = np.array([1, t == 0, t == chain_length - 1], dtype=int)
-        for label in range(ALPHABET_SIZE):
-            uscores[t, label] = np.dot(weights[select_emission(label)], images[t]) \
-                                + np.dot(weights[select_bias(label)], bias_selector)
-    return uscores
-
-
-def binary_scores(word_length, weights):
-    """Return the binary scores of word given by weights.
-
-    :param word_length:
-    :param weights:
-    :return:
-    """
-    bscores = (word_length - 1) * [np.reshape(weights[select_transition(-1, -1)], (ALPHABET_SIZE, ALPHABET_SIZE))]
-    # the code below is more understandable but slower
-    # for t in range(word.shape[0]-1):
-    #    for label in range(ALPHABET_SIZE):
-    #        for next_label in range(ALPHABET_SIZE):
-    #            binary_scores[t,label,next_label] = select_transition(weights,label,next_label)
-    return bscores
-
-
-########################################################################################################################
-# ORACLES
-########################################################################################################################
-def sum_product(uscores, bscores, log=False):
-    """Apply the sum-product algorithm on a chain
-
-    :param uscores: array T*Alphabet, scores on individual nodes
-    :param bscores: array (T-1)*Alphabet*Alphabet, scores on the edges
-    :param log: if True, return the log-marginals
-    :return: marginals on nodes, marginals on edges, log-partition
-    """
-    # I keep track of the log messages instead of the messages, to favor stability
-    chain_length = uscores.shape[0]
-
-    # backward pass
-    backward_messages = np.zeros([chain_length - 1, ALPHABET_SIZE])
-    backward_messages[-1] = utils.logsumexp(bscores[-1] + uscores[-1])
-    for t in range(chain_length - 3, -1, -1):
-        backward_messages[t] = utils.logsumexp(bscores[t] + uscores[t + 1] + backward_messages[t + 1])
-
-    # we compute the log-partition and include it in the forward messages
-    log_partition = utils.logsumexp(backward_messages[0] + uscores[0])
-
-    # forward pass
-    forward_messages = np.zeros([chain_length - 1, ALPHABET_SIZE])
-    forward_messages[0] = utils.logsumexp(bscores[0].T + uscores[0] - log_partition)
-    for t in range(1, chain_length - 1):
-        forward_messages[t] = utils.logsumexp(bscores[t].T + uscores[t] + forward_messages[t - 1])
-
-    unary_marginals = np.empty([chain_length, ALPHABET_SIZE])
-    unary_marginals[0] = uscores[0] + backward_messages[0] - log_partition
-    unary_marginals[-1] = forward_messages[-1] + uscores[-1]
-    for t in range(1, chain_length - 1):
-        unary_marginals[t] = forward_messages[t - 1] + uscores[t] + backward_messages[t]
-
-    binary_marginals = np.empty([chain_length - 1, ALPHABET_SIZE, ALPHABET_SIZE])
-    binary_marginals[0] = uscores[0, :, np.newaxis] + bscores[0] + uscores[1] + backward_messages[1] - log_partition
-    binary_marginals[-1] = forward_messages[-2, :, np.newaxis] + uscores[-2, :, np.newaxis] + bscores[-1] + uscores[-1]
-    for t in range(1, chain_length - 2):
-        binary_marginals[t] = forward_messages[t - 1, :, np.newaxis] + uscores[t, :, np.newaxis] + bscores[t] + uscores[
-            t + 1] + backward_messages[t + 1]
-
-    if log:
-        return LogProbability(unary_marginals, binary_marginals), log_partition
-    else:
-        return Probability(np.exp(unary_marginals), np.exp(binary_marginals)), log_partition
-
-
-def viterbi(uscores, bscores):
-    # I keep track of the score instead of the potentials
-    # because summation is more stable than multiplication
-    chain_length = uscores.shape[0]
-
-    # backward pass
-    argmax_messages = np.empty([chain_length - 1, ALPHABET_SIZE], dtype=int)
-    max_messages = np.empty([chain_length - 1, ALPHABET_SIZE], dtype=float)
-    tmp = bscores[-1] + uscores[-1]
-    # Find the arg max
-    argmax_messages[-1] = np.argmax(tmp, axis=-1)
-    # Store the max
-    max_messages[-1] = tmp[np.arange(ALPHABET_SIZE), argmax_messages[-1]]
-    for t in range(chain_length - 3, -1, -1):
-        tmp = bscores[t] + uscores[t + 1] + max_messages[t + 1]
-        argmax_messages[t] = np.argmax(tmp, axis=-1)
-        max_messages[t] = tmp[np.arange(ALPHABET_SIZE), argmax_messages[t]]
-
-    # Label to be returned
-    global_argmax = np.empty(chain_length, dtype=int)
-
-    # forward pass
-    tmp = max_messages[0] + uscores[0]
-    global_argmax[0] = np.argmax(tmp)
-    global_max = tmp[global_argmax[0]]
-    for t in range(1, chain_length):
-        global_argmax[t] = argmax_messages[t - 1, global_argmax[t - 1]]
-
-    return global_argmax, global_max
-
-
-########################################################################################################################
-# RADIUS
+# RADIUS OF THE FEATURES
 ########################################################################################################################
 def radius(word):
     # The factor 2 comes from the difference : ground truth - other label
@@ -320,22 +158,39 @@ def radii(words):
 # FEATURES
 ########################################################################################################################
 class Features:
-    def __init__(self, unary=None, binary=None):
-        if unary is None:
-            self.unary = np.zeros([ALPHABET_SIZE, NB_PIXELS + 3])
-        else:
-            self.unary = unary
-        if binary is None:
-            self.binary = np.zeros([ALPHABET_SIZE, ALPHABET_SIZE])
-        else:
-            self.binary = binary
+    """Features associated to a certain word. also used to store the weights of the primal model."""
 
+    def __init__(self, emission=None, bias=None, transition=None, random=False):
+        if random:
+            self.emission = np.random.randn(ALPHABET_SIZE, NB_PIXELS)
+            self.bias = np.random.randn(ALPHABET_SIZE, 3)
+            self.transition = np.random.randn(ALPHABET_SIZE, ALPHABET_SIZE)
+            return
+
+        if emission is None:
+            self.emission = np.zeros([ALPHABET_SIZE, NB_PIXELS])
+        else:
+            self.emission = emission
+
+        if bias is None:
+            self.bias = np.zeros([ALPHABET_SIZE, 3])
+        else:
+            self.bias = bias
+
+        if transition is None:
+            self.transition = np.zeros([ALPHABET_SIZE, ALPHABET_SIZE])
+        else:
+            self.transition = transition
+
+    #########################################
+    # Construction operations
+    #########################################
     def _add_unary(self, images, label, position):
-        self.unary[label, :-3] += images[position]
-        self.unary[label, -3:] += [1, position == 0, position == images.shape[0] - 1]
+        self.emission[label] += images[position]
+        self.bias[label] += [1, position == 0, position == images.shape[0] - 1]
 
     def _add_binary(self, label, next_label):
-        self.binary[label, next_label] += 1
+        self.transition[label, next_label] += 1
 
     def add_word(self, images, labels):
         for t in range(images.shape[0]):
@@ -353,61 +208,116 @@ class Features:
 
     def _add_unary_centroid(self, images, unary_marginals=None):
         if unary_marginals is None:  # assume uniform marginal
-            self.unary[:, :-3] += np.sum(images, axis=0) / ALPHABET_SIZE
-            self.unary[:, -3] = images.shape[0] / ALPHABET_SIZE
-            self.unary[:, -2:] = 1 / ALPHABET_SIZE
+            self.emission += np.sum(images, axis=0) / ALPHABET_SIZE
+            self.bias[:, 0] += images.shape[0] / ALPHABET_SIZE
+            self.bias[:, 1:] += 1 / ALPHABET_SIZE
         else:
-            # tmp is a vertical concatenation of the images in the word and the bias terms
-            tmp = np.empty([images.shape[0], NB_PIXELS + 3])
-            tmp[:, :-3] = images
-            tmp[:, -3] = 1
-            tmp[:, -2:] = 0
-            tmp[0, -2] = 1
-            tmp[-1, -1] = 1
-            self.unary += np.dot(unary_marginals.T, tmp)
+            self.emission += np.dot(unary_marginals.T, images)
+            self.bias[:, 0] += np.sum(unary_marginals, axis=0)
+            self.bias[:, 1] += unary_marginals[0]
+            self.bias[:, 2] += unary_marginals[-1]
 
-    def _add_binary_centroid(self, binary_marginals=None):
+    def _add_binary_centroid(self, images, binary_marginals=None):
         if binary_marginals is None:  # assume uniform marginal
-            self.binary += 1 / ALPHABET_SIZE ** 2
+            self.transition += (images.shape[0] - 1) / ALPHABET_SIZE ** 2
         else:
-            self.binary += np.sum(binary_marginals, axis=0)
+            self.transition += np.sum(binary_marginals, axis=0)
 
     def add_centroid(self, images, marginals=None):
         if marginals is None:  # assume uniform marginal
             self._add_unary_centroid(images, None)
-            self._add_binary_centroid(None)
+            self._add_binary_centroid(images, None)
         else:
             self._add_unary_centroid(images, marginals.unary)
-            self._add_binary_centroid(marginals.binary)
+            self._add_binary_centroid(images, marginals.binary)
 
-    def to_array(self):
-        feat = np.empty(NB_FEATURES)
-        feat[select_emission(-1)] = self.unary[:, :-3].flatten()
-        feat[select_transition(-1, -1)] = self.binary.flatten()
-        feat[select_bias(-1)] = self.unary[:, -3:].flatten()
-        return feat
+    #########################################
+    # From weights to probabilities
+    #########################################
+    def unary_scores(self, images):
+        """Return the unary scores of word when self encode the weights of the model.
 
-    @staticmethod
-    def from_array(feat):
-        unary = np.empty([ALPHABET_SIZE, NB_PIXELS + 3])
-        unary[:, :-3] = feat[select_emission(-1)].reshape([ALPHABET_SIZE, -1])
-        unary[:, -3:] = feat[select_bias(-1)].reshape(ALPHABET_SIZE, -1)
-        binary = feat[select_transition(-1, -1)].reshape(ALPHABET_SIZE, -1)
-        return Features(unary, binary)
+        :param images: T*d, each line is a letter image.
+        :return: unary scores T*K, each case is a score for one image and one label.
+        """
+        uscores = np.dot(images, self.emission.T)
+        uscores += self.bias[:, 0]  # model bias
+        uscores[0] += self.bias[:, 1]  # beginning of word bias
+        uscores[-1] += self.bias[:, 2]  # end of word bias
+        return uscores
+
+    def binary_scores(self, images):
+        """Return the binary scores of a word when self encode the weights of the model.
+
+        :param images: images T*d, each line is a letter image.
+        :return: binary scores (T-1)*K*K, each case is the transition score between two labels for a given position.
+        """
+        return (images.shape[0] - 1) * [self.transition]
+
+    def infer_probabilities(self, images, log):
+        uscores = self.unary_scores(images)
+        bscores = self.binary_scores(images)
+        umargs, bmargs, log_partition = oracles.chain_sum_product(uscores, bscores, log=log)
+        if log:
+            return LogProbability(umargs, bmargs), log_partition
+        else:
+            return Probability(umargs, bmargs), log_partition
+
+    def word_score(self, images, labels):
+        """Return the score <self,F(images,labels)>."""
+        return np.sum(images * self.emission[labels]) \
+               + np.sum(self.bias[labels, np.zeros(labels.shape[0])]) \
+               + np.sum(self.transition[labels[:-1], labels[1:]])
+
+    def predict(self, images):
+        uscores = self.unary_scores(images)
+        bscores = self.binary_scores(images)
+        return oracles.chain_viterbi(uscores, bscores)
+
+    #########################################
+    # Arithmetic operations
+    #########################################
+    def multiply_scalar(self, scalar, inplace=False):
+        if inplace:
+            self.emission *= scalar
+            self.bias *= scalar
+            self.transition *= scalar
+        else:
+            return Features(self.emission * scalar, self.bias * scalar, self.transition * scalar)
+
+    def combine(self, other, operator):
+        emission = operator(self.emission, other.emission)
+        bias = operator(self.bias, other.bias)
+        transition = operator(self.transition, other.transition)
+        return Features(emission, bias, transition)
+
+    def add(self, other):
+        return self.combine(other, np.add)
+
+    def subtract(self, other):
+        return self.combine(other, np.subtract)
+
+    def squared_norm(self):
+        return np.sum(self.emission ** 2) + np.sum(self.bias ** 2) + np.sum(self.transition ** 2)
+
+    def inner_product(self, other):
+        return np.sum(self.emission * other.emission) + \
+               np.sum(self.bias * other.bias) + \
+               np.sum(self.transition * other.transition)
 
     def display(self):
-        emissions = letters2wordimage(self.unary[:, :-3])
+        emissions = letters2wordimage(self.emission)
         plt.matshow(emissions)
         ticks_positions = np.linspace(0, emissions.shape[1], ALPHABET_SIZE + 2).astype(int)[1:-1]
         plt.xticks(ticks_positions, list(ALPHABET))
         plt.colorbar(fraction=0.046, pad=0.04)
-        plt.matshow(self.binary)
+        plt.matshow(self.transition)
         plt.xticks(range(26), [ALPHABET[x] for x in range(26)])
         plt.yticks(range(26), [ALPHABET[x] for x in range(26)])
         plt.colorbar(fraction=0.046, pad=0.04)
         plt.title("Transition Features")
         rescale_bias = np.array([1 / 7.5, 1, 1])
-        plt.matshow((self.unary[:, -3:] * rescale_bias).T)
+        plt.matshow((self.bias * rescale_bias).T)
         plt.xticks(range(26), [ALPHABET[x] for x in range(26)])
         plt.colorbar(fraction=0.046, pad=0.04)
         plt.title("Bias features")
@@ -537,11 +447,15 @@ class LogProbability(Chain):
             Chain.__init__(self, unary, binary)
 
     def entropy(self):
-        return max(0, utils.log_entropy(self.binary) - utils.log_entropy(self.unary[1:-1]))
+        ans = utils.log_entropy(self.binary) - utils.log_entropy(self.unary[1:-1])
+        assert ans >= 0, (self, ans)
+        return ans
 
     def kullback_leibler(self, other):
-        return max(0, utils.log_kullback_leibler(self.binary, other.binary) \
-                   - utils.log_kullback_leibler(self.unary[1:-1], other.unary[1:-1]))
+        ans = utils.log_kullback_leibler(self.binary, other.binary) \
+              - utils.log_kullback_leibler(self.unary[1:-1], other.unary[1:-1])
+        assert ans >= 0, (self, ans)
+        return ans
 
     def convex_combination(self, other, gamma):
         if gamma == 0:
@@ -553,13 +467,26 @@ class LogProbability(Chain):
             binary = utils.logsumexp(np.array([self.binary + np.log(1 - gamma), other.binary + np.log(gamma)]), axis=0)
             return LogProbability(unary=unary, binary=binary)
 
-    def subtract(self, other):
+    def divide(self, other):
         return LogProbability(unary=self.unary - other.unary,
                               binary=self.binary - other.binary)
 
     def inverse(self):
         return LogProbability(unary=-self.unary,
                               binary=-self.binary)
+
+    def smart_subtract(self, other):
+        """Gives the ascent direction without numerical issues"""
+
+        max_unary = np.maximum(self.unary, other.unary)
+        unary = np.exp(max_unary) * (np.exp(self.unary - max_unary)
+                                     - np.exp(other.unary - max_unary))
+
+        max_binary = np.maximum(self.binary, other.binary)
+        binary = np.exp(max_binary) * (np.exp(self.binary - max_binary)
+                                       - np.exp(other.binary - max_binary))
+
+        return Probability(unary=unary, binary=binary)
 
     def logsumexp(self, to_add):
         themax = max(np.amax(self.unary[1:-1]), np.amax(self.binary), to_add)
@@ -570,12 +497,6 @@ class LogProbability(Chain):
     def to_probability(self):
         return Probability(unary=np.exp(self.unary),
                            binary=np.exp(self.binary))
-
-    @staticmethod
-    def infer_from_weights(images, weights):
-        uscores = unary_scores(images, weights)
-        bscores = binary_scores(images.shape[0], weights)
-        return sum_product(uscores, bscores, log=True)[0]
 
 
 ########################################################################################################################
@@ -605,37 +526,73 @@ def empirical_marginals(labels):
 
 # Initialize the weights as the centroid of the ground truth features minus the centroid of the
 # features given by the uniform marginals.
-def marginals_to_weights(images, labels, marginals=None, log=False):
+def marginals_to_centroid(images, labels, marginals=None, log=False):
     nb_words = labels.shape[0]
+
     ground_truth_centroid = Features()
     ground_truth_centroid.add_dictionary(images, labels)
+
     marginals_centroid = Features()
     if marginals is None:  # assume uniform
         for image in images:
             marginals_centroid.add_centroid(image)
+
+    elif log:
+        for image, margs in zip(images, marginals):
+            marginals_centroid.add_centroid(image, margs.to_probability())
+
     else:
         for image, margs in zip(images, marginals):
-            if log:
-                marginals_centroid.add_centroid(image, margs.to_probability())
-            else:
-                marginals_centroid.add_centroid(image, margs)
-    ground_truth_centroid = ground_truth_centroid.to_array()
-    marginals_centroid = marginals_centroid.to_array()
-    return (ground_truth_centroid - marginals_centroid) / nb_words
+            marginals_centroid.add_centroid(image, margs)
+
+    corrected_features_centroid = ground_truth_centroid.subtract(marginals_centroid)
+    corrected_features_centroid.multiply_scalar(1 / nb_words, inplace=True)
+    return corrected_features_centroid
 
 
 def dual_score(weights, marginals, regularization_parameter):
-    ans = - regularization_parameter / 2 * np.sum(weights ** 2)
+    ans = - regularization_parameter / 2 * weights.squared_norm()
     ans += sum([margs.entropy() for margs in marginals]) / marginals.shape[0]
     return ans
 
 
-def duality_gaps(marginals, weights, images):
+def divergence_gaps(marginals, weights, images):
     ans = []
     for margs, imgs in zip(marginals, images):
-        newmargs = LogProbability.infer_from_weights(imgs, weights)
+        newmargs, _ = weights.infer_probabilities(imgs, log=True)
         ans.append(margs.kullback_leibler(newmargs))
     return np.array(ans)
+
+
+# def fenchel_gaps(marginals, images):
+#     ans = []
+#     all_weights = np.empty(marginals.shape[0],dtype=object)
+#     for margs, imgs in zip(marginals, images):
+#         al
+#         newmargs, logprobabity = weights.infer_probabilities(imgs, log=True)
+#         ans.append(margs.kullback_leibler(newmargs))
+#     return np.array(ans)
+
+
+def get_slopes(marginals, weights, images, regu):
+    nb_words = marginals.shape[0]
+    ans = []
+
+    for margs, imgs in zip(marginals, images):
+        newmargs, _ = weights.infer_probabilities(imgs, log=True)
+        dual_direction = newmargs.to_probability().subtract(margs.to_probability())
+        assert dual_direction.are_densities(integral=0)
+        assert dual_direction.are_consistent()
+
+        primal_direction = Features()
+        primal_direction.add_centroid(imgs, dual_direction)
+        primal_direction.multiply_scalar(-1 / regu / nb_words, inplace=True)
+
+        slope = - dual_direction.inner_product(newmargs) \
+                - regu * nb_words * weights.inner_product(primal_direction)
+        ans.append(slope)
+
+    return ans
 
 
 def sdca(x, y, regu=1, npass=5, update_period=5, precision=1e-5, subprecision=1e-16, non_uniformity=0,
@@ -657,32 +614,32 @@ def sdca(x, y, regu=1, npass=5, update_period=5, precision=1e-5, subprecision=1e
     # INITIALIZE : the dual and primal variables
     ##################################################################################
     nb_words = y.shape[0]
-    scaling = - regu * nb_words
     if nb_words != x.shape[0]:
         raise ValueError("Not the same number of labels (%i) and images (%i) inside training set." \
                          % (nb_words, x.shape[0]))
 
     if isinstance(init, np.ndarray):  # assume that init contains the marginals for a warm start.
         marginals = init
-        weights = marginals_to_weights(x, y, marginals, log=True) / regu
+        weights = marginals_to_centroid(x, y, marginals, log=True)
     elif init == "uniform":
         marginals = uniform_marginals(y, log=True)
-        weights = marginals_to_weights(x, y) / regu
+        weights = marginals_to_centroid(x, y)
     elif init == "random":
-        weights = np.random.randn(NB_FEATURES)
-        marginals = np.array([LogProbability.infer_from_weights(imgs, weights) for imgs in x])
-        weights = marginals_to_weights(x, y, marginals, log=True) / regu
-        Features.from_array(weights).display()
+        weights = Features(random=True)
+        marginals = np.array([weights.infer_probabilities(imgs, log=True)[0] for imgs in x])
+        weights = marginals_to_centroid(x, y, marginals, log=True)
     else:
         raise ValueError("Not a valid argument for init: %r" % init)
+
+    weights.multiply_scalar(1 / regu, inplace=True)
 
     ##################################################################################
     # OBJECTIVES : dual objective and duality gaps
     ##################################################################################
     entropies = np.array([margs.entropy() for margs in marginals])
-    dual_objective = entropies.mean() - regu / 2 * np.sum(weights ** 2)
+    dual_objective = entropies.mean() - regu / 2 * weights.squared_norm()
 
-    new_marginals = [LogProbability.infer_from_weights(imgs, weights) for imgs in x]
+    new_marginals = [weights.infer_probabilities(imgs, log=True)[0] for imgs in x]
     dgaps = np.array([margs.kullback_leibler(newmargs) for margs, newmargs in zip(marginals, new_marginals)])
     duality_gap = dgaps.sum() / nb_words
 
@@ -706,12 +663,11 @@ def sdca(x, y, regu=1, npass=5, update_period=5, precision=1e-5, subprecision=1e
     ##################################################################################
     # MAIN LOOP
     ##################################################################################
-    for t in tqdm(range(nb_words * npass)):
+    for t in range(nb_words * npass):
         if duality_gap < precision:
             break
+        # print duality_gap
 
-        # import pdb
-        # pdb.set_trace()
         ##################################################################################
         # SAMPLING
         ##################################################################################
@@ -719,34 +675,77 @@ def sdca(x, y, regu=1, npass=5, update_period=5, precision=1e-5, subprecision=1e
             i = np.random.randint(nb_words)
         else:  # sample proportionally to the duality gaps
             i = sampler.sample()
+        alpha_i = marginals[i]
 
         ##################################################################################
-        # MARGINALIZATION ORACLE
+        # MARGINALIZATION ORACLE and ASCENT DIRECTION (primal to dual)
         ##################################################################################
-        margs_i = LogProbability.infer_from_weights(x[i], weights)
-        # assert margs_i.are_consistent()
-        # assert margs_i.are_densities(1)
-        # assert margs_i.are_positive(), (display_word(y[i],x[i]),
-        #                                 margs_i.display(),
-        #                                 Features.from_array(weights).display())
+        beta_i, log_partition_i = weights.infer_probabilities(x[i], log=True)
+        nbeta_i = beta_i.to_probability()
+        assert nbeta_i.are_consistent()
+        assert nbeta_i.are_densities(1), (display_word(y[i], x[i]),
+                                          beta_i.display(),
+                                          weights.display())
 
-        ##################################################################################
-        # ASCENT DIRECTION : and primal movement
-        ##################################################################################
-        dual_direction = margs_i.to_probability().subtract(marginals[i].to_probability())
+        dual_direction = beta_i.smart_subtract(alpha_i)
         assert dual_direction.are_densities(integral=0)
         assert dual_direction.are_consistent()
+
+        ##################################################################################
+        # EXPECTATION of FEATURES (dual to primal)
+        ##################################################################################
         primal_direction = Features()
         primal_direction.add_centroid(x[i], dual_direction)
+
         # Centroid of the corrected features in the dual direction
         # = Centroid of the real features in the opposite of the dual direction
-        primal_direction = - primal_direction.to_array() / regu / nb_words
+        primal_direction.multiply_scalar(-1 / regu / nb_words, inplace=True)
+
+        ##################################################################################
+        # INTERESTING VALUES and NON-UNIFORM SAMPLING
+        ##################################################################################
+        primaldir_squared_norm = primal_direction.squared_norm()
+        weights_dot_primaldir = weights.inner_product(primal_direction)
+
+        entropy_i = entropies[i]  # entropy of alpha_i
+        divergence_gap = marginals[i].kullback_leibler(beta_i)
+        reverse_gap = beta_i.kullback_leibler(alpha_i)
+
+        # Compare the fenchel duality gap and the KL between alpha_i and beta_i.
+        # They should be equal.
+        weights_i = Features()
+        weights_i.add_centroid(x[i], alpha_i.to_probability())
+        weights_i.multiply_scalar(-1, inplace=True)
+        # weights_i.add_word(x[i], y[i])
+        weights_dot_wi = weights.inner_product(weights_i)
+        fenchel_gap = log_partition_i - entropy_i + weights_dot_wi
+        assert np.isclose(divergence_gap, fenchel_gap), \
+            " iteration %i \n divergence %.5e \n fenchel gap %.5e \n log_partition %f \n" \
+            " entropy %.5e \n w^T A_i alpha_i %f \n reverse divergence %f " % (t,
+                                                                               divergence_gap,
+                                                                               fenchel_gap, log_partition_i,
+                                                                               entropy_i, weights_dot_wi, reverse_gap)
+
+        sampler.update(fenchel_gap, i)
+
+        duality_gap_estimate = sampler.get_total() / nb_words
 
         ##################################################################################
         # LINE SEARCH : find the optimal step size gammaopt or use a fixed one
         ##################################################################################
-        quadratic_coeff = scaling * np.sum(primal_direction ** 2)
-        linear_coeff = scaling * np.dot(weights, primal_direction)
+        quadratic_coeff = - regu * nb_words / 2 * primaldir_squared_norm
+        linear_coeff = - regu * nb_words * weights_dot_primaldir
+
+        # slope of the line search function in 0
+        slope = - dual_direction.inner_product(alpha_i) + linear_coeff
+        assert np.isclose(slope, divergence_gap + reverse_gap), \
+            " iteration : %i \n " \
+            "<d, -log alpha_i> %.2e | linear coeff %.2e | slope : %.2e \n" \
+            "individual gap = %.2e | reverse gap = %.2e  | sum = %.2e " % (t, - dual_direction.inner_product(alpha_i),
+                                                                           linear_coeff, slope,
+                                                                           divergence_gap, reverse_gap,
+                                                                           divergence_gap + reverse_gap)
+
         if step_size:
             gammaopt = step_size
             subobjective = []
@@ -754,11 +753,11 @@ def sdca(x, y, regu=1, npass=5, update_period=5, precision=1e-5, subprecision=1e
             # print("dual direction")
             # print(dual_direction.square().to_logprobability())
             # print("new marginals")
-            # print(margs_i)
+            # print(beta_i)
 
             def evaluator(gamma, returnf=False):
                 # line search function and its derivatives
-                newmargs = marginals[i].convex_combination(margs_i, gamma)
+                newmargs = alpha_i.convex_combination(beta_i, gamma)
                 # assert newmargs.are_densities(1)
                 # assert newmargs.are_consistent()
                 # assert newmargs.are_positive(), newmargs.display
@@ -766,7 +765,7 @@ def sdca(x, y, regu=1, npass=5, update_period=5, precision=1e-5, subprecision=1e
                 if gfgamma == 0:
                     return gfgamma, 0
                 logvalue = dual_direction.square().to_logprobability() \
-                    .subtract(newmargs).logsumexp(- 2 * quadratic_coeff)  # stable logsumexp
+                    .divide(newmargs).logsumexp(- 2 * quadratic_coeff)  # stable logsumexp
                 logvalue = np.log(np.absolute(gfgamma)) - logvalue
                 gfdggf = - np.sign(gfgamma) * np.exp(logvalue)  # gf(x)/ggf(x)
                 if returnf:
@@ -782,7 +781,7 @@ def sdca(x, y, regu=1, npass=5, update_period=5, precision=1e-5, subprecision=1e
             # DEBUGGING
             ##################################################################################
             # if t == 50:
-            #     return evaluator, quadratic_coeff, linear_coeff, dual_direction, marginals[i], margs_i
+            #     return evaluator, quadratic_coeff, linear_coeff, dual_direction, alpha_i, beta_i
 
             # Plot the line search curves
             # whentoplot = 25
@@ -822,35 +821,34 @@ def sdca(x, y, regu=1, npass=5, update_period=5, precision=1e-5, subprecision=1e
         ##################################################################################
         # UPDATE : the primal and dual coordinates
         ##################################################################################
-        marginals[i] = marginals[i].convex_combination(margs_i, gammaopt)
-        weights += gammaopt * primal_direction
-
-        ##################################################################################
-        # NON-UNIFORM SAMPLING
-        ##################################################################################
-        sampler.update(marginals[i].kullback_leibler(margs_i), i)
+        marginals[i] = alpha_i.convex_combination(beta_i, gammaopt)
+        weights = weights.add(primal_direction.multiply_scalar(gammaopt, inplace=False))
 
         ##################################################################################
         # ANNEX
         ##################################################################################
+        # Update the dual objective and the entropy
+        tmp = marginals[i].entropy()
+        dual_objective += \
+            (tmp - entropies[i] + gammaopt ** 2 * quadratic_coeff + gammaopt * linear_coeff) / nb_words
+        entropies[i] = tmp
         if _debug:
-            # Update the dual objective and the entropy
-            tmp = marginals[i].entropy()
-            dual_objective += \
-                (tmp - entropies[i] + gammaopt ** 2 * quadratic_coeff + gammaopt * linear_coeff) / nb_words
-            entropies[i] = tmp
-            # update the duality gap estimate
-            duality_gap_estimate = sampler.get_total() / nb_words
             # Append relevant variables
-            annex.append([np.log10(-quadratic_coeff), -linear_coeff / np.sqrt(-quadratic_coeff), gammaopt,
-                          dual_objective, np.log10(duality_gap_estimate), sampler.get_score(i), i, len(subobjective)])
+            annex.append([np.log10(primaldir_squared_norm),
+                          weights_dot_primaldir / np.sqrt(primaldir_squared_norm),
+                          gammaopt,
+                          dual_objective,
+                          np.log10(duality_gap_estimate),
+                          fenchel_gap,
+                          i,
+                          len(subobjective)])
 
         if t % (update_period * nb_words) == 0:
             ##################################################################################
             # OBJECTIVES : after each pass over the data, compute the duality gap
             ##################################################################################
-            t1 = time.time()
-            dgaps = duality_gaps(marginals, weights, x)
+            # t1 = time.time()
+            dgaps = divergence_gaps(marginals, weights, x)
             sampler = random_counters.RandomCounters(dgaps)
             duality_gap = sampler.get_total() / nb_words
             objective.append(duality_gap)
@@ -862,7 +860,9 @@ def sdca(x, y, regu=1, npass=5, update_period=5, precision=1e-5, subprecision=1e
             #     # To monitor the objective and provide a stopping criterion
             #     ##################################################################################
             # delta_time += time.time() - t1
-            timing.append(time.time() - delta_time)
+            t2 = time.time()
+            timing.append(t2 - delta_time)
+            print duality_gap
 
     ##################################################################################
     # ANNEX
@@ -880,22 +880,3 @@ def sdca(x, y, regu=1, npass=5, update_period=5, precision=1e-5, subprecision=1e
         return marginals, weights, objective, timing, annex
     else:
         return marginals, weights, objective, timing
-
-
-def get_slopes(marginals, weights, images, regu):
-    nb_words = marginals.shape[0]
-    ans = []
-    for margs, imgs in zip(marginals, images):
-        newmargs = LogProbability.infer_from_weights(imgs, weights)
-        dual_direction = newmargs.to_probability().subtract(margs.to_probability())
-        assert dual_direction.are_densities(integral=0)
-        assert dual_direction.are_consistent()
-
-        primal_direction = Features()
-        primal_direction.add_centroid(imgs, dual_direction)
-        primal_direction = - primal_direction.to_array() / regu / nb_words
-
-        slope = - dual_direction.inner_product(newmargs) - regu * nb_words * np.dot(weights, primal_direction)
-        ans.append(slope)
-
-    return ans

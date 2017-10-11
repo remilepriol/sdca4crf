@@ -13,9 +13,9 @@ def conditional_probabilities(scores, log=False):
     log_partitions = logsumexp(scores, axis=-1, keepdims=True)
     scores = scores - log_partitions
     if log:
-        return scores, log_partitions
+        return scores, np.squeeze(log_partitions)
     else:
-        return np.exp(scores), np.exp(log_partitions)
+        return np.exp(scores), np.squeeze(np.exp(log_partitions))
 
 
 class MulticlassLogisticRegression:
@@ -160,18 +160,32 @@ class MulticlassLogisticRegression:
                 i = np.random.randint(self.n)
             else:  # sample proportionally to the duality gaps
                 i = sampler.sample()
+            logalphai = self.logalpha[i]
 
             ##################################################################################
             # FUNCTION ESTIMATE : for the ascent
+            # note that the scores are computed with the real features
+            # there is no correction with the ground truth here
             ##################################################################################
             scores_i = self.scores(x[i])
-            logprob_i, _ = conditional_probabilities(scores_i, log=True)
-            ascent_direction = np.exp(logprob_i) - np.exp(self.logalpha[i])
+            logbetai, log_partition_i = conditional_probabilities(scores_i, log=True)
+            max_proba = np.maximum(logalphai, logbetai)
+            ascent_direction = np.exp(max_proba) * (np.exp(logbetai - max_proba) - np.exp(logalphai - max_proba))
 
-            # stopping condition
-            individual_gap = utils.log_kullback_leibler(self.logalpha[i], logprob_i)
-            if individual_gap < precision:
+            # duality gaps
+            reverse_gap = utils.log_kullback_leibler(logbetai, logalphai)
+            divergence_gap = utils.log_kullback_leibler(logalphai, logbetai)
+            if divergence_gap < precision:
                 continue
+
+            weights_dot_wi = - np.dot(np.exp(logalphai), scores_i)
+            entropy_i = utils.log_entropy(logalphai)
+            fenchel_gap = log_partition_i - entropy_i + weights_dot_wi
+            assert np.isclose(divergence_gap, fenchel_gap, atol=min(precision, 1e-10)), \
+                print(" iteration %i \n divergence %f \n fenchel gap %f \n log_partition %f \n"
+                      " entropy %f \n w^T A_i alpha_i %f \n reverse divergence %f " % (
+                          t, divergence_gap, fenchel_gap, log_partition_i, entropy_i, weights_dot_wi, reverse_gap))
+
             residue = np.sqrt(np.sum(ascent_direction ** 2))
 
             ##################################################################################
@@ -179,7 +193,7 @@ class MulticlassLogisticRegression:
             ##################################################################################
             if non_uniformity > 0:
                 if sampling_scheme == 'gaps':
-                    sampler.update(individual_gap, i)
+                    sampler.update(divergence_gap, i)
                 elif sampling_scheme == 'csiba':
                     sampler.update(importances[i] * residue, i)
                 else:
@@ -190,28 +204,27 @@ class MulticlassLogisticRegression:
             ##################################################################################
             squared_ascent_norm = np.sum(ascent_direction ** 2)
             linear_coeff = - squared_norm_x[i] * squared_ascent_norm / self.reg / self.n
-            constant_coeff = np.dot(ascent_direction, scores_i)
+            # constant_coeff = np.dot(ascent_direction, scores_i)
 
             # check that the slope in 0 is big enough as demanded by the theory
-            slope = np.dot(ascent_direction, logprob_i - self.logalpha[i])
-            reverse_gap = utils.log_kullback_leibler(logprob_i, self.logalpha[i])
-            assert np.isclose(slope, individual_gap + reverse_gap, atol=precision) \
+            slope = np.dot(ascent_direction, logbetai - logalphai)
+            assert np.isclose(slope, divergence_gap + reverse_gap, atol=precision) \
                    and reverse_gap >= residue ** 2 / 2, print(
                 "iteration : %i | data point : %i | slope : %.2e "
                 "\n individual gap = %.2e | reverse gap = %.2e | sum = %.2e | residue^2/2 = %.2e" % (
-                    t, i, slope, individual_gap, reverse_gap, individual_gap + reverse_gap, residue ** 2 / 2),
-                "\n alpha i : ", np.exp(self.logalpha[i]),
-                "\n beta i : ", np.exp(logprob_i),
+                    t, i, slope, divergence_gap, reverse_gap, divergence_gap + reverse_gap, residue ** 2 / 2),
+                "\n alpha i : ", np.exp(logalphai),
+                "\n beta i : ", np.exp(logbetai),
                 "\n ascent direction :", ascent_direction,
-                "\n slope per class :", ascent_direction * self.logalpha[i],
+                "\n slope per class :", ascent_direction * logalphai,
                 "\n scores : ", scores_i
             )
 
             def evaluator(gamma):
                 # Evaluate the first and second derivatives of the dual objective with respect to gamma
                 # We have to find a root of the first derivative
-                newlogproba = logsumexp(a=[self.logalpha[i], logprob_i], axis=0, b=[[1 - gamma], [gamma]])
-                fgamma = np.dot(ascent_direction, logprob_i - newlogproba) + gamma * linear_coeff
+                newlogproba = logsumexp(a=[logalphai, logbetai], axis=0, b=[[1 - gamma], [gamma]])
+                fgamma = np.dot(ascent_direction, logbetai - newlogproba) + gamma * linear_coeff
                 gfgamma = logsumexp([logsumexp(np.log(ascent_direction ** 2) - newlogproba), linear_coeff])
                 return fgamma, fgamma * np.exp(-gfgamma)
 
@@ -230,9 +243,9 @@ class MulticlassLogisticRegression:
             ##################################################################################
             # UPDATE : the primal and dual coordinates
             ##################################################################################
-            logalphai = logsumexp(a=[self.logalpha[i], logprob_i], axis=0, b=[[1 - gammaopt], [gammaopt]])
-            self.weights += - (np.exp(logalphai) - np.exp(self.logalpha[i]))[:, np.newaxis] * x[i] / self.reg / self.n
-            self.logalpha[i] = logalphai
+            logalphaibis = logsumexp(a=[logalphai, logbetai], axis=0, b=[[1 - gammaopt], [gammaopt]])
+            self.weights += - (np.exp(logalphaibis) - np.exp(logalphai))[:, np.newaxis] * x[i] / self.reg / self.n
+            self.logalpha[i] = logalphaibis
 
             ##################################################################################
             # OBJECTIVES : after each pass over the data, compute the duality gap

@@ -82,7 +82,7 @@ def bounded_newton(evaluator, init, lowerbound, upperbound, precision=1e-12, max
 
 
 # define MAXIT 100 Maximum allowed number of iterations.
-def safe_newton(evaluator, lowerbound, upperbound, precision, max_iter=100):
+def safe_newton(evaluator, lowerbound, upperbound, precision, max_iter=200):
     """Using a combination of Newton-Raphson and bisection, find the root of a function bracketed between lowerbound
     and upperbound.
 
@@ -94,8 +94,8 @@ def safe_newton(evaluator, lowerbound, upperbound, precision, max_iter=100):
     :return: The root, returned as the value rts
     """
 
-    fl, dl = evaluator(lowerbound)
-    fh, dl = evaluator(upperbound)
+    fl, _ = evaluator(lowerbound)
+    fh, _ = evaluator(upperbound)
     if (fl > 0 and fh > 0) or (fl < 0 and fh < 0):
         raise ValueError("Root must be bracketed in [lower bound, upper bound]")
     if fl == 0:
@@ -118,8 +118,9 @@ def safe_newton(evaluator, lowerbound, upperbound, precision, max_iter=100):
     for _ in np.arange(max_iter):  # Loop over allowed iterations.
         rtsold = rts
         rts -= fdf
-        if (rts - xh) * (rts - xl) > 0 or abs(fdf) > abs(dxold) / 2:
+        if not ((rts - xh) * (rts - xl) < 0 and abs(fdf) > abs(dxold) / 2):
             # Bisect if Newton out of range, or not converging fast enough
+            # we check with a negation to dissect in case fdf is NaN
             dxold = dx
             dx = (xh - xl) / 2
             rts = xl + dx
