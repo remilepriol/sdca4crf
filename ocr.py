@@ -546,7 +546,7 @@ def marginals_to_centroid(images, labels, marginals=None, log=False):
             marginals_centroid.add_centroid(image, margs)
 
     corrected_features_centroid = ground_truth_centroid.subtract(marginals_centroid)
-    corrected_features_centroid.multiply_scalar(1 / nb_words, inplace=True)
+    corrected_features_centroid.multiply_scalar(1. / nb_words, inplace=True)
     return corrected_features_centroid
 
 
@@ -631,13 +631,13 @@ def sdca(x, y, regu=1, npass=5, update_period=5, precision=1e-5, subprecision=1e
     else:
         raise ValueError("Not a valid argument for init: %r" % init)
 
-    weights.multiply_scalar(1 / regu, inplace=True)
+    weights.multiply_scalar(1. / regu, inplace=True)
 
     ##################################################################################
     # OBJECTIVES : dual objective and duality gaps
     ##################################################################################
     entropies = np.array([margs.entropy() for margs in marginals])
-    dual_objective = entropies.mean() - regu / 2 * weights.squared_norm()
+    dual_objective = entropies.mean() - regu / 2. * weights.squared_norm()
 
     new_marginals = [weights.infer_probabilities(imgs, log=True)[0] for imgs in x]
     dgaps = np.array([margs.kullback_leibler(newmargs) for margs, newmargs in zip(marginals, new_marginals)])
@@ -699,7 +699,7 @@ def sdca(x, y, regu=1, npass=5, update_period=5, precision=1e-5, subprecision=1e
 
         # Centroid of the corrected features in the dual direction
         # = Centroid of the real features in the opposite of the dual direction
-        primal_direction.multiply_scalar(-1 / regu / nb_words, inplace=True)
+        primal_direction.multiply_scalar(-1. / regu / nb_words, inplace=True)
 
         ##################################################################################
         # INTERESTING VALUES and NON-UNIFORM SAMPLING
