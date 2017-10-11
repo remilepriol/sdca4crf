@@ -235,12 +235,6 @@ class Features:
     #########################################
     # From weights to probabilities
     #########################################
-    def word_score(self, images, labels):
-        """Return the score <self,F(images,labels)>."""
-        return np.sum(images * self.emission[labels]) \
-               + np.sum(self.bias[labels, np.zeros(labels.shape[0])]) \
-               + np.sum(self.transition[labels[:-1], labels[1:]])
-
     def unary_scores(self, images):
         """Return the unary scores of word when self encode the weights of the model.
 
@@ -269,6 +263,17 @@ class Features:
             return LogProbability(umargs, bmargs), log_partition
         else:
             return Probability(umargs, bmargs), log_partition
+
+    def word_score(self, images, labels):
+        """Return the score <self,F(images,labels)>."""
+        return np.sum(images * self.emission[labels]) \
+               + np.sum(self.bias[labels, np.zeros(labels.shape[0])]) \
+               + np.sum(self.transition[labels[:-1], labels[1:]])
+
+    def predict(self, images):
+        uscores = self.unary_scores(images)
+        bscores = self.binary_scores(images)
+        return oracles.chain_viterbi(uscores, bscores)
 
     #########################################
     # Arithmetic operations
@@ -715,8 +720,8 @@ def sdca(x, y, regu=1, npass=5, update_period=5, precision=1e-5, subprecision=1e
         weights_dot_wi = weights.inner_product(weights_i)
         fenchel_gap = log_partition_i - entropy_i + weights_dot_wi
         assert np.isclose(divergence_gap, fenchel_gap), \
-            print(" iteration %i \n divergence %f \n fenchel gap %f \n log_partition %f \n"
-                  " entropy %f \n w^T A_i alpha_i %f \n reverse divergence %f " % (
+            print(" iteration %i \n divergence %.5e \n fenchel gap %.5e \n log_partition %f \n"
+                  " entropy %.5e \n w^T A_i alpha_i %f \n reverse divergence %f " % (
                       t, divergence_gap, fenchel_gap, log_partition_i, entropy_i, weights_dot_wi, reverse_gap))
 
         sampler.update(fenchel_gap, i)
@@ -731,7 +736,13 @@ def sdca(x, y, regu=1, npass=5, update_period=5, precision=1e-5, subprecision=1e
 
         # slope of the line search function in 0
         slope = - dual_direction.inner_product(alpha_i) + linear_coeff
-        assert np.isclose(slope, divergence_gap + reverse_gap, atol=1e-10)
+        assert np.isclose(slope, divergence_gap + reverse_gap), print(
+            "iteration : %i \n"
+            "<d, -log alpha_i> %.2e | linear coeff %.2e | slope : %.2e \n"
+            "individual gap = %.2e | reverse gap = %.2e | sum = %.2e" % (
+                t, - dual_direction.inner_product(alpha_i), linear_coeff, slope,
+                divergence_gap, reverse_gap, divergence_gap + reverse_gap)
+        )
 
         if step_size:
             gammaopt = step_size
