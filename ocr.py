@@ -387,10 +387,6 @@ class Probability(Chain):
             # print("Marginalisation of the left and right of the binary marginals are inconsistent.")
         return ans
 
-    def sum(self):
-        """Return the special inner product where the marginals on the separations are subtracted."""
-        return np.sum(self.binary) - np.sum(self.unary[1:-1])
-
     def subtract(self, other):
         return Probability(unary=self.unary - other.unary,
                            binary=self.binary - other.binary)
@@ -399,9 +395,16 @@ class Probability(Chain):
         return Probability(unary=self.unary * other.unary,
                            binary=self.binary * other.binary)
 
+    def sum(self):
+        """Return the special inner product where the marginals on the separations are subtracted."""
+        return np.sum(self.binary) - np.sum(self.unary[1:-1])
+
     def inner_product(self, other):
         """Return the special inner product where the marginals on the separations are subtracted."""
         return self.multiply(other).sum()
+
+    def map(self, func):
+        return Probability(unary=func(self.unary), binary=func(self.binary))
 
     # def special_function(self, newmargs):
     #   """To handle the second derivative in th eline search"""
@@ -419,9 +422,6 @@ class Probability(Chain):
     # def multiply_scalar(self, scalar):
     #     return Probability(unary=scalar * self.unary,
     #                        binary=scalar * self.binary)
-
-    def square(self):
-        return Probability(unary=self.unary ** 2, binary=self.binary ** 2)
 
     def to_logprobability(self):
         return LogProbability(unary=np.log(self.unary),
@@ -490,10 +490,13 @@ class LogProbability(Chain):
         return Probability(unary=unary, binary=binary)
 
     def logsumexp(self, to_add):
-        themax = max(np.amax(self.unary[1:-1]), np.amax(self.binary), to_add)
-        return themax + np.log(np.sum(np.exp(self.binary - themax)) -
-                               np.sum(np.exp(self.unary[1:-1] - themax)) +
-                               to_add * np.exp(-themax))
+        themax = max(np.amax(self.unary[1:-1]), np.amax(self.binary))
+        return themax + np.log(np.sum(np.exp(self.binary - themax))
+                               - np.sum(np.exp(self.unary[1:-1] - themax))
+                               + to_add * np.exp(-themax))
+
+    def multiply_scalar(self, scalar):
+        return LogProbability(unary=self.unary * scalar, binary=self.binary * scalar)
 
     def to_probability(self):
         return Probability(unary=np.exp(self.unary),
@@ -710,6 +713,9 @@ def sdca(x, y, regu=1, npass=5, update_period=5, precision=1e-5, subprecision=1e
         divergence_gap = alpha_i.kullback_leibler(beta_i)
         reverse_gap = beta_i.kullback_leibler(alpha_i)
 
+        if divergence_gap < precision:
+            continue
+
         # Compare the fenchel duality gap and the KL between alpha_i and beta_i.
         # They should be equal.
         # entropy_i = entropies[i]  # entropy of alpha_i
@@ -759,19 +765,23 @@ def sdca(x, y, regu=1, npass=5, update_period=5, precision=1e-5, subprecision=1e
                 # assert newmargs.are_densities(1)
                 # assert newmargs.are_consistent()
                 # assert newmargs.are_positive(), newmargs.display
-                gfgamma = - dual_direction.inner_product(newmargs) + gamma * 2 * quadratic_coeff + linear_coeff
-                if gfgamma == 0:
-                    return gfgamma, 0
-                logvalue = dual_direction.square().to_logprobability() \
-                    .divide(newmargs).logsumexp(- 2 * quadratic_coeff)  # stable logsumexp
-                logvalue = np.log(np.absolute(gfgamma)) - logvalue
-                gfdggf = - np.sign(gfgamma) * np.exp(logvalue)  # gf(x)/ggf(x)
+                gf = - dual_direction.inner_product(newmargs) + gamma * 2 * quadratic_coeff + linear_coeff
+                if gf == 0:
+                    return gf, 0
+                log_ggf = dual_direction \
+                    .map(np.absolute) \
+                    .to_logprobability() \
+                    .multiply_scalar(2) \
+                    .divide(newmargs) \
+                    .logsumexp(- 2 * quadratic_coeff)  # stable logsumexp
+                gfdggf = np.log(np.absolute(gf)) - log_ggf  # log(absolute(gf(x)/ggf(x)))
+                gfdggf = - np.sign(gf) * np.exp(gfdggf)  # gf(x)/ggf(x)
                 if returnf:
                     entropy = newmargs.entropy()
                     norm = gamma ** 2 * quadratic_coeff + gamma * linear_coeff
-                    return entropy, norm, gfgamma, gfdggf
+                    return entropy, norm, gf, gfdggf
                 else:
-                    return gfgamma, gfdggf
+                    return gf, gfdggf
 
             gammaopt, subobjective = utils.find_root_decreasing(evaluator=evaluator, precision=subprecision)
 
