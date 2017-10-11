@@ -42,13 +42,15 @@ def find_root_decreasing(evaluator, precision):
     :return: x an approximate root of u
     """
 
-    u0, _ = evaluator(0)
-    if u0 <= precision:  # 0 is optimal
-        return 0, [u0]
+    # Useless and almost redundant with safe_newton
 
-    u1, _ = evaluator(1)
-    if u1 >= -precision:  # 1 is optimal
-        return 1, [u1]
+    # u0, _ = evaluator(0)
+    # if u0 <= precision:  # 0 is optimal
+    #     return 0, [u0]
+    #
+    # u1, _ = evaluator(1)
+    # if u1 >= -precision:  # 1 is optimal
+    #     return 1, [u1]
 
     return safe_newton(evaluator, 0, 1, precision=precision)
 
