@@ -173,13 +173,13 @@ class MulticlassLogisticRegression:
             ascent_direction = np.exp(max_proba) * (np.exp(logbetai - max_proba) - np.exp(logalphai - max_proba))
 
             # duality gaps
-            reverse_gap = utils.log_kullback_leibler(logbetai, logalphai)
-            divergence_gap = utils.log_kullback_leibler(logalphai, logbetai)
+            reverse_gap = utils.kullback_leibler(logbetai, logalphai)
+            divergence_gap = utils.kullback_leibler(logalphai, logbetai)
             if divergence_gap < precision:
                 continue
 
             weights_dot_wi = - np.dot(np.exp(logalphai), scores_i)
-            entropy_i = utils.log_entropy(logalphai)
+            entropy_i = utils.entropy(logalphai)
             fenchel_gap = log_partition_i - entropy_i + weights_dot_wi
             assert np.isclose(divergence_gap, fenchel_gap, atol=min(precision, 1e-10)), \
                 print(" iteration %i \n divergence %f \n fenchel gap %f \n log_partition %f \n"
@@ -262,7 +262,7 @@ class MulticlassLogisticRegression:
                 ##################################################################################
                 elif t % (update_period * self.n) == 0:
                     logprobs, _ = conditional_probabilities(self.scores(x), log=True)  # n*k array, like logalpha
-                    dual_gaps = utils.log_kullback_leibler(self.logalpha, logprobs, axis=-1)
+                    dual_gaps = utils.kullback_leibler(self.logalpha, logprobs, axis=-1)
                     obj.append(np.mean(dual_gaps))
                     if non_uniformity > 0:
                         if sampling_scheme == 'gaps':

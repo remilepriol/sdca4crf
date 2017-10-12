@@ -203,7 +203,7 @@ class Features:
         for images, labels in zip(images_set, labels_set):
             word_size = labels.shape[0]
             if word_size != images.shape[0]:
-                raise ValueError("Not the same number of labels (%i) and images (%i) inside word." \
+                raise ValueError("Not the same number of labels (%i) and images (%i) inside word."
                                  % (word_size, images.shape[0]))
             self.add_word(images, labels)
 
@@ -266,9 +266,10 @@ class Features:
 
     def word_score(self, images, labels):
         """Return the score <self,F(images,labels)>."""
-        return np.sum(images * self.emission[labels]) \
-               + np.sum(self.bias[labels, np.zeros(labels.shape[0])]) \
-               + np.sum(self.transition[labels[:-1], labels[1:]])
+        return \
+            np.sum(images * self.emission[labels]) \
+            + np.sum(self.bias[labels, np.zeros(labels.shape[0])]) \
+            + np.sum(self.transition[labels[:-1], labels[1:]])
 
     def predict(self, images):
         uscores = self.unary_scores(images)
@@ -448,16 +449,25 @@ class LogProbability(Chain):
         else:  # take what is given
             Chain.__init__(self, unary, binary)
 
-    def entropy(self, precision=1e-10):
-        ans = utils.log_entropy(self.binary) - utils.log_entropy(self.unary[1:-1])
-        assert ans >= -precision, (self, ans)
-        return max(ans, 0)
+    def entropy(self, returnlog=False):
+        cliques = utils.entropy(self.binary, returnlog=True)
+        separations = utils.entropy(self.unary[1:-1], returnlog=True)
+        themax = max(cliques, separations)
+        ans = themax + np.log(np.exp(cliques - themax) - np.exp(separations - themax))
+        if returnlog:
+            return ans
+        else:
+            return np.exp(ans)
 
-    def kullback_leibler(self, other, precision=1e-10):
-        ans = utils.log_kullback_leibler(self.binary, other.binary) \
-              - utils.log_kullback_leibler(self.unary[1:-1], other.unary[1:-1])
-        assert ans >= -precision, (self, ans)
-        return max(ans, 0)
+    def kullback_leibler(self, other, returnlog=False):
+        cliques = utils.kullback_leibler(self.binary, other.binary)
+        separations = utils.kullback_leibler(self.unary[1:-1], other.unary[1:-1])
+        themax = max(cliques, separations)
+        ans = themax + np.log(np.exp(cliques - themax) - np.exp(separations - themax))
+        if returnlog:
+            return ans
+        else:
+            return np.exp(ans)
 
     def convex_combination(self, other, gamma):
         if gamma == 0:
@@ -642,7 +652,8 @@ def sdca(x, y, regu=1, npass=5, update_period=5, precision=1e-5, subprecision=1e
     # OBJECTIVES : dual objective and duality gaps
     ##################################################################################
     entropies = np.array([margs.entropy() for margs in marginals])
-    dual_objective = entropies.mean() - regu / 2 * weights.squared_norm()
+    weights_squared_norm = weights.squared_norm()
+    dual_objective = entropies.mean() - regu / 2 * weights_squared_norm
 
     new_marginals = [weights.infer_probabilities(imgs, log=True)[0] for imgs in x]
     dgaps = np.array([margs.kullback_leibler(newmargs) for margs, newmargs in zip(marginals, new_marginals)])
@@ -714,8 +725,11 @@ def sdca(x, y, regu=1, npass=5, update_period=5, precision=1e-5, subprecision=1e
         divergence_gap = alpha_i.kullback_leibler(beta_i)
         reverse_gap = beta_i.kullback_leibler(alpha_i)
 
-        if divergence_gap < precision:
-            continue
+        sampler.update(divergence_gap, i)
+        duality_gap_estimate = sampler.get_total() / nb_words
+
+        # if divergence_gap > precision:  # then try to update the weights
+        # other wie I get errors with the slope > duality gap
 
         # Compare the fenchel duality gap and the KL between alpha_i and beta_i.
         # They should be equal.
@@ -731,25 +745,22 @@ def sdca(x, y, regu=1, npass=5, update_period=5, precision=1e-5, subprecision=1e
         #           " entropy %.5e \n w^T A_i alpha_i %f \n reverse divergence %f " % (
         #               t, divergence_gap, fenchel_gap, log_partition_i, entropy_i, weights_dot_wi, reverse_gap))
 
-        sampler.update(divergence_gap, i)
-
-        duality_gap_estimate = sampler.get_total() / nb_words
-
         ##################################################################################
         # LINE SEARCH : find the optimal step size gammaopt or use a fixed one
         ##################################################################################
         quadratic_coeff = - regu * nb_words / 2 * primaldir_squared_norm
         linear_coeff = - regu * nb_words * weights_dot_primaldir
 
-        # slope of the line search function in 0
-        slope = - dual_direction.inner_product(alpha_i) + linear_coeff
-        assert np.isclose(slope, divergence_gap + reverse_gap), print(
-            "iteration : %i \n"
-            "<d, -log alpha_i> %.2e | linear coeff %.2e | slope : %.2e \n"
-            "individual gap = %.2e | reverse gap = %.2e | sum = %.2e" % (
-                t, - dual_direction.inner_product(alpha_i), linear_coeff, slope,
-                divergence_gap, reverse_gap, divergence_gap + reverse_gap)
-        )
+        # Useless block below because I now compute the slope directly with KL
+        # # slope of the line search function in 0
+        # slope = - dual_direction.inner_product(alpha_i) + linear_coeff
+        # assert np.isclose(slope, divergence_gap + reverse_gap), print(
+        #     "iteration : %i \n"
+        #     "<d, -log alpha_i> %.2e | linear coeff %.2e | slope : %.2e \n"
+        #     "individual gap = %.2e | reverse gap = %.2e | sum = %.2e" % (
+        #         t, - dual_direction.inner_product(alpha_i), linear_coeff, slope,
+        #         divergence_gap, reverse_gap, divergence_gap + reverse_gap)
+        # )
 
         if step_size:
             gammaopt = step_size
@@ -766,7 +777,11 @@ def sdca(x, y, regu=1, npass=5, update_period=5, precision=1e-5, subprecision=1e
                 # assert newmargs.are_densities(1)
                 # assert newmargs.are_consistent()
                 # assert newmargs.are_positive(), newmargs.display
-                gf = - dual_direction.inner_product(newmargs) + gamma * 2 * quadratic_coeff + linear_coeff
+                gf = \
+                    divergence_gap \
+                    + beta_i.kullback_leibler(newmargs) \
+                    - alpha_i.kullback_leibler(newmargs) \
+                    + gamma * 2 * quadratic_coeff
                 if gf == 0:
                     return gf, 0
                 log_ggf = dual_direction \
@@ -821,12 +836,6 @@ def sdca(x, y, regu=1, npass=5, update_period=5, precision=1e-5, subprecision=1e
                 else:
                     countzero += 1
 
-        # Plot the distribution of gradient values over the data
-        if t == 100 * nb_words:
-            slopes = get_slopes(marginals, weights, x, regu)
-            plt.hist(slopes, 50)
-            break
-
         ##################################################################################
         # UPDATE : the primal and dual coordinates
         ##################################################################################
@@ -836,11 +845,21 @@ def sdca(x, y, regu=1, npass=5, update_period=5, precision=1e-5, subprecision=1e
         ##################################################################################
         # ANNEX
         ##################################################################################
-        # Update the dual objective and the entropy
+        # Update the weights norm, the dual objective and the entropy
+        norm_update = gammaopt * 2 * weights_dot_primaldir \
+                      + gammaopt ** 2 * primaldir_squared_norm
+        weights_squared_norm += norm_update
+        dual_objective += -regu / 2 * norm_update
+
         tmp = marginals[i].entropy()
         dual_objective += \
-            (tmp - entropies[i] + gammaopt ** 2 * quadratic_coeff + gammaopt * linear_coeff) / nb_words
+            (tmp - entropies[i]) / nb_words
         entropies[i] = tmp
+
+        # else:
+        #     gammaopt = 0
+        #     subobjective = []
+
         if _debug:
             # Append relevant variables
             annex.append([np.log10(primaldir_squared_norm),
@@ -850,7 +869,8 @@ def sdca(x, y, regu=1, npass=5, update_period=5, precision=1e-5, subprecision=1e
                           np.log10(duality_gap_estimate),
                           divergence_gap,
                           i,
-                          len(subobjective)])
+                          len(subobjective),
+                          weights_squared_norm])
 
         if t % (update_period * nb_words) == 0:
             ##################################################################################
