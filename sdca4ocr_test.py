@@ -17,8 +17,8 @@ radii = features.radii(images)
 max_radius = np.amax(radii)
 
 which_fold = 0
-x = images[folds != which_fold]
-y = labels[folds != which_fold]
+x = images[folds == which_fold]
+y = labels[folds == which_fold]
 nb_words = x.shape[0]
 npass = 100
 update_period = 5
@@ -41,11 +41,12 @@ fullmargs, fullweights, fullobjective, fullannex = \
 os.system('say "I am done."')
 
 time_stamp = time.strftime("%Y%m%d_%H%M%S")
-
-np.save("results/" + time_stamp + "optmargs.npy", fullmargs)
-np.save("results/" + time_stamp + "optweights.npy", fullweights)
-np.save("results/" + time_stamp + "objective.npy", fullobjective)
-np.save("results/" + time_stamp + "annex.npy", fullannex)
+dirname = "results/" + time_stamp
+os.mkdir(dirname)
+np.save(dirname + "/marginals.npy", fullmargs)
+np.save(dirname + "/weights.npy", fullweights)
+np.save(dirname + "/objectives.npy", fullobjective)
+np.save(dirname + "/annex.npy", fullannex)
 
 plt.figure(figsize=(12, 4))
 plt.suptitle("Performance of SDCA on OCR with n=%i and lambda=%.1e" % (x.shape[0], regu))
@@ -59,4 +60,4 @@ plt.xlabel("number of pass over the data")
 plt.subplot(1, 2, 2)
 plt.plot(fullobjective[:, 3], np.log10(fullobjective[:, 0]))
 plt.xlabel("time (s)")
-plt.savefig("images/" + time_stamp + "_ocr_perf.pdf")
+plt.savefig(dirname + "/duality_gap.pdf")
