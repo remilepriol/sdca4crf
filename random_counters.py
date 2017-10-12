@@ -8,7 +8,7 @@ class RandomCounters:
     O(n log n)."""
 
     def __init__(self, score_leaves):
-        self.score_tree = [score_leaves]
+        self.score_tree = [score_leaves.copy()]
         score_level = self.score_tree[-1]
         n = score_level.shape[0]
         while n > 1:
