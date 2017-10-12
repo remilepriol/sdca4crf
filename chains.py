@@ -142,7 +142,7 @@ class LogProbability(Chain):
         cliques = utils.entropy(self.binary, returnlog=True)
         separations = utils.entropy(self.unary[1:-1], returnlog=True)
 
-        assert cliques >= separations, (cliques, separations)
+        assert cliques >= separations, (cliques, separations, self.unary, self.binary)
 
         if cliques == separations:
             return 0
@@ -167,7 +167,8 @@ class LogProbability(Chain):
     def kullback_leibler(self, other, returnlog=False):
         cliques = utils.kullback_leibler(self.binary, other.binary, returnlog=True)
         separations = utils.kullback_leibler(self.unary[1:-1], other.unary[1:-1], returnlog=True)
-        assert cliques >= separations, (cliques, separations)
+        assert cliques >= separations, (cliques, separations, self.unary, other.unary, self.binary,
+                                        other.binary)
 
         if cliques == separations:
             return 0
