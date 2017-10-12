@@ -3,11 +3,17 @@ import numpy as np
 
 def entropy(logproba, axis=None, returnlog=False):
     themax = np.amax(logproba)
-    ans = themax + np.log(- np.sum(np.exp(logproba - themax) * logproba, axis=axis))
-    if returnlog:
-        return ans
-    else:
-        return np.exp(ans)
+    try:
+        ans = themax + np.log(- np.sum(np.exp(logproba - themax) * logproba, axis=axis))
+        if returnlog:
+            return ans
+        else:
+            return np.exp(ans)
+    except FloatingPointError:
+        print("Entropy problem:",
+              themax, "\n",
+              logproba)
+        raise
 
 
 def kullback_leibler(logp, logq, axis=None, returnlog=False):
@@ -16,7 +22,11 @@ def kullback_leibler(logp, logq, axis=None, returnlog=False):
     if returnlog:
         return ans
     else:
-        return np.exp(ans)
+        try:
+            return np.exp(ans)
+        except FloatingPointError:
+            print("too big ", ans)
+            raise
 
 
 def logsumexp(v, axis=-1):

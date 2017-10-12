@@ -1,5 +1,4 @@
 # standard imports
-import csv
 import time
 
 import matplotlib.pyplot as plt
@@ -10,129 +9,6 @@ import oracles
 import random_counters
 # custom imports
 import utils
-
-########################################################################################################################
-# CONSTANTS
-########################################################################################################################
-ALPHABET = "abcdefghijklmnopqrstuvwxyz"
-ALPHABET_SIZE = len(ALPHABET)
-
-# Field values to parse the csv
-LETTER_ID = 0
-LETTER_VALUE = 1
-NEXT_ID = 2
-WORD_ID = 3
-POSITION = 4
-FOLD = 5
-FIRST_PIXEL = 6
-IMAGE_HEIGHT = 16
-IMAGE_WIDTH = 8
-NB_PIXELS = IMAGE_HEIGHT * IMAGE_WIDTH
-NB_FEATURES = ALPHABET_SIZE * (NB_PIXELS + ALPHABET_SIZE + 3)
-
-MAX_LENGTH = 20
-
-
-########################################################################################################################
-# UTILITIES
-########################################################################################################################
-def letter2integer(letter):
-    return int(ord(letter) - 97)
-
-
-def integer2letter(i):
-    if i < 0:
-        return ''
-    else:
-        return ALPHABET[i]
-
-
-def list2word(intlist):
-    return ''.join([integer2letter(a) for a in intlist])
-
-
-def word2list(word):
-    return [letter2integer(letter) for letter in word]
-
-
-def letters2wordimage(letters_images):
-    word_image = np.zeros([IMAGE_HEIGHT, 2])
-    spacing = np.zeros([IMAGE_HEIGHT, 2])
-    for letter in letters_images:
-        letter_image = letter.reshape((IMAGE_HEIGHT, IMAGE_WIDTH))
-        word_image = np.hstack((word_image, letter_image, spacing))
-    return word_image
-
-
-def display_word(letters_labels, letters_images):
-    word_string = list2word(letters_labels)
-    word_image = letters2wordimage(letters_images)
-    plt.imshow(word_image, interpolation='nearest', cmap='Greys')
-    plt.title(word_string)
-    plt.axis('off')
-    plt.show()
-
-
-########################################################################################################################
-# PARSING
-########################################################################################################################
-def read_lettersfile(tsv_file):
-    import io
-    letters = []
-    with io.open(tsv_file, newline='') as file:
-        reader = csv.reader(file, delimiter='\t')
-        for row in reader:
-            row[1] = letter2integer(row[1])
-            newrow = [int(value) for value in row[:-1]]
-            letters.append(newrow)
-        return np.array(letters, dtype=int)
-
-
-def letters_to_labels_and_words(letters):
-    """Return the labels and the letters images encoded in the 2d array letters. Encodes the labels in an array of 1d
-    arrays and the images in an array of 2d arrays. For the 2d arrays, the position of the letter in the word is the
-    first dimension, and the pixel position is the 2nd dimension.
-
-    :param letters: the letters array that one gets after reading the tsv_file
-    :return: labels, images
-    """
-
-    alllabels = []
-    labels = []
-    allimages = []
-    images = []
-    allfolds = []
-    for letter in letters:
-        labels.append(letter[LETTER_VALUE])
-        images.append(letter[FIRST_PIXEL:])
-        if letter[NEXT_ID] == -1:
-            alllabels.append(np.array(labels))
-            allimages.append(np.array(images))
-            allfolds.append(letter[FOLD])
-            labels = []
-            images = []
-    return np.array(alllabels), np.array(allimages), np.array(allfolds)
-
-
-def extract_wordlengths(letters):
-    nbwords = 0
-    wordlengths = []
-    length = 0
-    for letter in letters:
-        length += 1
-        if letter[NEXT_ID] == -1:
-            nbwords += 1
-            wordlengths.append(length)
-            length = 0
-    print("Nombre de mots :", nbwords)
-    return np.array(wordlengths)
-
-
-def unique_words(words_labels):
-    list_of_words = []
-    for word in words_labels:
-        list_of_words.append(list2word(word))
-    return np.unique(list_of_words, return_counts=True)
 
 
 ########################################################################################################################
@@ -259,6 +135,8 @@ class Features:
         uscores = self.unary_scores(images)
         bscores = self.binary_scores(images)
         umargs, bmargs, log_partition = oracles.chain_sum_product(uscores, bscores, log=log)
+        umargs = np.minimum(umargs, 0)
+        bmargs = np.minimum(bmargs, 0)
         if log:
             return LogProbability(umargs, bmargs), log_partition
         else:
@@ -452,22 +330,51 @@ class LogProbability(Chain):
     def entropy(self, returnlog=False):
         cliques = utils.entropy(self.binary, returnlog=True)
         separations = utils.entropy(self.unary[1:-1], returnlog=True)
-        themax = max(cliques, separations)
-        ans = themax + np.log(np.exp(cliques - themax) - np.exp(separations - themax))
-        if returnlog:
-            return ans
+
+        assert cliques >= separations, (cliques, separations)
+
+        if cliques == separations:
+            return 0
+
         else:
-            return np.exp(ans)
+            try:
+                ans = cliques + np.log(1 - np.exp(separations - cliques))
+
+                if returnlog:
+                    return ans
+                else:
+                    return np.exp(ans)
+
+            except FloatingPointError:
+                print(
+                    "KL problem", cliques, separations,
+                    "\n binary \n", self.binary,
+                    "\n unary \n", self.unary
+                )
+                raise
 
     def kullback_leibler(self, other, returnlog=False):
-        cliques = utils.kullback_leibler(self.binary, other.binary)
-        separations = utils.kullback_leibler(self.unary[1:-1], other.unary[1:-1])
-        themax = max(cliques, separations)
-        ans = themax + np.log(np.exp(cliques - themax) - np.exp(separations - themax))
-        if returnlog:
-            return ans
+        cliques = utils.kullback_leibler(self.binary, other.binary, returnlog=True)
+        separations = utils.kullback_leibler(self.unary[1:-1], other.unary[1:-1], returnlog=True)
+        assert cliques >= separations, (cliques, separations)
+
+        if cliques == separations:
+            return 0
+
         else:
-            return np.exp(ans)
+            try:
+                ans = cliques + np.log(1 - np.exp(separations - cliques))
+
+                if returnlog:
+                    return ans
+                else:
+                    return np.exp(ans)
+
+            except FloatingPointError:
+                print("KL problem", cliques, separations, "\n",
+                      self.binary, other.binary,
+                      self.unary, other.unary)
+                raise
 
     def convex_combination(self, other, gamma):
         if gamma == 0:
@@ -477,6 +384,8 @@ class LogProbability(Chain):
         else:
             unary = utils.logsumexp(np.array([self.unary + np.log(1 - gamma), other.unary + np.log(gamma)]), axis=0)
             binary = utils.logsumexp(np.array([self.binary + np.log(1 - gamma), other.binary + np.log(gamma)]), axis=0)
+            unary = np.minimum(unary, 0)
+            binary = np.minimum(binary, 0)
             return LogProbability(unary=unary, binary=binary)
 
     def divide(self, other):
@@ -541,28 +450,24 @@ def empirical_marginals(labels):
 
 # Initialize the weights as the centroid of the ground truth features minus the centroid of the
 # features given by the uniform marginals.
-def marginals_to_centroid(images, labels, marginals=None, log=False):
+def marginals_to_features_centroid(images, labels, marginals=None, log=False):
     nb_words = labels.shape[0]
 
-    ground_truth_sum = Features()
-    ground_truth_sum.add_dictionary(images, labels)
-
-    marginals_sum = Features()
+    centroid = Features()
     if marginals is None:  # assume uniform
         for image in images:
-            marginals_sum.add_centroid(image)
+            centroid.add_centroid(image)
 
     elif log:
         for image, margs in zip(images, marginals):
-            marginals_sum.add_centroid(image, margs.to_probability())
+            centroid.add_centroid(image, margs.to_probability())
 
     else:
         for image, margs in zip(images, marginals):
-            marginals_sum.add_centroid(image, margs)
+            centroid.add_centroid(image, margs)
 
-    corrected_features_centroid = ground_truth_sum.subtract(marginals_sum)
-    corrected_features_centroid.multiply_scalar(1 / nb_words, inplace=True)
-    return corrected_features_centroid
+    centroid.multiply_scalar(1 / nb_words, inplace=True)
+    return centroid
 
 
 def dual_score(weights, marginals, regularization_parameter):
@@ -615,58 +520,101 @@ def sdca(x, y, regu=1, npass=5, update_period=5, precision=1e-5, subprecision=1e
     """Update alpha and weights with the stochastic dual coordinate ascent algorithm to fit the model to the
     data points x and the labels y.
 
+
     :param x: data points organized by rows
     :param y: labels as a one dimensional array. They should be positive.
+    :param regu: value of the l2 regularization parameter
     :param npass: maximum number of pass over the data
+    :param update_period: number of epochs before doing a full batch update of the individual duality gaps used in the
+    non-uniform sampling and to get a convergence criterion
     :param precision: precision to which we wish to optimize the objective.
+    :param subprecision: precision of the line search method, both on the value of the derivative and on the distance
+    of the iterate to the optimum.
     :param non_uniformity: between 0 and 1. probability of sampling non-uniformly.
+    :param step_size: if None, SDCA will use a line search. Otherwise should be a positive float to be used as the
+    constant step size.
+    :param init: if init is a numpy array, it will be used as the initial value for the marginals. If it is
+    "uniform", the marginals will be initialized with uniform marginals. If it is random, the marginals will be
+    initialized with random marginals, by inferring them from a random weights vector.
     :param _debug: if true, return a detailed list of objectives
-    :return: the list of duality gaps after each pass over the data
-    :return: the time after each pass over the data
+    :return marginals: optimal value of the marginals
+    :return weights: optimal value of the weights
+    :return objectives: list of duality gaps, primal objective, dual objective and time point measured after each
+    update_period epochs
+    :return annex: only if _debug is true, array of useful values taken at each step of the algorithm
     """
 
     ##################################################################################
     # INITIALIZE : the dual and primal variables
     ##################################################################################
     nb_words = y.shape[0]
+    delta_time = time.time()
     if nb_words != x.shape[0]:
-        raise ValueError("Not the same number of labels (%i) and images (%i) inside training set." \
+        raise ValueError("Not the same number of labels (%i) and images (%i) inside training set."
                          % (nb_words, x.shape[0]))
 
     if isinstance(init, np.ndarray):  # assume that init contains the marginals for a warm start.
         marginals = init
-        weights = marginals_to_centroid(x, y, marginals, log=True)
+        weights = marginals_to_features_centroid(x, y, marginals, log=True)
     elif init == "uniform":
         marginals = uniform_marginals(y, log=True)
-        weights = marginals_to_centroid(x, y)
+        weights = marginals_to_features_centroid(x, y, marginals=None)
     elif init == "random":
         weights = Features(random=True)
         marginals = np.array([weights.infer_probabilities(imgs, log=True)[0] for imgs in x])
-        weights = marginals_to_centroid(x, y, marginals, log=True)
+        weights = marginals_to_features_centroid(x, y, marginals, log=True)
     else:
         raise ValueError("Not a valid argument for init: %r" % init)
 
+    ground_truth_centroid = Features()
+    ground_truth_centroid.add_dictionary(x, y)
+    ground_truth_centroid.multiply_scalar(1 / nb_words, inplace=True)
+
+    weights = ground_truth_centroid.subtract(weights)
     weights.multiply_scalar(1 / regu, inplace=True)
 
     ##################################################################################
-    # OBJECTIVES : dual objective and duality gaps
+    # OBJECTIVES : primal objective, dual objective and duality gaps
     ##################################################################################
+    def full_batch_update(marginals, weights, weights_squared_norm, dual_objective):
+        sum_log_partitions = 0
+        dgaps = []
+        for margs, imgs in zip(marginals, x):
+            newmargs, log_partition = weights.infer_probabilities(imgs, log=True)
+            dgaps.append(margs.kullback_leibler(newmargs))
+            sum_log_partitions += log_partition
+
+        # Non-uniform sampling : create a new sampler
+        sampler = random_counters.RandomCounters(dgaps)
+
+        # update the value of the duality gap
+        duality_gap = sampler.get_total() / nb_words
+
+        # calculate the primal score
+        primal_objective = \
+            regu / 2 * weights_squared_norm \
+            + sum_log_partitions / nb_words \
+            - weights.inner_product(ground_truth_centroid)
+
+        # check that this is coherent with my values
+        # of the duality gap and the dual objective
+        assert np.isclose(weights_squared_norm, weights.squared_norm())
+        assert np.isclose(duality_gap, primal_objective - dual_objective), print(
+            duality_gap, primal_objective, dual_objective, primal_objective - dual_objective
+        )
+
+        return duality_gap, primal_objective, sampler
+
+    # first compute the dual objective
     entropies = np.array([margs.entropy() for margs in marginals])
     weights_squared_norm = weights.squared_norm()
     dual_objective = entropies.mean() - regu / 2 * weights_squared_norm
 
-    new_marginals = [weights.infer_probabilities(imgs, log=True)[0] for imgs in x]
-    dgaps = np.array([margs.kullback_leibler(newmargs) for margs, newmargs in zip(marginals, new_marginals)])
-    duality_gap = dgaps.sum() / nb_words
+    # then do a whole epoch (of oracle calls)
+    duality_gap, primal_objective, sampler = \
+        full_batch_update(marginals, weights, weights_squared_norm, dual_objective)
 
-    objective = [duality_gap]
-    delta_time = time.time()
-    timing = [0]
-
-    ##################################################################################
-    # NON-UNIFORM SAMPLING : initialize the sampler
-    ##################################################################################
-    sampler = random_counters.RandomCounters(dgaps)
+    objectives = [[duality_gap, primal_objective, dual_objective, time.time() - delta_time]]
 
     ##################################################################################
     # ANNEX : to give insights on the algorithm
@@ -728,9 +676,6 @@ def sdca(x, y, regu=1, npass=5, update_period=5, precision=1e-5, subprecision=1e
         sampler.update(divergence_gap, i)
         duality_gap_estimate = sampler.get_total() / nb_words
 
-        # if divergence_gap > precision:  # then try to update the weights
-        # other wie I get errors with the slope > duality gap
-
         # Compare the fenchel duality gap and the KL between alpha_i and beta_i.
         # They should be equal.
         # entropy_i = entropies[i]  # entropy of alpha_i
@@ -751,39 +696,37 @@ def sdca(x, y, regu=1, npass=5, update_period=5, precision=1e-5, subprecision=1e
         quadratic_coeff = - regu * nb_words / 2 * primaldir_squared_norm
         linear_coeff = - regu * nb_words * weights_dot_primaldir
 
-        # Useless block below because I now compute the slope directly with KL
-        # # slope of the line search function in 0
-        # slope = - dual_direction.inner_product(alpha_i) + linear_coeff
-        # assert np.isclose(slope, divergence_gap + reverse_gap), print(
-        #     "iteration : %i \n"
-        #     "<d, -log alpha_i> %.2e | linear coeff %.2e | slope : %.2e \n"
-        #     "individual gap = %.2e | reverse gap = %.2e | sum = %.2e" % (
-        #         t, - dual_direction.inner_product(alpha_i), linear_coeff, slope,
-        #         divergence_gap, reverse_gap, divergence_gap + reverse_gap)
-        # )
-
         if step_size:
             gammaopt = step_size
             subobjective = []
         else:
-            # print("dual direction")
-            # print(dual_direction.square().to_logprobability())
-            # print("new marginals")
-            # print(beta_i)
 
             def evaluator(gamma, returnf=False):
                 # line search function and its derivatives
+
+                # new marginals
                 newmargs = alpha_i.convex_combination(beta_i, gamma)
                 # assert newmargs.are_densities(1)
                 # assert newmargs.are_consistent()
                 # assert newmargs.are_positive(), newmargs.display
-                gf = \
-                    divergence_gap \
-                    + beta_i.kullback_leibler(newmargs) \
-                    - alpha_i.kullback_leibler(newmargs) \
-                    + gamma * 2 * quadratic_coeff
+
+                # first derivative gf
+                if gamma == 0:
+                    gf = divergence_gap + reverse_gap
+                elif gamma == 1:
+                    gf = 2 * quadratic_coeff
+                else:
+                    gf = \
+                        divergence_gap \
+                        + beta_i.kullback_leibler(newmargs) \
+                        - alpha_i.kullback_leibler(newmargs) \
+                        + gamma * 2 * quadratic_coeff
+
                 if gf == 0:
                     return gf, 0
+
+                # first derivative divided by the second derivative
+                # this is the step size used by Newton-Raphson
                 log_ggf = dual_direction \
                     .map(np.absolute) \
                     .to_logprobability() \
@@ -846,8 +789,9 @@ def sdca(x, y, regu=1, npass=5, update_period=5, precision=1e-5, subprecision=1e
         # ANNEX
         ##################################################################################
         # Update the weights norm, the dual objective and the entropy
-        norm_update = gammaopt * 2 * weights_dot_primaldir \
-                      + gammaopt ** 2 * primaldir_squared_norm
+        norm_update = \
+            gammaopt * 2 * weights_dot_primaldir \
+            + gammaopt ** 2 * primaldir_squared_norm
         weights_squared_norm += norm_update
         dual_objective += -regu / 2 * norm_update
 
@@ -856,41 +800,29 @@ def sdca(x, y, regu=1, npass=5, update_period=5, precision=1e-5, subprecision=1e
             (tmp - entropies[i]) / nb_words
         entropies[i] = tmp
 
-        # else:
-        #     gammaopt = 0
-        #     subobjective = []
-
         if _debug:
             # Append relevant variables
-            annex.append([np.log10(primaldir_squared_norm),
-                          weights_dot_primaldir / np.sqrt(primaldir_squared_norm),
-                          gammaopt,
-                          dual_objective,
-                          np.log10(duality_gap_estimate),
-                          divergence_gap,
-                          i,
-                          len(subobjective),
-                          weights_squared_norm])
+            annex.append([
+                np.log10(primaldir_squared_norm),
+                np.log10(weights_squared_norm),
+                np.arccos(weights_dot_primaldir / np.sqrt(primaldir_squared_norm) / np.sqrt(
+                    weights_squared_norm)),
+                dual_objective,
+                np.log10(duality_gap_estimate),
+                divergence_gap,
+                gammaopt,
+                i,
+                len(subobjective)
+            ])
 
         if t % (update_period * nb_words) == 0:
             ##################################################################################
-            # OBJECTIVES : after each pass over the data, compute the duality gap
+            # OBJECTIVES : after each update_period epochs, compute the duality gap
             ##################################################################################
-            # t1 = time.time()
-            dgaps = divergence_gaps(marginals, weights, x)
-            sampler = random_counters.RandomCounters(dgaps)
-            duality_gap = sampler.get_total() / nb_words
-            objective.append(duality_gap)
-            # if t % (update_period * nb_words) == 0 and non_uniformity > 0:
-            #     pass
-            #     ###################################################################################
-            #     # DUALITY GAPS: perform a batch update after every update_period epochs
-            #     # To reduce the staleness for the non-uniform sampling
-            #     # To monitor the objective and provide a stopping criterion
-            #     ##################################################################################
-            # delta_time += time.time() - t1
-            t2 = time.time()
-            timing.append(t2 - delta_time)
+            duality_gap, primal_objective, sampler = \
+                full_batch_update(marginals, weights, weights_squared_norm, dual_objective)
+
+            objectives.append([duality_gap, primal_objective, dual_objective, time.time() - delta_time])
 
     ##################################################################################
     # ANNEX
@@ -901,10 +833,9 @@ def sdca(x, y, regu=1, npass=5, update_period=5, precision=1e-5, subprecision=1e
     ##################################################################################
     # FINISH : convert the objectives to simplify the after process.
     ##################################################################################
-    objective = np.array(objective)
-    timing = np.array(timing)
+    objectives = np.array(objectives)
     if _debug:
         annex = np.array(annex)
-        return marginals, weights, objective, timing, annex
+        return marginals, weights, objectives, annex
     else:
-        return marginals, weights, objective, timing
+        return marginals, weights, objectives

@@ -33,7 +33,7 @@ parameters = {'npass': 100,
               'subprecision': 1e-4}
 print(parameters)
 
-fullmargs, fullweights, fullobjective, fulltiming, fullannex = \
+fullmargs, fullweights, fullobjective, fullannex = \
     ocr.sdca(x, y, non_uniformity=1, **parameters)
 
 os.system('say "I am done."')
