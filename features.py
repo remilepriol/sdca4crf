@@ -1,8 +1,9 @@
-import matplotlib.pyplot as np
+import matplotlib.pyplot as plt
 import numpy as np
 
 import oracles
 import parse
+from chains import Probability, LogProbability
 from constant import ALPHABET_SIZE, ALPHABET, NB_PIXELS
 
 
