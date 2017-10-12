@@ -8,7 +8,7 @@ from constant import ALPHABET_SIZE, ALPHABET
 
 
 class Chain:
-    """Represent anything that is decomposable over the nodes and adges of a chain."""
+    """Represent anything that is decomposable over the nodes and edges of a chain."""
 
     def __init__(self, unary, binary):
         if unary.shape[0] != binary.shape[0] + 1:
