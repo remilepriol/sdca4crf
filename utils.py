@@ -12,7 +12,7 @@ def entropy(logproba, axis=None, returnlog=False):
 
 def kullback_leibler(logp, logq, axis=None, returnlog=False):
     themax = np.amax(logp)
-    ans = themax + np.log(-np.sum(np.exp(logp - themax) * (logp - logq), axis=axis))
+    ans = themax + np.log(np.sum(np.exp(logp - themax) * (logp - logq), axis=axis))
     if returnlog:
         return ans
     else:
