@@ -1,14 +1,22 @@
 import numpy as np
 
 
-def log_entropy(logproba, axis=None):
+def entropy(logproba, axis=None, returnlog=False):
     themax = np.amax(logproba)
-    return -np.exp(themax) * np.sum(np.exp(logproba - themax) * logproba, axis=axis)
+    ans = themax + np.log(- np.sum(np.exp(logproba - themax) * logproba, axis=axis))
+    if returnlog:
+        return ans
+    else:
+        return np.exp(ans)
 
 
-def log_kullback_leibler(logp, logq, axis=None):
+def kullback_leibler(logp, logq, axis=None, returnlog=False):
     themax = np.amax(logp)
-    return np.exp(themax) * np.sum(np.exp(logp - themax) * (logp - logq), axis=axis)
+    ans = themax + np.log(-np.sum(np.exp(logp - themax) * (logp - logq), axis=axis))
+    if returnlog:
+        return ans
+    else:
+        return np.exp(ans)
 
 
 def logsumexp(v, axis=-1):
@@ -131,4 +139,3 @@ def safe_newton(evaluator, lowerbound, upperbound, flower, fupper, precision, ma
             xh = rts
 
     raise RuntimeError("Maximum number of iterations exceeded in safe_newton")
-
