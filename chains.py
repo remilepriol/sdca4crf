@@ -4,7 +4,7 @@ import numpy as np
 
 # custom imports
 import utils
-from constant import ALPHABET_SIZE, ALPHABET
+from constant import ALPHABET, ALPHABET_SIZE
 
 
 class Chain:
@@ -12,15 +12,18 @@ class Chain:
 
     def __init__(self, unary, binary):
         if unary.shape[0] != binary.shape[0] + 1:
-            raise ValueError("Wrong size of marginals: %i vs %i" % (unary.shape[0], binary.shape[0]))
+            raise ValueError("Wrong size of marginals: %i vs %i"
+                             % (unary.shape[0], binary.shape[0]))
         self.unary = unary
         self.binary = binary
 
     def __str__(self):
-        return "unary: \n" + np.array_str(self.unary) + "\n binary: \n" + np.array_str(self.binary)
+        return "unary: \n" + np.array_str(self.unary) \
+               + "\n binary: \n" + np.array_str(self.binary)
 
     def __repr__(self):
-        return "unary: \n" + np.array_repr(self.unary) + "\n binary: \n" + np.array_repr(self.binary)
+        return "unary: \n" + np.array_repr(self.unary) \
+               + "\n binary: \n" + np.array_repr(self.binary)
 
     def display(self):
         plt.matshow(self.unary)
@@ -44,7 +47,9 @@ class Probability(Chain):
     def __init__(self, unary=None, binary=None, word_length=None):
         if unary is None or binary is None:
             self.unary = np.ones([word_length, ALPHABET_SIZE]) / ALPHABET_SIZE
-            self.binary = np.ones([word_length - 1, ALPHABET_SIZE, ALPHABET_SIZE]) / ALPHABET_SIZE ** 2
+            self.binary = \
+                np.ones([word_length - 1, ALPHABET_SIZE, ALPHABET_SIZE]) \
+                / ALPHABET_SIZE ** 2
         else:
             Chain.__init__(self, unary, binary)
 
@@ -58,13 +63,16 @@ class Probability(Chain):
         from_right_binary = np.sum(self.binary, axis=2)
         if not np.isclose(from_left_binary, self.unary[1:]).all():
             ans = False
-            # print("Marginalisation of the left of the binary marginals is inconsistent with unary marginals.")
+            # print("Marginalisation of the left of the binary marginals is inconsistent with
+            # unary marginals.")
         if not np.isclose(from_right_binary, self.unary[:-1]).all():
             ans = False
-            # print("Marginalisation of the right of the binary marginals is inconsistent with unary marginals.")
+            # print("Marginalisation of the right of the binary marginals is inconsistent with
+            # unary marginals.")
         if not np.isclose(from_right_binary[1:], from_left_binary[:-1]).all():
             ans = False
-            # print("Marginalisation of the left and right of the binary marginals are inconsistent.")
+            # print("Marginalisation of the left and right of the binary marginals are
+            # inconsistent.")
         return ans
 
     def subtract(self, other):
@@ -76,11 +84,13 @@ class Probability(Chain):
                            binary=self.binary * other.binary)
 
     def sum(self):
-        """Return the special inner product where the marginals on the separations are subtracted."""
+        """Return the special summation where the marginals on the separations are
+        subtracted."""
         return np.sum(self.binary) - np.sum(self.unary[1:-1])
 
     def inner_product(self, other):
-        """Return the special inner product where the marginals on the separations are subtracted."""
+        """Return the special inner product where the marginals on the separations are
+        subtracted."""
         return self.multiply(other).sum()
 
     def map(self, func):
@@ -123,7 +133,8 @@ class LogProbability(Chain):
     def __init__(self, unary=None, binary=None, word_length=None):
         if unary is None or binary is None:  # assume uniform
             self.unary = np.ones([word_length, ALPHABET_SIZE]) * (-np.log(ALPHABET_SIZE))
-            self.binary = np.ones([word_length - 1, ALPHABET_SIZE, ALPHABET_SIZE]) * (-2 * np.log(ALPHABET_SIZE))
+            self.binary = np.ones([word_length - 1, ALPHABET_SIZE, ALPHABET_SIZE]) * (
+                -2 * np.log(ALPHABET_SIZE))
         else:  # take what is given
             Chain.__init__(self, unary, binary)
 
@@ -182,8 +193,10 @@ class LogProbability(Chain):
         elif gamma == 1:
             return other
         else:
-            unary = utils.logsumexp(np.array([self.unary + np.log(1 - gamma), other.unary + np.log(gamma)]), axis=0)
-            binary = utils.logsumexp(np.array([self.binary + np.log(1 - gamma), other.binary + np.log(gamma)]), axis=0)
+            unary = utils.logsumexp(
+                np.array([self.unary + np.log(1 - gamma), other.unary + np.log(gamma)]), axis=0)
+            binary = utils.logsumexp(
+                np.array([self.binary + np.log(1 - gamma), other.binary + np.log(gamma)]), axis=0)
             unary = np.minimum(unary, 0)
             binary = np.minimum(binary, 0)
             return LogProbability(unary=unary, binary=binary)

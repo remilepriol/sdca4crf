@@ -3,8 +3,8 @@ import numpy as np
 
 import oracles
 import parse
-from chains import Probability, LogProbability
-from constant import ALPHABET_SIZE, ALPHABET, NB_PIXELS
+from chains import LogProbability, Probability
+from constant import ALPHABET, ALPHABET_SIZE, NB_PIXELS
 
 
 # RADIUS OF THE CORRECTED FEATURES
@@ -27,7 +27,9 @@ def radii(words):
 
 
 class Features:
-    """Features associated to a certain word. also used to store the weights of the primal model."""
+    """Features associated to a certain word. also used to store the weights of the primal
+    model.
+    """
 
     def __init__(self, emission=None, bias=None, transition=None, random=False):
         if random:
@@ -119,7 +121,8 @@ class Features:
         """Return the binary scores of a word when self encode the weights of the model.
 
         :param images: images T*d, each line is a letter image.
-        :return: binary scores (T-1)*K*K, each case is the transition score between two labels for a given position.
+        :return: binary scores (T-1)*K*K, each case is the transition score between two labels
+        for a given position.
         """
         return (images.shape[0] - 1) * [self.transition]
 

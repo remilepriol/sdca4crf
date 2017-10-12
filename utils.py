@@ -65,7 +65,7 @@ def find_root_decreasing(evaluator, precision):
 
 def bounded_newton(evaluator, init, lowerbound, upperbound, precision=1e-12, max_iter=20):
     """Return the root x0 of a function u defined on [lowerbound, upperbound] with given precision,
-    using Newton-Raphson method
+    using Newton-Raphson method.
 
     :param evaluator: function that return the values u(x) and u(x)/u'(x)
     :param init: initial point x
@@ -93,10 +93,11 @@ def bounded_newton(evaluator, init, lowerbound, upperbound, precision=1e-12, max
 
 # define MAXIT 100 Maximum allowed number of iterations.
 def safe_newton(evaluator, lowerbound, upperbound, flower, fupper, precision, max_iter=200):
-    """Using a combination of Newton-Raphson and bisection, find the root of a function bracketed between lowerbound
-    and upperbound.
+    """Using a combination of Newton-Raphson and bisection, find the root of a function bracketed
+    between lowerbound and upperbound.
 
-    :param evaluator: user-supplied routine that returns both the function value u(x) and u(x)/u'(x).
+    :param evaluator: user-supplied routine that returns both the function value u(x)
+    and u(x)/u'(x)
     :param lowerbound: point smaller than the root
     :param upperbound: point larger than the root
     :param precision: accuracy on the root value rts

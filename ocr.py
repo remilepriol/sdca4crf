@@ -8,14 +8,11 @@ import parse
 import random_counters
 # custom imports
 import utils
-from chains import Probability, LogProbability
+from chains import LogProbability, Probability
 from constant import MAX_LENGTH
 from features import Features
 
 
-########################################################################################################################
-# INITIALIZATION
-########################################################################################################################
 # initialize with uniform marginals
 def uniform_marginals(labels, log=False):
     nb_words = labels.shape[0]
@@ -95,33 +92,36 @@ def get_slopes(marginals, weights, images, regu):
     return ans
 
 
-def sdca(x, y, regu=1, npass=5, update_period=5, precision=1e-5, subprecision=1e-16, non_uniformity=0,
+def sdca(x, y, regu=1, npass=5, update_period=5, precision=1e-5, subprecision=1e-16,
+         non_uniformity=0,
          step_size=None, init='uniform', _debug=False):
-    """Update alpha and weights with the stochastic dual coordinate ascent algorithm to fit the model to the
-    data points x and the labels y.
+    """Update alpha and weights with the stochastic dual coordinate ascent algorithm to fit
+    the model to the data points x and the labels y.
 
 
     :param x: data points organized by rows
     :param y: labels as a one dimensional array. They should be positive.
     :param regu: value of the l2 regularization parameter
     :param npass: maximum number of pass over the data
-    :param update_period: number of epochs before doing a full batch update of the individual duality gaps used in the
-    non-uniform sampling and to get a convergence criterion
+    :param update_period: number of epochs before doing a full batch update of the individual
+    duality gaps used in the non-uniform sampling and to get a convergence criterion
     :param precision: precision to which we wish to optimize the objective.
-    :param subprecision: precision of the line search method, both on the value of the derivative and on the distance
-    of the iterate to the optimum.
+    :param subprecision: precision of the line search method, both on the value of the derivative
+    and on the distance of the iterate to the optimum.
     :param non_uniformity: between 0 and 1. probability of sampling non-uniformly.
-    :param step_size: if None, SDCA will use a line search. Otherwise should be a positive float to be used as the
-    constant step size.
-    :param init: if init is a numpy array, it will be used as the initial value for the marginals. If it is
-    "uniform", the marginals will be initialized with uniform marginals. If it is random, the marginals will be
-    initialized with random marginals, by inferring them from a random weights vector.
+    :param step_size: if None, SDCA will use a line search. Otherwise should be a positive float
+    to be used as the constant step size.
+    :param init: if init is a numpy array, it will be used as the initial value for the marginals.
+    If it is "uniform", the marginals will be initialized with uniform marginals. If it is
+    random, the marginals will be initialized with random marginals, by inferring them from a
+    random weights vector.
     :param _debug: if true, return a detailed list of objectives
     :return marginals: optimal value of the marginals
     :return weights: optimal value of the weights
-    :return objectives: list of duality gaps, primal objective, dual objective and time point measured after each
-    update_period epochs
-    :return annex: only if _debug is true, array of useful values taken at each step of the algorithm
+    :return objectives: list of duality gaps, primal objective, dual objective and time point
+    measured after each update_period epochs
+    :return annex: only if _debug is true, array of useful values taken at each step of the
+    algorithm
     """
 
     ##################################################################################
@@ -268,7 +268,8 @@ def sdca(x, y, regu=1, npass=5, update_period=5, precision=1e-5, subprecision=1e
         # assert np.isclose(divergence_gap, fenchel_gap), \
         #     print(" iteration %i \n divergence %.5e \n fenchel gap %.5e \n log_partition %f \n"
         #           " entropy %.5e \n w^T A_i alpha_i %f \n reverse divergence %f " % (
-        #               t, divergence_gap, fenchel_gap, log_partition_i, entropy_i, weights_dot_wi, reverse_gap))
+        #               t, divergence_gap, fenchel_gap, log_partition_i,
+        #               entropy_i, weights_dot_wi, reverse_gap))
 
         ##################################################################################
         # LINE SEARCH : find the optimal step size gammaopt or use a fixed one
@@ -322,7 +323,8 @@ def sdca(x, y, regu=1, npass=5, update_period=5, precision=1e-5, subprecision=1e
                 else:
                     return gf, gfdggf
 
-            gammaopt, subobjective = utils.find_root_decreasing(evaluator=evaluator, precision=subprecision)
+            gammaopt, subobjective = utils.find_root_decreasing(evaluator=evaluator,
+                                                                precision=subprecision)
 
             ##################################################################################
             # DEBUGGING
@@ -402,13 +404,15 @@ def sdca(x, y, regu=1, npass=5, update_period=5, precision=1e-5, subprecision=1e
             duality_gap, primal_objective, sampler = \
                 full_batch_update(marginals, weights, weights_squared_norm, dual_objective)
 
-            objectives.append([duality_gap, primal_objective, dual_objective, time.time() - delta_time])
+            objectives.append(
+                [duality_gap, primal_objective, dual_objective, time.time() - delta_time])
 
     ##################################################################################
     # ANNEX
     ##################################################################################
     if _debug and not step_size:
-        print("Perfect line search : %i \t Negative ls : %i \t Positive ls : %i" % (countzero, countneg, countpos))
+        print("Perfect line search : %i \t Negative ls : %i \t Positive ls : %i" % (
+            countzero, countneg, countpos))
 
     ##################################################################################
     # FINISH : convert the objectives to simplify the after process.

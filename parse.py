@@ -3,7 +3,7 @@ import csv
 import matplotlib.pyplot as plt
 import numpy as np
 
-from constant import ALPHABET, IMAGE_HEIGHT, IMAGE_WIDTH, LETTER_VALUE, FIRST_PIXEL, NEXT_ID, FOLD
+from constant import ALPHABET, FIRST_PIXEL, FOLD, IMAGE_HEIGHT, IMAGE_WIDTH, LETTER_VALUE, NEXT_ID
 
 
 def letter2integer(letter):
@@ -56,9 +56,10 @@ def read_lettersfile(tsv_file):
 
 
 def letters_to_labels_and_words(letters):
-    """Return the labels and the letters images encoded in the 2d array letters. Encodes the labels in an array of 1d
-    arrays and the images in an array of 2d arrays. For the 2d arrays, the position of the letter in the word is the
-    first dimension, and the pixel position is the 2nd dimension.
+    """Return the labels and the letters images encoded in the 2d array letters. Encodes the
+    labels in an array of 1d arrays and the images in an array of 2d arrays. For the 2d arrays,
+    the position of the letter in the word is the first dimension, and the pixel position is
+    the 2nd dimension.
 
     :param letters: the letters array that one gets after reading the tsv_file
     :return: labels, images
