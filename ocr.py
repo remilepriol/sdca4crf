@@ -6,9 +6,11 @@ import numpy as np
 from tqdm import tqdm
 
 import oracles
+import parse
 import random_counters
 # custom imports
 import utils
+from constant import ALPHABET_SIZE, ALPHABET, NB_PIXELS, MAX_LENGTH
 
 
 ########################################################################################################################
@@ -187,7 +189,7 @@ class Features:
 
     def display(self):
         cmap = "Greys"
-        emissions = letters2wordimage(self.emission)
+        emissions = parse.letters2wordimage(self.emission)
         plt.matshow(emissions, cmap=cmap)
         ticks_positions = np.linspace(0, emissions.shape[1], ALPHABET_SIZE + 2).astype(int)[1:-1]
         plt.xticks(ticks_positions, list(ALPHABET))
@@ -646,7 +648,7 @@ def sdca(x, y, regu=1, npass=5, update_period=5, precision=1e-5, subprecision=1e
         beta_i, log_partition_i = weights.infer_probabilities(x[i], log=True)
         nbeta_i = beta_i.to_probability()
         assert nbeta_i.are_consistent()
-        assert nbeta_i.are_densities(1), (display_word(y[i], x[i]),
+        assert nbeta_i.are_densities(1), (parse.display_word(y[i], x[i]),
                                           beta_i.display(),
                                           weights.display())
 
