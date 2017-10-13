@@ -126,20 +126,24 @@ def safe_newton(evaluator, lowerbound, upperbound, flower, fupper, precision, ma
 
     for _ in np.arange(max_iter):  # Loop over allowed iterations.
         rtsold = rts
-        rts -= fdf
-        if not ((rts - xh) * (rts - xl) < 0 and abs(fdf) > abs(dxold) / 2):
-            # Bisect if Newton out of range, or not converging fast enough
-            # we check with a negation to dissect in case fdf is NaN
+        rts -= fdf  # Newton step
+
+        if (rts - xh) * (rts - xl) <= 0 and abs(fdf) <= abs(dxold) / 2:
+            # Keep the Newton step  if it remains in the bracket and
+            # if it is converging fast enough.
+            # This will be false if fdf is NaN.
+            dxold = dx
+            dx = fdf
+            if rtsold == rts:  # change in root is negligible
+                return rts, np.array(obj)
+
+        else:  # Bisection otherwise
             dxold = dx
             dx = (xh - xl) / 2
             rts = xl + dx
             if xl == rts:  # change in root is negligible
                 return rts, np.array(obj)
-        else:  # Newton step (already applied pn rts)
-            dxold = dx
-            dx = fdf
-            if rtsold == rts:  # change in root is negligible
-                return rts, np.array(obj)
+
         if abs(dx) < precision:  # Convergence criterion.
             return rts, np.array(obj)
         f, fdf = evaluator(rts)  # the one new function evaluation per iteration
