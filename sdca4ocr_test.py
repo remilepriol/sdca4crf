@@ -29,6 +29,10 @@ print("step size:", step_size)
 
 time_stamp = time.strftime("%Y%m%d_%H%M%S")
 dirname = "logs/" + time_stamp + "_n" + str(nb_words)
+if not os.path.exists("logs"):
+    os.mkdir("logs")
+if not os.path.exists(dirname):
+    os.mkdir(dirname)
 
 parameters = {'npass': 100,
               'update_period': update_period,
@@ -39,7 +43,6 @@ parameters = {'npass': 100,
               'init': 'empirical',
               'logdir': dirname}
 print(parameters)
-os.mkdir(dirname)
 
 fullmargs, fullweights, fullobjective, fullannex = \
     ocr.sdca(x, y, non_uniformity=1, **parameters)
