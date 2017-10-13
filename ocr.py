@@ -95,7 +95,7 @@ def get_slopes(marginals, weights, images, regu):
 
 def sdca(x, y, regu=1, npass=5, update_period=5,
          precision=1e-5, subprecision=1e-16, non_uniformity=0,
-         step_size=None, init='uniform', _debug=False, logdir="logs/default"):
+         step_size=None, init='uniform', _debug=False, logdir=None):
     """Update alpha and weights with the stochastic dual coordinate ascent algorithm to fit
     the model to the data points x and the labels y.
 
@@ -117,6 +117,8 @@ def sdca(x, y, regu=1, npass=5, update_period=5,
     random, the marginals will be initialized with random marginals, by inferring them from a
     random weights vector.
     :param _debug: if true, return a detailed list of objectives
+    :param logdir: if nont None, use logdir to dump values for tensorboard
+
     :return marginals: optimal value of the marginals
     :return weights: optimal value of the weights
     :return objectives: list of duality gaps, primal objective, dual objective and time point
@@ -176,21 +178,19 @@ def sdca(x, y, regu=1, npass=5, update_period=5,
     weights.multiply_scalar(1 / regu, inplace=True)
 
     ##################################################################################
-    # OBJECTIVES : primal objective, dual objective and duality gaps
+    # OBJECTIVES : primal objective, dual objective and duality gaps.
+    # I compute every update_period epoch to monitor the evolution.
     ##################################################################################
     def full_batch_update(marginals, weights, weights_squared_norm, dual_objective):
         sum_log_partitions = 0
-        dgaps = []
+        duality_gap = 0
         for margs, imgs in zip(marginals, x):
             newmargs, log_partition = weights.infer_probabilities(imgs, log=True)
-            dgaps.append(margs.kullback_leibler(newmargs))
+            duality_gap += margs.kullback_leibler(newmargs)
             sum_log_partitions += log_partition
 
-        # Non-uniform sampling : create a new sampler
-        sampler = random_counters.RandomCounters(dgaps)
-
         # update the value of the duality gap
-        duality_gap = sampler.get_total() / nb_words
+        duality_gap = duality_gap / nb_words
 
         # calculate the primal score
         primal_objective = \
@@ -205,7 +205,7 @@ def sdca(x, y, regu=1, npass=5, update_period=5,
             duality_gap, primal_objective, dual_objective, primal_objective - dual_objective
         )
 
-        return duality_gap, primal_objective, sampler
+        return duality_gap, primal_objective
 
     # first compute the dual objective
     entropies = np.array([margs.entropy() for margs in marginals])
@@ -213,20 +213,26 @@ def sdca(x, y, regu=1, npass=5, update_period=5,
     dual_objective = entropies.mean() - regu / 2 * weights_squared_norm
 
     # then do a whole epoch (of oracle calls)
-    duality_gap, primal_objective, sampler = \
+    t1 = time.time()
+    duality_gap, primal_objective = \
         full_batch_update(marginals, weights, weights_squared_norm, dual_objective)
+    delta_time += time.time() - t1
 
     objectives = [[duality_gap, primal_objective, dual_objective, time.time() - delta_time]]
+
+    # tensorboard_logger commands
+    if logdir is not None:
+        configure(logdir=logdir, flush_secs=5)
+
+        log_value("duality gap", duality_gap, step=0)
+        log_value("primal objective", primal_objective, step=0)
+        log_value("dual objective", dual_objective, step=0)
 
     # annex to give insights on the algorithm
     annex = []
 
-    # tensorboard_logger commands
-    configure(logdir=logdir, flush_secs=5)
-
-    log_value("duality gap", duality_gap, step=0)
-    log_value("primal objective", primal_objective, step=0)
-    log_value("dual objective", dual_objective, step=0)
+    # non-uniform sampling
+    sampler = random_counters.RandomCounters(np.ones(nb_words))
 
     ##################################################################################
     # MAIN LOOP
@@ -398,7 +404,7 @@ def sdca(x, y, regu=1, npass=5, update_period=5,
         similarity = weights_dot_primaldir / np.sqrt(primaldir_squared_norm) / np.sqrt(
             weights_squared_norm)
 
-        if t % 10 == 0:
+        if logdir is not None and t % 10 == 0:
             log_value("primaldir_squared_norm", primaldir_squared_norm, step=t)
             log_value("weights_squared_norm", weights_squared_norm, t)
             log_value("normalized weights dot primaldir", similarity, t)
@@ -408,7 +414,7 @@ def sdca(x, y, regu=1, npass=5, update_period=5,
             log_value("step size", gammaopt, t)
             log_value("number of line search step", len(subobjective), t)
 
-        if _debug:
+        if _debug and t % 10 == 0:
             # Append relevant variables
             annex.append([
                 np.log10(primaldir_squared_norm),
@@ -426,14 +432,17 @@ def sdca(x, y, regu=1, npass=5, update_period=5,
             ##################################################################################
             # OBJECTIVES : after each update_period epochs, compute the duality gap
             ##################################################################################
-            duality_gap, primal_objective, sampler = \
+            t1 = time.time()
+            duality_gap, primal_objective = \
                 full_batch_update(marginals, weights, weights_squared_norm, dual_objective)
+            delta_time += time.time() - t1
 
             objectives.append(
                 [duality_gap, primal_objective, dual_objective, time.time() - delta_time])
 
-            log_value("duality gap", duality_gap, step=t)
-            log_value("primal objective", primal_objective, step=t)
+            if logdir is not None:
+                log_value("duality gap", duality_gap, step=t)
+                log_value("primal objective", primal_objective, step=t)
 
     ##################################################################################
     # FINISH : convert the objectives to simplify the after process.
