@@ -196,13 +196,8 @@ def sdca(x, y, regu=1, npass=5, update_period=5, precision=1e-5, subprecision=1e
 
     objectives = [[duality_gap, primal_objective, dual_objective, time.time() - delta_time]]
 
-    ##################################################################################
-    # ANNEX : to give insights on the algorithm
-    ##################################################################################
+    # annex to give insights on the algorithm
     annex = []
-    countneg = 0
-    countpos = 0
-    countzero = 0
 
     ##################################################################################
     # MAIN LOOP
@@ -350,17 +345,6 @@ def sdca(x, y, regu=1, npass=5, update_period=5, precision=1e-5, subprecision=1e
             #     for ax in axs:
             #         ax.vlines(gammaopt, *ax.get_ylim())
 
-            ##################################################################################
-            # ANNEX
-            ##################################################################################
-            if _debug:
-                if subobjective[-1] > subprecision:
-                    countpos += 1
-                elif subobjective[-1] < -subprecision:
-                    countneg += 1
-                else:
-                    countzero += 1
-
         ##################################################################################
         # UPDATE : the primal and dual coordinates
         ##################################################################################
@@ -406,13 +390,6 @@ def sdca(x, y, regu=1, npass=5, update_period=5, precision=1e-5, subprecision=1e
 
             objectives.append(
                 [duality_gap, primal_objective, dual_objective, time.time() - delta_time])
-
-    ##################################################################################
-    # ANNEX
-    ##################################################################################
-    if _debug and not step_size:
-        print("Perfect line search : %i \t Negative ls : %i \t Positive ls : %i" % (
-            countzero, countneg, countpos))
 
     ##################################################################################
     # FINISH : convert the objectives to simplify the after process.
