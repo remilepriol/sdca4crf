@@ -189,6 +189,7 @@ class LogProbability(Chain):
                 raise
 
     def convex_combination(self, other, gamma):
+        """Return (1-gamma)*self + gamma*other"""
         if gamma == 0:
             return self
         elif gamma == 1:

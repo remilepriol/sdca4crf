@@ -133,24 +133,45 @@ def sdca(x, y, regu=1, npass=5, update_period=5, precision=1e-5, subprecision=1e
         raise ValueError("Not the same number of labels (%i) and images (%i) inside training set."
                          % (nb_words, x.shape[0]))
 
-    if isinstance(init, np.ndarray):  # assume that init contains the marginals for a warm start.
-        marginals = init
-        weights = marginals_to_features_centroid(x, y, marginals, log=True)
-    elif init == "uniform":
-        marginals = uniform_marginals(y, log=True)
-        weights = marginals_to_features_centroid(x, y, marginals=None)
-    elif init == "random":
-        weights = Features(random=True)
-        marginals = np.array([weights.infer_probabilities(imgs, log=True)[0] for imgs in x])
-        weights = marginals_to_features_centroid(x, y, marginals, log=True)
-    else:
-        raise ValueError("Not a valid argument for init: %r" % init)
-
     ground_truth_centroid = Features()
     ground_truth_centroid.add_dictionary(x, y)
     ground_truth_centroid.multiply_scalar(1 / nb_words, inplace=True)
 
-    weights = ground_truth_centroid.subtract(weights)
+    if isinstance(init, np.ndarray):  # assume that init contains the marginals for a warm start.
+        marginals = init
+        weights = marginals_to_features_centroid(x, y, marginals, log=True)
+        weights = ground_truth_centroid.subtract(weights)
+    elif init == "uniform":
+        marginals = uniform_marginals(y, log=True)
+        weights = marginals_to_features_centroid(x, y, marginals=None)
+        weights = ground_truth_centroid.subtract(weights)
+    elif init == "empirical":
+        # The empirical marginals give a good value of the dual objective : 0,
+        # but they entropy has an infinite slope and curvature in the corners
+        # of the simplex. Hence we take a convex combination between a lot of
+        # empirical and a bit of uniform.
+        uniformization_value = 1e-5
+
+        unimargs = uniform_marginals(y, log=True)
+        empimargs = empirical_marginals(y)
+        marginals = np.array([empi
+                             .to_logprobability()
+                             .convex_combination(uni, uniformization_value)
+                              for uni, empi in zip(unimargs, empimargs)])
+        del unimargs, empimargs
+
+        weights = marginals_to_features_centroid(x, y, marginals=None)
+        weights = ground_truth_centroid.subtract(weights)
+        weights.multiply_scalar(uniformization_value, inplace=True)
+
+    elif init == "random":
+        weights = Features(random=True)
+        marginals = np.array([weights.infer_probabilities(imgs, log=True)[0] for imgs in x])
+        weights = marginals_to_features_centroid(x, y, marginals, log=True)
+        weights = ground_truth_centroid.subtract(weights)
+    else:
+        raise ValueError("Not a valid argument for init: %r" % init)
+
     weights.multiply_scalar(1 / regu, inplace=True)
 
     ##################################################################################
@@ -202,7 +223,7 @@ def sdca(x, y, regu=1, npass=5, update_period=5, precision=1e-5, subprecision=1e
     ##################################################################################
     # MAIN LOOP
     ##################################################################################
-    for t in tqdm(range(nb_words * npass)):
+    for t in tqdm(range(1, nb_words * npass)):
         if duality_gap < precision:
             break
 

@@ -17,8 +17,8 @@ radii = features.radii(images)
 max_radius = np.amax(radii)
 
 which_fold = 0
-x = images[folds == which_fold]
-y = labels[folds == which_fold]
+x = images[folds != which_fold]
+y = labels[folds != which_fold]
 nb_words = x.shape[0]
 npass = 100
 update_period = 5
@@ -32,7 +32,8 @@ parameters = {'npass': 100,
               'regu': regu,
               '_debug': True,
               'precision': 1e-4,
-              'subprecision': 1e-4}
+              'subprecision': 1e-4,
+              'init': 'empirical'}
 print(parameters)
 
 fullmargs, fullweights, fullobjective, fullannex = \
