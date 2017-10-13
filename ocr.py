@@ -13,6 +13,8 @@ import utils
 from chains import LogProbability, Probability
 from constant import MAX_LENGTH
 from features import Features
+import oracles
+from constant import ALPHABET_SIZE
 
 
 # initialize with uniform marginals
@@ -167,6 +169,23 @@ def sdca(x, y, regu=1, npass=5, update_period=5,
         weights = marginals_to_features_centroid(x, y, marginals=None)
         weights = ground_truth_centroid.subtract(weights)
         weights.multiply_scalar(uniformization_value, inplace=True)
+    elif init == "EOG":
+        # implement the recommanded initialization for improved EOG as
+        # recommanded by appendix D in SAG4CRF paper
+        marginals = []
+        for imgs, labels in zip(x, y):
+            uscores = np.zeros([imgs.shape[0], ALPHABET_SIZE])
+            # import pdb
+            # pdb.set_trace()
+            uscores[np.arange(imgs.shape[0]), labels] = 10
+            bscore = np.zeros([ALPHABET_SIZE, ALPHABET_SIZE])
+            bscore[labels[:-1], labels[1:]] = 10
+            bscores = (imgs.shape[0] - 1) * [bscore]
+            umargs, bmargs, _ = oracles.chain_sum_product(uscores, bscores, log=True)
+            marginals.append(LogProbability(unary=umargs, binary=bmargs))
+        marginals = np.asarray(marginals)
+        weights = marginals_to_features_centroid(x, y, marginals=marginals, log=True)
+        weights = ground_truth_centroid.subtract(weights)
 
     elif init == "random":
         weights = Features(random=True)
