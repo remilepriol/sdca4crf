@@ -2,6 +2,7 @@
 import time
 
 import numpy as np
+from tensorboard_logger import configure, log_value
 from tqdm import tqdm
 
 import parse
@@ -92,9 +93,9 @@ def get_slopes(marginals, weights, images, regu):
     return ans
 
 
-def sdca(x, y, regu=1, npass=5, update_period=5, precision=1e-5, subprecision=1e-16,
-         non_uniformity=0,
-         step_size=None, init='uniform', _debug=False):
+def sdca(x, y, regu=1, npass=5, update_period=5,
+         precision=1e-5, subprecision=1e-16, non_uniformity=0,
+         step_size=None, init='uniform', _debug=False, logdir="logs/default"):
     """Update alpha and weights with the stochastic dual coordinate ascent algorithm to fit
     the model to the data points x and the labels y.
 
@@ -219,6 +220,13 @@ def sdca(x, y, regu=1, npass=5, update_period=5, precision=1e-5, subprecision=1e
 
     # annex to give insights on the algorithm
     annex = []
+
+    # tensorboard_logger commands
+    configure(logdir=logdir, flush_secs=5)
+
+    log_value("duality gap", duality_gap, step=0)
+    log_value("primal objective", primal_objective, step=0)
+    log_value("dual objective", dual_objective, step=0)
 
     ##################################################################################
     # MAIN LOOP
@@ -387,13 +395,25 @@ def sdca(x, y, regu=1, npass=5, update_period=5, precision=1e-5, subprecision=1e
             (tmp - entropies[i]) / nb_words
         entropies[i] = tmp
 
+        similarity = weights_dot_primaldir / np.sqrt(primaldir_squared_norm) / np.sqrt(
+            weights_squared_norm)
+
+        if t % 10 == 0:
+            log_value("primaldir_squared_norm", primaldir_squared_norm, step=t)
+            log_value("weights_squared_norm", weights_squared_norm, t)
+            log_value("normalized weights dot primaldir", similarity, t)
+            log_value("dual objective", dual_objective, t)
+            log_value("log10 duality gap estimate", np.log10(duality_gap_estimate), t)
+            log_value("individual gap", divergence_gap, t)
+            log_value("step size", gammaopt, t)
+            log_value("number of line search step", len(subobjective), t)
+
         if _debug:
             # Append relevant variables
             annex.append([
                 np.log10(primaldir_squared_norm),
                 np.log10(weights_squared_norm),
-                np.arccos(weights_dot_primaldir / np.sqrt(primaldir_squared_norm) / np.sqrt(
-                    weights_squared_norm)),
+                similarity,
                 dual_objective,
                 np.log10(duality_gap_estimate),
                 divergence_gap,
@@ -411,6 +431,9 @@ def sdca(x, y, regu=1, npass=5, update_period=5, precision=1e-5, subprecision=1e
 
             objectives.append(
                 [duality_gap, primal_objective, dual_objective, time.time() - delta_time])
+
+            log_value("duality gap", duality_gap, step=t)
+            log_value("primal objective", primal_objective, step=t)
 
     ##################################################################################
     # FINISH : convert the objectives to simplify the after process.
