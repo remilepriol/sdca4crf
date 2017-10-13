@@ -11,7 +11,7 @@ import ocr
 import parse
 
 labels, images, folds = parse.letters_to_labels_and_words(
-    parse.read_lettersfile('../data/ocr/letter.data.tsv'))
+    parse.read_lettersfile('data/ocr/letter.data.tsv'))
 
 radii = features.radii(images)
 max_radius = np.amax(radii)
