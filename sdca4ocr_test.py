@@ -39,13 +39,13 @@ parameters = {'npass': 100,
               'init': 'empirical',
               'logdir': dirname}
 print(parameters)
+os.mkdir(dirname)
 
 fullmargs, fullweights, fullobjective, fullannex = \
     ocr.sdca(x, y, non_uniformity=1, **parameters)
 
 os.system('say "I am done."')
 
-os.mkdir(dirname)
 np.save(dirname + "/marginals.npy", fullmargs)
 np.save(dirname + "/weights.npy", fullweights)
 np.save(dirname + "/objectives.npy", fullobjective)
