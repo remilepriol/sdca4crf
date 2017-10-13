@@ -27,13 +27,17 @@ step_size = regu * nb_words * 2 / (max_radius ** 2 + regu * nb_words * 2)
 print("Number of words:", nb_words)
 print("step size:", step_size)
 
+time_stamp = time.strftime("%Y%m%d_%H%M%S")
+dirname = "logs/" + time_stamp + "_n" + nb_words
+
 parameters = {'npass': 100,
               'update_period': update_period,
               'regu': regu,
               '_debug': True,
               'precision': 1e-4,
               'subprecision': 1e-4,
-              'init': 'empirical'}
+              'init': 'empirical',
+              'logdir': dirname}
 print(parameters)
 
 fullmargs, fullweights, fullobjective, fullannex = \
@@ -41,8 +45,6 @@ fullmargs, fullweights, fullobjective, fullannex = \
 
 os.system('say "I am done."')
 
-time_stamp = time.strftime("%Y%m%d_%H%M%S")
-dirname = "results/" + time_stamp
 os.mkdir(dirname)
 np.save(dirname + "/marginals.npy", fullmargs)
 np.save(dirname + "/weights.npy", fullweights)
