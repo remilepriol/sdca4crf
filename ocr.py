@@ -1,8 +1,9 @@
 # standard imports
+import importlib
 import time
 
 import numpy as np
-from tensorboard_logger import configure, log_value
+import tensorboard_logger as tl
 from tqdm import tqdm
 
 import parse
@@ -218,15 +219,16 @@ def sdca(x, y, regu=1, npass=5, update_period=5,
         full_batch_update(marginals, weights, weights_squared_norm, dual_objective)
     delta_time += time.time() - t1
 
-    objectives = [[duality_gap, primal_objective, dual_objective, time.time() - delta_time]]
+    objectives = [[duality_gap, primal_objective, dual_objective, 0, time.time() - delta_time]]
 
     # tensorboard_logger commands
+    importlib.reload(tl)
     if logdir is not None:
-        configure(logdir=logdir, flush_secs=5)
+        tl.configure(logdir=logdir, flush_secs=5)
 
-        log_value("duality gap", duality_gap, step=0)
-        log_value("primal objective", primal_objective, step=0)
-        log_value("dual objective", dual_objective, step=0)
+        tl.log_value("duality gap", duality_gap, step=0)
+        tl.log_value("primal objective", primal_objective, step=0)
+        tl.log_value("dual objective", dual_objective, step=0)
 
     # annex to give insights on the algorithm
     annex = []
@@ -405,14 +407,14 @@ def sdca(x, y, regu=1, npass=5, update_period=5,
             weights_squared_norm)
 
         if logdir is not None and t % 10 == 0:
-            log_value("primaldir_squared_norm", primaldir_squared_norm, step=t)
-            log_value("weights_squared_norm", weights_squared_norm, t)
-            log_value("normalized weights dot primaldir", similarity, t)
-            log_value("dual objective", dual_objective, t)
-            log_value("log10 duality gap estimate", np.log10(duality_gap_estimate), t)
-            log_value("individual gap", divergence_gap, t)
-            log_value("step size", gammaopt, t)
-            log_value("number of line search step", len(subobjective), t)
+            tl.log_value("primaldir_squared_norm", primaldir_squared_norm, step=t)
+            tl.log_value("weights_squared_norm", weights_squared_norm, t)
+            tl.log_value("normalized weights dot primaldir", similarity, t)
+            tl.log_value("dual objective", dual_objective, t)
+            tl.log_value("log10 duality gap estimate", np.log10(duality_gap_estimate), t)
+            tl.log_value("individual gap", divergence_gap, t)
+            tl.log_value("step size", gammaopt, t)
+            tl.log_value("number of line search step", len(subobjective), t)
 
         if _debug and t % 10 == 0:
             # Append relevant variables
@@ -425,7 +427,8 @@ def sdca(x, y, regu=1, npass=5, update_period=5,
                 divergence_gap,
                 gammaopt,
                 i,
-                len(subobjective)
+                len(subobjective),
+                t
             ])
 
         if t % (update_period * nb_words) == 0:
@@ -438,11 +441,11 @@ def sdca(x, y, regu=1, npass=5, update_period=5,
             delta_time += time.time() - t1
 
             objectives.append(
-                [duality_gap, primal_objective, dual_objective, time.time() - delta_time])
+                [duality_gap, primal_objective, dual_objective, t, time.time() - delta_time])
 
             if logdir is not None:
-                log_value("duality gap", duality_gap, step=t)
-                log_value("primal objective", primal_objective, step=t)
+                tl.log_value("duality gap", duality_gap, step=t)
+                tl.log_value("primal objective", primal_objective, step=t)
 
     ##################################################################################
     # FINISH : convert the objectives to simplify the after process.

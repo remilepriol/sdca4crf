@@ -28,14 +28,14 @@ print("Number of words:", nb_words)
 print("step size:", step_size)
 
 time_stamp = time.strftime("%Y%m%d_%H%M%S")
-dirname = "logs/" + time_stamp + "_n" + nb_words
+dirname = "logs/" + time_stamp + "_n" + str(nb_words)
 
 parameters = {'npass': 100,
               'update_period': update_period,
               'regu': regu,
               '_debug': True,
-              'precision': 1e-4,
-              'subprecision': 1e-4,
+              'precision': 1e-8,
+              'subprecision': 1e-8,
               'init': 'empirical',
               'logdir': dirname}
 print(parameters)
