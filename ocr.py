@@ -6,15 +6,14 @@ import numpy as np
 import tensorboard_logger as tl
 from tqdm import tqdm
 
+import oracles
 import parse
 import random_counters
 # custom imports
 import utils
 from chains import LogProbability, Probability
-from constant import MAX_LENGTH
+from constant import ALPHABET_SIZE, MAX_LENGTH
 from features import Features
-import oracles
-from constant import ALPHABET_SIZE
 
 
 # initialize with uniform marginals
@@ -169,7 +168,7 @@ def sdca(x, y, regu=1, npass=5, update_period=5,
         weights = marginals_to_features_centroid(x, y, marginals=None)
         weights = ground_truth_centroid.subtract(weights)
         weights.multiply_scalar(uniformization_value, inplace=True)
-    elif init == "EOG":
+    elif init == "OEG":
         # implement the recommanded initialization for improved EOG as
         # recommanded by appendix D in SAG4CRF paper
         marginals = []
