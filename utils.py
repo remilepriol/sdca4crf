@@ -53,11 +53,11 @@ def find_root_decreasing(evaluator, precision):
     """
 
     u0, _ = evaluator(0)
-    if u0 <= precision:  # 0 is optimal
-        return 0, [u0]
+    # if u0 <= precision:  # 0 is optimal
+    #     return 0, [u0]
 
     u1, _ = evaluator(1)
-    if u1 >= -precision:  # 1 is optimal
+    if u1 >= 0:  # 1 is optimal
         return 1, [u1]
 
     return safe_newton(evaluator, 0, 1, u0, u1, precision=precision)
