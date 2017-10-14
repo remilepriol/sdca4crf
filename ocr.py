@@ -242,9 +242,9 @@ def sdca(x, y, regu=1, npass=5, update_period=5,
     # tensorboard_logger commands
     importlib.reload(tl)
     if logdir is not None:
-        tl.configure(logdir=logdir, flush_secs=5)
+        tl.configure(logdir=logdir, flush_secs=15)
 
-        tl.log_value("duality gap", duality_gap, step=0)
+        tl.log_value("log10 duality gap", np.log10(duality_gap), step=0)
         tl.log_value("primal objective", primal_objective, step=0)
         tl.log_value("dual objective", dual_objective, step=0)
 
@@ -425,12 +425,12 @@ def sdca(x, y, regu=1, npass=5, update_period=5,
             weights_squared_norm)
 
         if logdir is not None and t % 10 == 0:
-            tl.log_value("primaldir_squared_norm", primaldir_squared_norm, step=t)
+            tl.log_value("log10 primaldir_squared_norm", np.log10(primaldir_squared_norm), step=t)
             tl.log_value("weights_squared_norm", weights_squared_norm, t)
             tl.log_value("normalized weights dot primaldir", similarity, t)
             tl.log_value("dual objective", dual_objective, t)
             tl.log_value("log10 duality gap estimate", np.log10(duality_gap_estimate), t)
-            tl.log_value("individual gap", divergence_gap, t)
+            tl.log_value("log10 individual gap", np.log10(divergence_gap), t)
             tl.log_value("step size", gammaopt, t)
             tl.log_value("number of line search step", len(subobjective), t)
 
@@ -438,11 +438,11 @@ def sdca(x, y, regu=1, npass=5, update_period=5,
             # Append relevant variables
             annex.append([
                 np.log10(primaldir_squared_norm),
-                np.log10(weights_squared_norm),
+                weights_squared_norm,
                 similarity,
                 dual_objective,
                 np.log10(duality_gap_estimate),
-                divergence_gap,
+                np.log10(divergence_gap),
                 gammaopt,
                 i,
                 len(subobjective),
@@ -462,7 +462,7 @@ def sdca(x, y, regu=1, npass=5, update_period=5,
                 [duality_gap, primal_objective, dual_objective, t, time.time() - delta_time])
 
             if logdir is not None:
-                tl.log_value("duality gap", duality_gap, step=t)
+                tl.log_value("log10 duality gap", np.log10(duality_gap), step=t)
                 tl.log_value("primal objective", primal_objective, step=t)
 
     ##################################################################################
