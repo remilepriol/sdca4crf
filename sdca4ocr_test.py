@@ -48,9 +48,9 @@ if not os.path.exists(dirname):
 parameters = {
     'regu': regu,
     'npass': 100,
-    'non_uniformity': .2,
+    'non_uniformity': 1,
     'monitoring_period': 5,
-    'sampler_period': None,
+    'sampler_period': 10,
     'precision': 1e-8,
     'subprecision': 1e-2,
     'init': 'OEG',
@@ -84,7 +84,7 @@ plt.ylabel("log10(duality gap)")
 plt.plot(np.log10(fullobjective[:, 0]))
 plt.xlabel("number of pass over the data")
 ticksrange = 2 * np.arange(len(fullobjective) / 2, dtype=int)
-plt.xticks(ticksrange, parameters['update_period'] * ticksrange)
+plt.xticks(ticksrange, parameters['monitoring_period'] * ticksrange)
 plt.xlabel("number of pass over the data")
 plt.subplot(1, 2, 2)
 plt.plot(fullobjective[:, 3], np.log10(fullobjective[:, 0]))
