@@ -57,7 +57,6 @@ fullmargs, fullweights, fullobjective, fullannex = \
 
 os.system('say "I am done."')
 
-np.save(dirname + "/marginals.npy", fullmargs)
 np.save(dirname + "/weights.npy", fullweights)
 np.save(dirname + "/objectives.npy", fullobjective)
 np.save(dirname + "/annex.npy", fullannex)
