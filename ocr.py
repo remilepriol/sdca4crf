@@ -95,19 +95,21 @@ def get_slopes(marginals, weights, images, regu):
     return ans
 
 
-def sdca(x, y, regu=1, npass=5, update_period=5,
-         precision=1e-5, subprecision=1e-16, non_uniformity=0,
-         step_size=None, init='uniform', _debug=False, logdir=None):
+def sdca(x, y, regu=1, npass=5, monitoring_period=5, sampler_period=None, precision=1e-5,
+         subprecision=1e-2, non_uniformity=0, step_size=None, init='uniform', _debug=False,
+         logdir=None, xtest=None, ytest=None):
     """Update alpha and weights with the stochastic dual coordinate ascent algorithm to fit
     the model to the data points x and the labels y.
-
 
     :param x: data points organized by rows
     :param y: labels as a one dimensional array. They should be positive.
     :param regu: value of the l2 regularization parameter
     :param npass: maximum number of pass over the data
-    :param update_period: number of epochs before doing a full batch update of the individual
-    duality gaps used in the non-uniform sampling and to get a convergence criterion
+    :param monitoring_period: number of epochs before doing a full batch update of the individual
+    duality gaps used in the non-uniform sampling and to get a convergence criterion.
+    :param sampler_period: if not None, period to do a full batch update of the duality gaps,
+    for the non-uniform sampling. Expressed as a number of epochs. This whole epoch will be
+    counted in the number of pass used by sdca.
     :param precision: precision to which we wish to optimize the objective.
     :param subprecision: precision of the line search method, both on the value of the derivative
     and on the distance of the iterate to the optimum.
@@ -120,6 +122,8 @@ def sdca(x, y, regu=1, npass=5, update_period=5,
     random weights vector.
     :param _debug: if true, return a detailed list of objectives
     :param logdir: if nont None, use logdir to dump values for tensorboard
+    :param xtest: data points to test the prediction every few epochs
+    :param ytest: labels to test the prediction every few epochs
 
     :return marginals: optimal value of the marginals
     :return weights: optimal value of the weights
@@ -200,16 +204,18 @@ def sdca(x, y, regu=1, npass=5, update_period=5,
     # OBJECTIVES : primal objective, dual objective and duality gaps.
     # I compute every update_period epoch to monitor the evolution.
     ##################################################################################
-    def full_batch_update(marginals, weights, weights_squared_norm, dual_objective):
+
+    def monitor_full_batch(marginals, weights, weights_squared_norm, dual_objective,
+                           return_sampler=False):
         sum_log_partitions = 0
-        duality_gap = 0
+        dgaps = []
         for margs, imgs in zip(marginals, x):
             newmargs, log_partition = weights.infer_probabilities(imgs, log=True)
-            duality_gap += margs.kullback_leibler(newmargs)
+            dgaps.append(margs.kullback_leibler(newmargs))
             sum_log_partitions += log_partition
 
         # update the value of the duality gap
-        duality_gap = duality_gap / nb_words
+        duality_gap = sum(dgaps) / nb_words
 
         # calculate the primal score
         primal_objective = \
@@ -224,20 +230,34 @@ def sdca(x, y, regu=1, npass=5, update_period=5,
             duality_gap, primal_objective, dual_objective, primal_objective - dual_objective
         )
 
-        return duality_gap, primal_objective
+        # create a new non-uniform sampler if necessary
+        if return_sampler:
+            sampler = random_counters.RandomCounters(dgaps)
+            return duality_gap, primal_objective, sampler
+        else:
+            return duality_gap, primal_objective
 
-    # first compute the dual objective
+    # compute the dual objective
     entropies = np.array([margs.entropy() for margs in marginals])
     weights_squared_norm = weights.squared_norm()
     dual_objective = entropies.mean() - regu / 2 * weights_squared_norm
 
-    # then do a whole epoch (of oracle calls)
+    # do a whole epoch (of oracle calls)
     t1 = time.time()
     duality_gap, primal_objective = \
-        full_batch_update(marginals, weights, weights_squared_norm, dual_objective)
+        monitor_full_batch(marginals, weights, weights_squared_norm, dual_objective)
     delta_time += time.time() - t1
 
-    objectives = [[duality_gap, primal_objective, dual_objective, 0, time.time() - delta_time]]
+    objs = [duality_gap, primal_objective, dual_objective,
+            0, time.time() - delta_time]
+
+    # compute the test error if a test set is present:
+    do_test = xtest is not None and ytest is not None
+    if do_test:
+        accuracy01, hammingscore = weights.prediction_score(xtest, ytest)
+        objs.extend([accuracy01, hammingscore])
+
+    objectives = [objs]
 
     # tensorboard_logger commands
     importlib.reload(tl)
@@ -247,6 +267,9 @@ def sdca(x, y, regu=1, npass=5, update_period=5,
         tl.log_value("log10 duality gap", np.log10(duality_gap), step=0)
         tl.log_value("primal objective", primal_objective, step=0)
         tl.log_value("dual objective", dual_objective, step=0)
+        if do_test:
+            tl.log_value("01 loss", accuracy01, step=0)
+            tl.log_value("hamming loss", hammingscore, step=0)
 
     # annex to give insights on the algorithm
     annex = []
@@ -410,21 +433,42 @@ def sdca(x, y, regu=1, npass=5, update_period=5,
                 t
             ])
 
-        if t % (update_period * nb_words) == 0:
-            ##################################################################################
-            # OBJECTIVES : after each update_period epochs, compute the duality gap
-            ##################################################################################
-            t1 = time.time()
-            duality_gap, primal_objective = \
-                full_batch_update(marginals, weights, weights_squared_norm, dual_objective)
-            delta_time += time.time() - t1
+        updated = False
+        if sampler_period is not None and t % (sampler_period * nb_words) == 0:
+            # Non-uniform sampling full batch update:
+            duality_gap, primal_objective, sampler = monitor_full_batch(
+                marginals, weights, weights_squared_norm, dual_objective, return_sampler=True)
 
-            objectives.append(
-                [duality_gap, primal_objective, dual_objective, t, time.time() - delta_time])
+            t += nb_words  # count the full batch in the number of steps
+            updated = True  # avoid doing a full batch update twice just to monitor.
+
+        if t % (monitoring_period * nb_words) == 0:
+            ##################################################################################
+            # OBJECTIVES : after every update_period epochs, compute the duality gap
+            ##################################################################################
+
+            if not updated:
+                t1 = time.time()
+                duality_gap, primal_objective = monitor_full_batch(
+                    marginals, weights, weights_squared_norm, dual_objective)
+                delta_time += time.time() - t1
+
+            objs = [duality_gap, primal_objective, dual_objective, t, time.time() - delta_time]
+
+            if do_test:
+                accuracy01, hammingscore = weights.prediction_score(xtest, ytest)
+                objs.extend([accuracy01, hammingscore])
+
+            objectives.append(objs)
 
             if logdir is not None:
+
                 tl.log_value("log10 duality gap", np.log10(duality_gap), step=t)
                 tl.log_value("primal objective", primal_objective, step=t)
+
+                if do_test:
+                    tl.log_value("01 loss", accuracy01, step=t)
+                    tl.log_value("hamming loss", hammingscore, step=t)
 
     ##################################################################################
     # FINISH : convert the objectives to simplify the after process.
