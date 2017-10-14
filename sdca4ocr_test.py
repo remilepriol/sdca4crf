@@ -11,21 +11,21 @@ import ocr
 import parse
 
 labels, images, folds = parse.letters_to_labels_and_words(
-    parse.read_lettersfile('data/ocr/letter.data.tsv'))
+    parse.read_lettersfile('../data/ocr/letter.data.tsv'))
 
 radii = features.radii(images)
 max_radius = np.amax(radii)
 
-which_fold = 0
-x = images[folds != which_fold]
-y = labels[folds != which_fold]
+training_folds = [0, 1]
+mask = np.array([fold in training_folds for fold in folds])
+x = images[mask]
+y = labels[mask]
 nb_words = x.shape[0]
-npass = 100
-update_period = 5
-regu = 1 / nb_words
-step_size = regu * nb_words * 2 / (max_radius ** 2 + regu * nb_words * 2)
 print("Number of words:", nb_words)
-print("step size:", step_size)
+
+regu = 1 / nb_words
+# step_size = regu * nb_words * 2 / (max_radius ** 2 + regu * nb_words * 2)
+# print("step size:", step_size)
 
 time_stamp = time.strftime("%Y%m%d_%H%M%S")
 dirname = "logs/" + time_stamp + "_n" + str(nb_words)
@@ -35,14 +35,22 @@ if not os.path.exists(dirname):
     os.mkdir(dirname)
 
 parameters = {'npass': 100,
-              'update_period': update_period,
+              'update_period': 5,
               'regu': regu,
               '_debug': True,
               'precision': 1e-8,
               'subprecision': 1e-8,
-              'init': 'empirical',
+              'init': 'OEG',
               'logdir': dirname}
 print(parameters)
+
+# write parameters to text file
+with open(dirname + '/parameters.txt', 'w') as file:
+    file.write("time :" + time_stamp)
+    file.write("training folds :" + str(training_folds))
+    file.write("number of words :" + str(nb_words))
+    for key, value in parameters.items():
+        file.write(key + " : " + str(value))
 
 fullmargs, fullweights, fullobjective, fullannex = \
     ocr.sdca(x, y, non_uniformity=1, **parameters)
@@ -61,7 +69,7 @@ plt.ylabel("log10(duality gap)")
 plt.plot(np.log10(fullobjective[:, 0]))
 plt.xlabel("number of pass over the data")
 ticksrange = 2 * np.arange(len(fullobjective) / 2, dtype=int)
-plt.xticks(ticksrange, update_period * ticksrange)
+plt.xticks(ticksrange, parameters['update_period'] * ticksrange)
 plt.xlabel("number of pass over the data")
 plt.subplot(1, 2, 2)
 plt.plot(fullobjective[:, 3], np.log10(fullobjective[:, 0]))
