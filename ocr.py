@@ -254,8 +254,8 @@ def sdca(x, y, regu=1, npass=5, monitoring_period=5, sampler_period=None, precis
     # compute the test error if a test set is present:
     do_test = xtest is not None and ytest is not None
     if do_test:
-        accuracy01, hammingscore = weights.prediction_score(xtest, ytest)
-        objs.extend([accuracy01, hammingscore])
+        loss01, loss_hamming = weights.prediction_score(xtest, ytest)
+        objs.extend([loss01, loss_hamming])
 
     objectives = [objs]
 
@@ -268,14 +268,14 @@ def sdca(x, y, regu=1, npass=5, monitoring_period=5, sampler_period=None, precis
         tl.log_value("primal objective", primal_objective, step=0)
         tl.log_value("dual objective", dual_objective, step=0)
         if do_test:
-            tl.log_value("01 loss", accuracy01, step=0)
-            tl.log_value("hamming loss", hammingscore, step=0)
+            tl.log_value("01 loss", loss01, step=0)
+            tl.log_value("hamming loss", loss_hamming, step=0)
 
     # annex to give insights on the algorithm
     annex = []
 
     # non-uniform sampling
-    sampler = random_counters.RandomCounters(np.ones(nb_words))
+    sampler = random_counters.RandomCounters(100 * np.ones(nb_words))
 
     ##################################################################################
     # MAIN LOOP
@@ -456,8 +456,8 @@ def sdca(x, y, regu=1, npass=5, monitoring_period=5, sampler_period=None, precis
             objs = [duality_gap, primal_objective, dual_objective, t, time.time() - delta_time]
 
             if do_test:
-                accuracy01, hammingscore = weights.prediction_score(xtest, ytest)
-                objs.extend([accuracy01, hammingscore])
+                loss01, loss_hamming = weights.prediction_score(xtest, ytest)
+                objs.extend([loss01, loss_hamming])
 
             objectives.append(objs)
 
@@ -467,8 +467,8 @@ def sdca(x, y, regu=1, npass=5, monitoring_period=5, sampler_period=None, precis
                 tl.log_value("primal objective", primal_objective, step=t)
 
                 if do_test:
-                    tl.log_value("01 loss", accuracy01, step=t)
-                    tl.log_value("hamming loss", hammingscore, step=t)
+                    tl.log_value("01 loss", loss01, step=t)
+                    tl.log_value("hamming loss", loss_hamming, step=t)
 
     ##################################################################################
     # FINISH : convert the objectives to simplify the after process.

@@ -150,18 +150,18 @@ class Features:
         return oracles.chain_viterbi(uscores, bscores)
 
     def prediction_score(self, x, y):
-        accuracy01 = 0
-        hammingscore = 0
+        loss01 = 0
+        loss_hamming = 0
         nb_letters = 0
 
         for images, truth in zip(x, y):
             prediction = self.predict(images)[0]
-            tmp = np.sum(truth == prediction)
-            hammingscore += tmp
-            accuracy01 += (tmp == len(truth))
+            tmp = np.sum(truth != prediction)
+            loss_hamming += tmp
+            loss01 += (tmp > 0)
             nb_letters += len(truth)
 
-        return accuracy01 / len(y), hammingscore / nb_letters
+        return loss01 / len(y), loss_hamming / nb_letters
 
     #########################################
     # Arithmetic operations
