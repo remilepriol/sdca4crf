@@ -306,21 +306,6 @@ def sdca(x, y, regu=1, npass=5, update_period=5,
         sampler.update(divergence_gap, i)
         duality_gap_estimate = sampler.get_total() / nb_words
 
-        # Compare the fenchel duality gap and the KL between alpha_i and beta_i.
-        # They should be equal.
-        # entropy_i = entropies[i]  # entropy of alpha_i
-        # weights_i = Features()
-        # weights_i.add_centroid(x[i], alpha_i.to_probability())
-        # weights_i.multiply_scalar(-1, inplace=True)
-        # # weights_i.add_word(x[i], y[i])
-        # weights_dot_wi = weights.inner_product(weights_i)
-        # fenchel_gap = log_partition_i - entropy_i + weights_dot_wi
-        # assert np.isclose(divergence_gap, fenchel_gap), \
-        #     print(" iteration %i \n divergence %.5e \n fenchel gap %.5e \n log_partition %f \n"
-        #           " entropy %.5e \n w^T A_i alpha_i %f \n reverse divergence %f " % (
-        #               t, divergence_gap, fenchel_gap, log_partition_i,
-        #               entropy_i, weights_dot_wi, reverse_gap))
-
         ##################################################################################
         # LINE SEARCH : find the optimal step size gammaopt or use a fixed one
         ##################################################################################
@@ -375,30 +360,6 @@ def sdca(x, y, regu=1, npass=5, update_period=5,
 
             gammaopt, subobjective = utils.find_root_decreasing(evaluator=evaluator,
                                                                 precision=subprecision)
-
-            ##################################################################################
-            # DEBUGGING
-            ##################################################################################
-            # if t == 50:
-            #     return evaluator, quadratic_coeff, linear_coeff, dual_direction, alpha_i, beta_i
-
-            # Plot the line search curves
-            # whentoplot = 25
-            # if t == whentoplot * nb_words:
-            #     fig, axs = plt.subplots(nrows=1, ncols=3, figsize=(12, 4))
-            # if 0 <= t - whentoplot * nb_words < 10:
-            # if t % int(npass * nb_words / 6) == 0:
-            #     segment = np.linspace(0, 1, 100)
-            #     funcvalues = np.array([evaluator(gam, returnf=True) for gam in segment]).T
-            #     fig, axs = plt.subplots(nrows=1, ncols=3, figsize=(12, 2))
-            #     axs[0].plot(segment, funcvalues[0], label="entropy")
-            #     axs[0].plot(segment, funcvalues[1], label="norm")
-            #     axs[0].plot(segment, funcvalues[0] + funcvalues[1], label="line search")
-            #     axs[0].legend(loc='best')
-            #     axs[1].plot(segment, funcvalues[2])
-            #     axs[2].plot(segment, funcvalues[3])
-            #     for ax in axs:
-            #         ax.vlines(gammaopt, *ax.get_ylim())
 
         ##################################################################################
         # UPDATE : the primal and dual coordinates
