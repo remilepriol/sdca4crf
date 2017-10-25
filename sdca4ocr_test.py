@@ -16,7 +16,7 @@ labels, images, folds = parse.letters_to_labels_and_words(
 radii = features.radii(images)
 max_radius = np.amax(radii)
 
-training_folds = set([0, 1])
+training_folds = set(range(1, 10))
 training_mask = np.array([fold in training_folds for fold in folds])
 xtrain = images[training_mask]
 ytrain = labels[training_mask]
@@ -48,10 +48,11 @@ if not os.path.exists(dirname):
 parameters = {
     'regu': regu,
     'npass': 100,
+    'sampling': 'gap+',
     'non_uniformity': 1,
     'monitoring_period': 5,
-    'sampler_period': 10,
-    'precision': 1e-8,
+    'sampler_period': None,
+    'precision': 1e-7,
     'subprecision': 1e-2,
     'init': 'OEG',
     'logdir': dirname,

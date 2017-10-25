@@ -275,10 +275,12 @@ def sdca(x, y, regu=1, npass=5, monitoring_period=5, sampler_period=None, precis
 
     # non-uniform sampling
     importances = 1 + radii(x) ** 2 / nb_words / regu
-    if sampling == "importance" or sampling == "gap+":
+    if sampling == "uniform" or sampling == "gap":
+        sampler = RandomCounters(100 * np.ones(nb_words))
+    elif sampling == "importance" or sampling == "gap+":
         sampler = RandomCounters(100 * importances)
     else:
-        sampler = RandomCounters(100 * np.ones(nb_words))
+        raise ValueError(" %s is not a valid argument for sampling" % str(sampling))
 
     ##################################################################################
     # MAIN LOOP
@@ -444,6 +446,8 @@ def sdca(x, y, regu=1, npass=5, monitoring_period=5, sampler_period=None, precis
             # Non-uniform sampling full batch update:
             duality_gap, primal_objective, dgaps = monitor_full_batch(
                 marginals, weights, weights_squared_norm, dual_objective)
+
+            duality_gap_estimate = duality_gap
 
             if sampling == "gap":
                 sampler = RandomCounters(dgaps)
