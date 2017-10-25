@@ -281,8 +281,6 @@ def sdca(x, y, regu=1, npass=5, monitoring_period=5, sampler_period=None, precis
     # MAIN LOOP
     ##################################################################################
     for t in tqdm(range(1, nb_words * npass)):
-        if duality_gap < precision:
-            break
 
         ##################################################################################
         # SAMPLING
@@ -439,7 +437,6 @@ def sdca(x, y, regu=1, npass=5, monitoring_period=5, sampler_period=None, precis
             duality_gap, primal_objective, sampler = monitor_full_batch(
                 marginals, weights, weights_squared_norm, dual_objective, return_sampler=True)
 
-            t += nb_words  # count the full batch in the number of steps
             updated = True  # avoid doing a full batch update twice just to monitor.
 
         if t % (monitoring_period * nb_words) == 0:
@@ -455,6 +452,9 @@ def sdca(x, y, regu=1, npass=5, monitoring_period=5, sampler_period=None, precis
 
             objs = [duality_gap, primal_objective, dual_objective, t, time.time() - delta_time]
 
+            if updated:  # if we updated the sampler
+                t += nb_words  # count the full batch in the number of steps
+
             if do_test:
                 loss01, loss_hamming = weights.prediction_score(xtest, ytest)
                 objs.extend([loss01, loss_hamming])
@@ -469,6 +469,9 @@ def sdca(x, y, regu=1, npass=5, monitoring_period=5, sampler_period=None, precis
                 if do_test:
                     tl.log_value("01 loss", loss01, step=t)
                     tl.log_value("hamming loss", loss_hamming, step=t)
+
+            if duality_gap < precision:
+                break
 
     ##################################################################################
     # FINISH : convert the objectives to simplify the after process.
