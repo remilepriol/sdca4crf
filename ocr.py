@@ -6,14 +6,14 @@ import numpy as np
 import tensorboard_logger as tl
 from tqdm import tqdm
 
+# custom imports
 import oracles
 import parse
-import random_counters
-# custom imports
 import utils
 from chains import LogProbability, Probability
 from constant import ALPHABET_SIZE, MAX_LENGTH
-from features import Features
+from features import Features, radii
+from random_counters import RandomCounters
 
 
 # initialize with uniform marginals
@@ -96,8 +96,8 @@ def get_slopes(marginals, weights, images, regu):
 
 
 def sdca(x, y, regu=1, npass=5, monitoring_period=5, sampler_period=None, precision=1e-5,
-         subprecision=1e-2, non_uniformity=0, step_size=None, init='uniform', _debug=False,
-         logdir=None, xtest=None, ytest=None):
+         subprecision=1e-2, sampling="uniform", non_uniformity=0, step_size=None, init='uniform',
+         _debug=False, logdir=None, xtest=None, ytest=None):
     """Update alpha and weights with the stochastic dual coordinate ascent algorithm to fit
     the model to the data points x and the labels y.
 
@@ -113,6 +113,7 @@ def sdca(x, y, regu=1, npass=5, monitoring_period=5, sampler_period=None, precis
     :param precision: precision to which we wish to optimize the objective.
     :param subprecision: precision of the line search method, both on the value of the derivative
     and on the distance of the iterate to the optimum.
+    :param sampling: options are "uniform" (default), "importance", "gap", "gap+"
     :param non_uniformity: between 0 and 1. probability of sampling non-uniformly.
     :param step_size: if None, SDCA will use a line search. Otherwise should be a positive float
     to be used as the constant step size.
@@ -205,8 +206,7 @@ def sdca(x, y, regu=1, npass=5, monitoring_period=5, sampler_period=None, precis
     # I compute every update_period epoch to monitor the evolution.
     ##################################################################################
 
-    def monitor_full_batch(marginals, weights, weights_squared_norm, dual_objective,
-                           return_sampler=False):
+    def monitor_full_batch(marginals, weights, weights_squared_norm, dual_objective):
         sum_log_partitions = 0
         dgaps = []
         for margs, imgs in zip(marginals, x):
@@ -215,7 +215,8 @@ def sdca(x, y, regu=1, npass=5, monitoring_period=5, sampler_period=None, precis
             sum_log_partitions += log_partition
 
         # update the value of the duality gap
-        duality_gap = sum(dgaps) / nb_words
+        dgaps = np.array(dgaps)
+        duality_gap = np.sum(dgaps) / nb_words
 
         # calculate the primal score
         primal_objective = \
@@ -230,23 +231,21 @@ def sdca(x, y, regu=1, npass=5, monitoring_period=5, sampler_period=None, precis
             duality_gap, primal_objective, dual_objective, primal_objective - dual_objective
         )
 
-        # create a new non-uniform sampler if necessary
-        if return_sampler:
-            sampler = random_counters.RandomCounters(dgaps)
-            return duality_gap, primal_objective, sampler
-        else:
-            return duality_gap, primal_objective
+        return duality_gap, primal_objective, dgaps
 
     # compute the dual objective
     entropies = np.array([margs.entropy() for margs in marginals])
     weights_squared_norm = weights.squared_norm()
     dual_objective = entropies.mean() - regu / 2 * weights_squared_norm
 
-    # do a whole epoch (of oracle calls)
+    # do a whole epoch (of oracle calls) to monitor
     t1 = time.time()
-    duality_gap, primal_objective = \
+    duality_gap, primal_objective, _ = \
         monitor_full_batch(marginals, weights, weights_squared_norm, dual_objective)
     delta_time += time.time() - t1
+
+    dgaps = 100 * np.ones(nb_words)  # fake estimate of the duality gaps
+    duality_gap_estimate = 100
 
     objs = [duality_gap, primal_objective, dual_objective,
             0, time.time() - delta_time]
@@ -275,7 +274,11 @@ def sdca(x, y, regu=1, npass=5, monitoring_period=5, sampler_period=None, precis
     annex = []
 
     # non-uniform sampling
-    sampler = random_counters.RandomCounters(100 * np.ones(nb_words))
+    importances = 1 + radii(x) ** 2 / nb_words / regu
+    if sampling == "importance" or sampling == "gap+":
+        sampler = RandomCounters(100 * importances)
+    else:
+        sampler = RandomCounters(100 * np.ones(nb_words))
 
     ##################################################################################
     # MAIN LOOP
@@ -324,8 +327,13 @@ def sdca(x, y, regu=1, npass=5, monitoring_period=5, sampler_period=None, precis
         divergence_gap = alpha_i.kullback_leibler(beta_i)
         reverse_gap = beta_i.kullback_leibler(alpha_i)
 
-        sampler.update(divergence_gap, i)
-        duality_gap_estimate = sampler.get_total() / nb_words
+        if sampling == "gap":
+            sampler.update(divergence_gap, i)
+        elif sampling == "gap+":
+            sampler.update(divergence_gap * importances[i], i)
+
+        duality_gap_estimate += (divergence_gap - dgaps[i]) / nb_words
+        dgaps[i] = divergence_gap
 
         ##################################################################################
         # LINE SEARCH : find the optimal step size gammaopt or use a fixed one
@@ -434,8 +442,13 @@ def sdca(x, y, regu=1, npass=5, monitoring_period=5, sampler_period=None, precis
         updated = False
         if sampler_period is not None and t % (sampler_period * nb_words) == 0:
             # Non-uniform sampling full batch update:
-            duality_gap, primal_objective, sampler = monitor_full_batch(
-                marginals, weights, weights_squared_norm, dual_objective, return_sampler=True)
+            duality_gap, primal_objective, dgaps = monitor_full_batch(
+                marginals, weights, weights_squared_norm, dual_objective)
+
+            if sampling == "gap":
+                sampler = RandomCounters(dgaps)
+            elif sampling == "gap+":
+                sampler = RandomCounters(dgaps * importances)
 
             updated = True  # avoid doing a full batch update twice just to monitor.
 
@@ -446,7 +459,7 @@ def sdca(x, y, regu=1, npass=5, monitoring_period=5, sampler_period=None, precis
 
             if not updated:
                 t1 = time.time()
-                duality_gap, primal_objective = monitor_full_batch(
+                duality_gap, primal_objective, _ = monitor_full_batch(
                     marginals, weights, weights_squared_norm, dual_objective)
                 delta_time += time.time() - t1
 
