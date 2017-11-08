@@ -13,7 +13,7 @@ import parse
 labels, images, folds = parse.letters_to_labels_and_words(
     parse.read_lettersfile('../data/ocr/letter.data.tsv'))
 
-radii = features.radii(images)
+radii = features.radii(images,labels)
 max_radius = np.amax(radii)
 
 training_folds = set(range(1, 10))
@@ -48,8 +48,8 @@ if not os.path.exists(dirname):
 parameters = {
     'regu': regu,
     'npass': 100,
-    'sampling': 'gap+',
-    'non_uniformity': 1,
+    'sampling': 'importance',
+    'non_uniformity': .8,
     'monitoring_period': 5,
     'sampler_period': None,
     'precision': 1e-7,

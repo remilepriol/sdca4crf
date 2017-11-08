@@ -32,7 +32,7 @@ def radius(word, label):
 
 def radii(words, labels):
     rs = np.empty_like(words)
-    for i, word, label in enumerate(zip(words, labels)):
+    for i, (word, label) in enumerate(zip(words, labels)):
         rs[i] = radius(word, label)
     return rs
 
