@@ -274,7 +274,7 @@ def sdca(x, y, regu=1, npass=5, monitoring_period=5, sampler_period=None, precis
     annex = []
 
     # non-uniform sampling
-    importances = 1 + radii(x) ** 2 / nb_words / regu
+    importances = 1 + radii(x, y) ** 2 / nb_words / regu
     if sampling == "uniform" or sampling == "gap":
         sampler = RandomCounters(100 * np.ones(nb_words))
     elif sampling == "importance" or sampling == "gap+":

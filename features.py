@@ -9,20 +9,31 @@ from constant import ALPHABET, ALPHABET_SIZE, NB_PIXELS
 
 # RADIUS OF THE CORRECTED FEATURES
 
-def radius(word):
-    # The factor 2 comes from the difference : ground truth - other label
-    r = 2 * np.sum(word ** 2)  # emission
-    r += 2 * word.shape[0]  # model bias
-    r += 2 * 2  # beginning and end of word biases
-    r += 2 * (word.shape[0] - 1)  # transitions
-    return np.sqrt(r)
+def radius(word, label):
+    """Return \max_y \|F(x_i,y_i) - F(x_i,y) \|^2
+
+    :param word: sequence of letter images x
+    :param label: sequence of letter values y
+    """
+    feat = Features()
+
+    # ground truth feature
+    feat.add_word(word, label)
+    feat.multiply_scalar(-1, inplace=True)
+
+    # the optimal y puts all the weight on one character
+    # that is not included in the true label
+    char = np.setdiff1d(np.arange(ALPHABET_SIZE), label)[0]
+    label2 = char * np.ones_like(label)
+    feat.add_word(word, label2)
+
+    return np.sqrt(feat.squared_norm())
 
 
-def radii(words):
-    nb_words = words.shape[0]
-    rs = np.empty(nb_words)
-    for i in range(nb_words):
-        rs[i] = radius(words[i])
+def radii(words, labels):
+    rs = np.empty_like(words)
+    for i, word, label in enumerate(zip(words, labels)):
+        rs[i] = radius(word, label)
     return rs
 
 
