@@ -17,7 +17,7 @@ def uniform(length, log=True):
     else:
         unary /= ALPHABET_SIZE
         binary /= ALPHABET_SIZE ** 2
-    return Chain(unary=unary, binary=binary, log=log)
+    return Sequence(unary=unary, binary=binary, log=log)
 
 
 def dirac(labels, alphabet_size, log=True):
@@ -29,11 +29,11 @@ def dirac(labels, alphabet_size, log=True):
     binary[np.arange(length - 1), labels[:-1], labels[1:]] = constant
     if log:
         unary, binary, _ = oracles.chain_sum_product(unary, binary, log=True)
-    return Chain(unary=binary, binary=binary, log=log)
+    return Sequence(unary=binary, binary=binary, log=log)
 
 
-class Chain:
-    """Represent anything that is decomposable over the nodes and edges of a chain.
+class Sequence:
+    """Represent anything that is decomposable over the nodes and edges of a sequential model.
 
     It can be a score, a conditional probability p(y|x) under the form of MARGINALS or
     LOG-MARGINALS (in which case self.log=True), the ascent direction, the derivative of the KL
@@ -144,7 +144,7 @@ class Chain:
             self.binary = np.ones([word_length - 1, ALPHABET_SIZE, ALPHABET_SIZE]) * (
                 -2 * np.log(ALPHABET_SIZE))
         else:  # take what is given
-            Chain.__init__(self, unary, binary)
+            Sequence.__init__(self, unary, binary)
 
     def entropy(self, returnlog=False):
         cliques = utils.entropy(self.binary, returnlog=True)

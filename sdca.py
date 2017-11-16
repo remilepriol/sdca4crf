@@ -8,10 +8,10 @@ from tqdm import tqdm
 
 # custom imports
 import utils
-from chains import dirac
 from ocr import parse
 from ocr.features import Features, radii
 from random_counters import RandomCounters
+from sequence import dirac
 
 
 # Initialize the weights as the centroid of the ground truth features minus the centroid of the
