@@ -53,7 +53,6 @@ parameters = {
     'sampler_period': None,
     'precision': 1e-7,
     'subprecision': 1e-2,
-    'init': 'empirical',
     'logdir': dirname,
     '_debug': True,
 }

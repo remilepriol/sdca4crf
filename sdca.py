@@ -72,7 +72,7 @@ def get_slopes(marginals, weights, images, regu):
 
 
 def sdca(x, y, regu=1, npass=5, monitoring_period=5, sampler_period=None, precision=1e-5,
-         subprecision=1e-2, sampling="uniform", non_uniformity=0, step_size=None,
+         sampling="uniform", non_uniformity=0, step_size=None,
          warm_start=None, _debug=False, logdir=None, xtest=None, ytest=None):
     """Update alpha and weights with the stochastic dual coordinate ascent algorithm to fit
     the model to the data points x and the labels y. Unless warm-start is used, the initial
@@ -88,8 +88,6 @@ def sdca(x, y, regu=1, npass=5, monitoring_period=5, sampler_period=None, precis
     for the non-uniform sampling. Expressed as a number of epochs. This whole epoch will be
     counted in the number of pass used by sdca.
     :param precision: precision to which we wish to optimize the objective.
-    :param subprecision: precision of the line search method, both on the value of the derivative
-    and on the distance of the iterate to the optimum.
     :param sampling: options are "uniform" (default), "importance", "gap", "gap+"
     :param non_uniformity: between 0 and 1. probability of sampling non-uniformly.
     :param step_size: if None, SDCA will use a line search. Otherwise should be a positive float
@@ -336,7 +334,7 @@ def sdca(x, y, regu=1, npass=5, monitoring_period=5, sampler_period=None, precis
                     return gf, gfdggf
 
             gammaopt, subobjective = utils.find_root_decreasing(evaluator=evaluator,
-                                                                precision=subprecision)
+                                                                precision=1e-2)
 
         ##################################################################################
         # UPDATE : the primal and dual coordinates
