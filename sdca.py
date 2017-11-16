@@ -8,7 +8,7 @@ from tqdm import tqdm
 
 # custom imports
 import utils
-from chains import smoothed_dirac
+from chains import dirac
 from ocr import parse
 from ocr.features import Features, radii
 from random_counters import RandomCounters
@@ -75,8 +75,10 @@ def sdca(x, y, regu=1, npass=5, monitoring_period=5, sampler_period=None, precis
          sampling="uniform", non_uniformity=0, step_size=None,
          warm_start=None, _debug=False, logdir=None, xtest=None, ytest=None):
     """Update alpha and weights with the stochastic dual coordinate ascent algorithm to fit
-    the model to the data points x and the labels y. Unless warm-start is used, the initial
-    point is concatenation of the smoothed empirical distributions.
+    the model to the data points x and the labels y.
+
+    Unless warm_start is used, the initial point is a concatenation of the smoothed empirical
+    distributions.
 
     :param x: data points organized by rows
     :param y: labels as a one dimensional array. They should be positive.
@@ -135,7 +137,7 @@ def sdca(x, y, regu=1, npass=5, monitoring_period=5, sampler_period=None, precis
         # gradient in appendix D of the SAG-NUS for CRF paper
         marginals = []
         for imgs, labels in zip(x, y):
-            marginals.append(smoothed_dirac(imgs, labels))
+            marginals.append(dirac(imgs, labels, log=True))
         marginals = np.array(marginals)
 
     ground_truth_centroid = Features()

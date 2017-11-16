@@ -2,31 +2,58 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
-import oracles
 # custom imports
+import oracles
 import utils
 from ocr.constant import ALPHABET, ALPHABET_SIZE
 
 
-def smoothed_dirac(imgs, labels):
-    word_length = imgs.shape[0]
-    uscores = np.zeros([word_length, ALPHABET_SIZE])
-    uscores[np.arange(word_length), labels] = 10
-    bscores = np.zeros([word_length - 1, ALPHABET_SIZE])
-    bscores[np.arange(word_length - 1), labels[:-1], labels[1:]] = 10
-    umargs, bmargs, _ = oracles.chain_sum_product(uscores, bscores, log=True)
-    return LogProbability(unary=umargs, binary=bmargs)
+def uniform(length, log=True):
+    unary = np.ones([length, ALPHABET_SIZE])
+    binary = np.ones([length - 1, ALPHABET_SIZE, ALPHABET_SIZE])
+    if log:
+        unary *= - np.log(ALPHABET_SIZE)
+        binary *= -2 * np.log(ALPHABET_SIZE)
+    else:
+        unary /= ALPHABET_SIZE
+        binary /= ALPHABET_SIZE ** 2
+    return Chain(unary=unary, binary=binary, log=log)
+
+
+def dirac(labels, alphabet_size, log=True):
+    length = labels.shape[0]
+    constant = 10 if log else 1
+    unary = np.zeros([length, alphabet_size])
+    unary[np.arange(length), labels] = constant
+    binary = np.zeros([length - 1, alphabet_size, alphabet_size])
+    binary[np.arange(length - 1), labels[:-1], labels[1:]] = constant
+    if log:
+        unary, binary, _ = oracles.chain_sum_product(unary, binary, log=True)
+    return Chain(unary=binary, binary=binary, log=log)
 
 
 class Chain:
-    """Represent anything that is decomposable over the nodes and edges of a chain."""
+    """Represent anything that is decomposable over the nodes and edges of a chain.
 
-    def __init__(self, unary, binary):
+    It can be a score, a conditional probability p(y|x) under the form of MARGINALS or
+    LOG-MARGINALS (in which case self.log=True), the ascent direction, the derivative of the KL
+    or the entropy."""
+
+    def __init__(self, unary, binary, log):
         if unary.shape[0] != binary.shape[0] + 1:
-            raise ValueError("Wrong size of marginals: %i vs %i"
+            raise ValueError("Wrong length of marginals: %i vs %i"
                              % (unary.shape[0], binary.shape[0]))
+        self.length = unary.shape[0]
+
+        if unary.shape[1] != binary.shape[1] \
+                or unary.shape[1] != binary.shape[2]:
+            raise ValueError("Wring alphabet size: %i vs (%i, %i)"
+                             % (unary.shape[1], binary.shape[1], binary.shape[2]))
+        self.alphabet_size = unary.shape[1]
+
         self.unary = unary
         self.binary = binary
+        self.log = log
 
     def __str__(self):
         return "unary: \n" + np.array_str(self.unary) \
@@ -38,31 +65,14 @@ class Chain:
 
     def display(self):
         plt.matshow(self.unary)
-        plt.xticks(range(26), [ALPHABET[x] for x in range(26)])
+        plt.xticks(range(ALPHABET_SIZE), [ALPHABET[x] for x in range(ALPHABET_SIZE)])
         plt.colorbar(fraction=0.046, pad=0.04)
         plt.title("unary marginals")
         plt.matshow(self.binary.sum(axis=0))
-        plt.xticks(range(26), [ALPHABET[x] for x in range(26)])
-        plt.yticks(range(26), [ALPHABET[x] for x in range(26)])
+        plt.xticks(range(ALPHABET_SIZE), [ALPHABET[x] for x in range(ALPHABET_SIZE)])
+        plt.yticks(range(ALPHABET_SIZE), [ALPHABET[x] for x in range(ALPHABET_SIZE)])
         plt.colorbar(fraction=0.046, pad=0.04)
         plt.title("sum of binary marginals")
-
-
-class Probability(Chain):
-    """Represent a conditional probability p(y|x) under the form of MARGINALS.
-    Can also represent the ascent direction or the score.
-    Ony has a finite precision on the small numbers.
-    Inappropriate to handle the derivatives of the entropy or the KL.
-    """
-
-    def __init__(self, unary=None, binary=None, word_length=None):
-        if unary is None or binary is None:
-            self.unary = np.ones([word_length, ALPHABET_SIZE]) / ALPHABET_SIZE
-            self.binary = \
-                np.ones([word_length - 1, ALPHABET_SIZE, ALPHABET_SIZE]) \
-                / ALPHABET_SIZE ** 2
-        else:
-            Chain.__init__(self, unary, binary)
 
     def are_densities(self, integral=1):
         return np.isclose(np.sum(self.unary, axis=1), integral).all() \
@@ -127,19 +137,6 @@ class Probability(Chain):
     def to_logprobability(self):
         return LogProbability(unary=np.log(self.unary),
                               binary=np.log(self.binary))
-
-    @staticmethod
-    def dirac(labels):
-        word_length = labels.shape[0]
-        umargs = np.zeros([word_length, ALPHABET_SIZE])
-        umargs[np.arange(word_length), labels] = 1
-        bmargs = np.zeros([word_length - 1, ALPHABET_SIZE, ALPHABET_SIZE])
-        bmargs[np.arange(word_length - 1), labels[:-1], labels[1:]] = 1
-        return Probability(unary=umargs, binary=bmargs)
-
-
-class LogProbability(Chain):
-    """Represent a conditional probability p(y|x) under the form of LOG-marginals."""
 
     def __init__(self, unary=None, binary=None, word_length=None):
         if unary is None or binary is None:  # assume uniform
