@@ -4,7 +4,7 @@ import numpy as np
 
 # custom imports
 import utils
-from constant import ALPHABET, ALPHABET_SIZE
+from ocr.constant import ALPHABET, ALPHABET_SIZE
 
 
 class Chain:

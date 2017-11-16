@@ -2,9 +2,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 import oracles
-import parse
 from chains import LogProbability, Probability
-from constant import ALPHABET, ALPHABET_SIZE, NB_PIXELS
+from ocr import parse
+from ocr.constant import ALPHABET, ALPHABET_SIZE, NB_PIXELS
 
 
 # RADIUS OF THE CORRECTED FEATURES

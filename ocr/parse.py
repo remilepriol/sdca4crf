@@ -3,7 +3,8 @@ import csv
 import matplotlib.pyplot as plt
 import numpy as np
 
-from constant import ALPHABET, FIRST_PIXEL, FOLD, IMAGE_HEIGHT, IMAGE_WIDTH, LETTER_VALUE, NEXT_ID
+from ocr.constant import ALPHABET, FIRST_PIXEL, FOLD, IMAGE_HEIGHT, IMAGE_WIDTH, LETTER_VALUE, \
+    NEXT_ID
 
 
 def letter2integer(letter):

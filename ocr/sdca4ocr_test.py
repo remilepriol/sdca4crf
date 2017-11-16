@@ -5,18 +5,17 @@ import time
 import matplotlib.pyplot as plt
 import numpy as np
 
-import features
 # custom imports
-import ocr
-import parse
+import sdca
+from ocr import features, parse
 
 labels, images, folds = parse.letters_to_labels_and_words(
     parse.read_lettersfile('../data/ocr/letter.data.tsv'))
 
-radii = features.radii(images,labels)
+radii = features.radii(images, labels)
 max_radius = np.amax(radii)
 
-training_folds = set(range(1, 10))
+training_folds = set(range(1))
 training_mask = np.array([fold in training_folds for fold in folds])
 xtrain = images[training_mask]
 ytrain = labels[training_mask]
@@ -70,7 +69,7 @@ with open(dirname + '/parameters.txt', 'w') as file:
         file.write("\n" + key + " : " + str(value))
 
 fullmargs, fullweights, fullobjective, fullannex = \
-    ocr.sdca(xtrain, ytrain, xtest=xtest, ytest=ytest, **parameters)
+    sdca.sdca(xtrain, ytrain, xtest=xtest, ytest=ytest, **parameters)
 
 os.system('say "I am done."')
 

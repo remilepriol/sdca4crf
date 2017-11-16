@@ -8,11 +8,11 @@ from tqdm import tqdm
 
 # custom imports
 import oracles
-import parse
 import utils
 from chains import LogProbability, Probability
-from constant import ALPHABET_SIZE, MAX_LENGTH
-from features import Features, radii
+from ocr import parse
+from ocr.constant import ALPHABET_SIZE, MAX_LENGTH
+from ocr.features import Features, radii
 from random_counters import RandomCounters
 
 
