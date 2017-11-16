@@ -2,9 +2,20 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
+import oracles
 # custom imports
 import utils
 from ocr.constant import ALPHABET, ALPHABET_SIZE
+
+
+def smoothed_empirical(imgs, labels):
+    word_length = imgs.shape[0]
+    uscores = np.zeros([word_length, ALPHABET_SIZE])
+    uscores[np.arange(word_length), labels] = 10
+    bscores = np.zeros([word_length - 1, ALPHABET_SIZE])
+    bscores[np.arange(word_length - 1), labels[:-1], labels[1:]] = 10
+    umargs, bmargs, _ = oracles.chain_sum_product(uscores, bscores, log=True)
+    return LogProbability(unary=umargs, binary=bmargs)
 
 
 class Chain:

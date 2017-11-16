@@ -7,11 +7,10 @@ import tensorboard_logger as tl
 from tqdm import tqdm
 
 # custom imports
-import oracles
 import utils
-from chains import LogProbability, Probability
+from chains import LogProbability, Probability, smoothed_empirical
 from ocr import parse
-from ocr.constant import ALPHABET_SIZE, MAX_LENGTH
+from ocr.constant import MAX_LENGTH
 from ocr.features import Features, radii
 from random_counters import RandomCounters
 
@@ -178,15 +177,7 @@ def sdca(x, y, regu=1, npass=5, monitoring_period=5, sampler_period=None, precis
         # recommanded by appendix D in SAG4CRF paper
         marginals = []
         for imgs, labels in zip(x, y):
-            uscores = np.zeros([imgs.shape[0], ALPHABET_SIZE])
-            # import pdb
-            # pdb.set_trace()
-            uscores[np.arange(imgs.shape[0]), labels] = 10
-            bscore = np.zeros([ALPHABET_SIZE, ALPHABET_SIZE])
-            bscore[labels[:-1], labels[1:]] = 10
-            bscores = (imgs.shape[0] - 1) * [bscore]
-            umargs, bmargs, _ = oracles.chain_sum_product(uscores, bscores, log=True)
-            marginals.append(LogProbability(unary=umargs, binary=bmargs))
+            marginals.append(smoothed_empirical(imgs, labels))
         marginals = np.asarray(marginals)
         weights = marginals_to_features_centroid(x, y, marginals=marginals, log=True)
         weights = ground_truth_centroid.subtract(weights)
