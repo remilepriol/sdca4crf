@@ -8,38 +8,15 @@ from tqdm import tqdm
 
 # custom imports
 import utils
-from chains import LogProbability, Probability, smoothed_empirical
+from chains import smoothed_dirac
 from ocr import parse
-from ocr.constant import MAX_LENGTH
 from ocr.features import Features, radii
 from random_counters import RandomCounters
 
 
-# initialize with uniform marginals
-def uniform_marginals(labels, log=False):
-    nb_words = labels.shape[0]
-    margs = np.empty(nb_words, dtype=np.object)
-    if log:
-        references = np.array([LogProbability(word_length=t) for t in range(1, MAX_LENGTH)])
-    else:
-        references = np.array([Probability(word_length=t) for t in range(1, MAX_LENGTH)])
-    for i in range(nb_words):
-        margs[i] = references[labels[i].shape[0] - 1]
-    return margs
-
-
-# Or marginals from the ground truth
-def empirical_marginals(labels):
-    nb_words = labels.shape[0]
-    margs = np.empty(nb_words, dtype=np.object)
-    for i, lbls in enumerate(labels):
-        margs[i] = Probability.dirac(lbls)
-    return margs
-
-
 # Initialize the weights as the centroid of the ground truth features minus the centroid of the
 # features given by the uniform marginals.
-def marginals_to_features_centroid(images, labels, marginals=None, log=False):
+def marginals_to_features_centroid(images, labels, marginals=None, log=True):
     nb_words = labels.shape[0]
 
     centroid = Features()
@@ -95,10 +72,11 @@ def get_slopes(marginals, weights, images, regu):
 
 
 def sdca(x, y, regu=1, npass=5, monitoring_period=5, sampler_period=None, precision=1e-5,
-         subprecision=1e-2, sampling="uniform", non_uniformity=0, step_size=None, init='uniform',
-         _debug=False, logdir=None, xtest=None, ytest=None):
+         subprecision=1e-2, sampling="uniform", non_uniformity=0, step_size=None,
+         warm_start=None, _debug=False, logdir=None, xtest=None, ytest=None):
     """Update alpha and weights with the stochastic dual coordinate ascent algorithm to fit
-    the model to the data points x and the labels y.
+    the model to the data points x and the labels y. Unless warm-start is used, the initial
+    point is concatenation of the smoothed empirical distributions.
 
     :param x: data points organized by rows
     :param y: labels as a one dimensional array. They should be positive.
@@ -116,10 +94,7 @@ def sdca(x, y, regu=1, npass=5, monitoring_period=5, sampler_period=None, precis
     :param non_uniformity: between 0 and 1. probability of sampling non-uniformly.
     :param step_size: if None, SDCA will use a line search. Otherwise should be a positive float
     to be used as the constant step size.
-    :param init: if init is a numpy array, it will be used as the initial value for the marginals.
-    If it is "uniform", the marginals will be initialized with uniform marginals. If it is
-    random, the marginals will be initialized with random marginals, by inferring them from a
-    random weights vector.
+    :param warm_start: if numpy array, used as marginals to start from.
     :param _debug: if true, return a detailed list of objectives
     :param logdir: if nont None, use logdir to dump values for tensorboard
     :param xtest: data points to test the prediction every few epochs
@@ -139,57 +114,37 @@ def sdca(x, y, regu=1, npass=5, monitoring_period=5, sampler_period=None, precis
     nb_words = y.shape[0]
     delta_time = time.time()
     if nb_words != x.shape[0]:
-        raise ValueError("Not the same number of labels (%i) and images (%i) inside training set."
-                         % (nb_words, x.shape[0]))
+        raise ValueError(
+            "Not the same number of labels (%i) and data points (%i) inside training set."
+            % (nb_words, x.shape[0])
+        )
+
+    if isinstance(warm_start, np.ndarray):
+        # assume that init contains the marginals for a warm start.
+        if warm_start.shape[0] != x.shape[0]:
+            raise ValueError(
+                "Not the same number of warm start marginals (%i) and data points (%i)."
+                % (warm_start.shape[0], x.shape[0])
+            )
+        marginals = warm_start
+    else:  # empirical initialization
+        # The empirical marginals give a good value of the dual objective : 0,
+        # and primal objective : average sequence length times log alphabet size = 23
+        # but the entropy has an infinite slope and curvature in the corners
+        # of the simplex. Hence we take a convex combination between a lot of
+        # empirical and a bit of uniform.
+        # This is the recommended initialization for online exponentiated
+        # gradient in appendix D of the SAG-NUS for CRF paper
+        marginals = []
+        for imgs, labels in zip(x, y):
+            marginals.append(smoothed_dirac(imgs, labels))
+        marginals = np.array(marginals)
 
     ground_truth_centroid = Features()
     ground_truth_centroid.add_dictionary(x, y)
     ground_truth_centroid.multiply_scalar(1 / nb_words, inplace=True)
-
-    if isinstance(init, np.ndarray):  # assume that init contains the marginals for a warm start.
-        marginals = init
-        weights = marginals_to_features_centroid(x, y, marginals, log=True)
-        weights = ground_truth_centroid.subtract(weights)
-    elif init == "uniform":
-        marginals = uniform_marginals(y, log=True)
-        weights = marginals_to_features_centroid(x, y, marginals=None)
-        weights = ground_truth_centroid.subtract(weights)
-    elif init == "empirical":
-        # The empirical marginals give a good value of the dual objective : 0,
-        # but they entropy has an infinite slope and curvature in the corners
-        # of the simplex. Hence we take a convex combination between a lot of
-        # empirical and a bit of uniform.
-        uniformization_value = 1e-5
-
-        unimargs = uniform_marginals(y, log=True)
-        empimargs = empirical_marginals(y)
-        marginals = np.array([empi
-                             .to_logprobability()
-                             .convex_combination(uni, uniformization_value)
-                              for uni, empi in zip(unimargs, empimargs)])
-        del unimargs, empimargs
-
-        weights = marginals_to_features_centroid(x, y, marginals=None)
-        weights = ground_truth_centroid.subtract(weights)
-        weights.multiply_scalar(uniformization_value, inplace=True)
-    elif init == "OEG":
-        # implement the recommanded initialization for improved EOG as
-        # recommanded by appendix D in SAG4CRF paper
-        marginals = []
-        for imgs, labels in zip(x, y):
-            marginals.append(smoothed_empirical(imgs, labels))
-        marginals = np.asarray(marginals)
-        weights = marginals_to_features_centroid(x, y, marginals=marginals, log=True)
-        weights = ground_truth_centroid.subtract(weights)
-
-    elif init == "random":
-        weights = Features(random=True)
-        marginals = np.array([weights.infer_probabilities(imgs, log=True)[0] for imgs in x])
-        weights = marginals_to_features_centroid(x, y, marginals, log=True)
-        weights = ground_truth_centroid.subtract(weights)
-    else:
-        raise ValueError("Not a valid argument for init: %r" % init)
-
+    weights = marginals_to_features_centroid(x, y, marginals=marginals, log=True)
+    weights = ground_truth_centroid.subtract(weights)
     weights.multiply_scalar(1 / regu, inplace=True)
 
     ##################################################################################

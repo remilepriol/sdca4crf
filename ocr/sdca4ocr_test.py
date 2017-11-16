@@ -53,7 +53,7 @@ parameters = {
     'sampler_period': None,
     'precision': 1e-7,
     'subprecision': 1e-2,
-    'init': 'OEG',
+    'init': 'empirical',
     'logdir': dirname,
     '_debug': True,
 }
@@ -69,7 +69,7 @@ with open(dirname + '/parameters.txt', 'w') as file:
         file.write("\n" + key + " : " + str(value))
 
 fullmargs, fullweights, fullobjective, fullannex = \
-    sdca.sdca(xtrain, ytrain, xtest=xtest, ytest=ytest, **parameters)
+    sdca.sdca(xtrain, ytrain, xtest=xtest, ytest=ytest)
 
 os.system('say "I am done."')
 

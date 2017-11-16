@@ -8,7 +8,7 @@ import utils
 from ocr.constant import ALPHABET, ALPHABET_SIZE
 
 
-def smoothed_empirical(imgs, labels):
+def smoothed_dirac(imgs, labels):
     word_length = imgs.shape[0]
     uscores = np.zeros([word_length, ALPHABET_SIZE])
     uscores[np.arange(word_length), labels] = 10
