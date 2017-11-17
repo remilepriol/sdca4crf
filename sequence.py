@@ -21,6 +21,12 @@ def uniform(length, log=True):
 
 
 def dirac(labels, alphabet_size, log=True):
+    """Return an array of dirac over the observed labels.
+
+    :param labels:
+    :param alphabet_size:
+    :param log: if True, return smoothed log-probabilities
+    """
     length = labels.shape[0]
     constant = 10 if log else 1
     unary = np.zeros([length, alphabet_size])
@@ -28,7 +34,7 @@ def dirac(labels, alphabet_size, log=True):
     binary = np.zeros([length - 1, alphabet_size, alphabet_size])
     binary[np.arange(length - 1), labels[:-1], labels[1:]] = constant
     if log:
-        unary, binary, _ = oracles.chain_sum_product(unary, binary, log=True)
+        unary, binary, _ = oracles.chain_sum_product(unary, binary)
     return Sequence(unary=binary, binary=binary, log=log)
 
 
@@ -74,37 +80,16 @@ class Sequence:
         plt.colorbar(fraction=0.046, pad=0.04)
         plt.title("sum of binary marginals")
 
-    def are_densities(self, integral=1):
-        return np.isclose(np.sum(self.unary, axis=1), integral).all() \
-               and np.isclose(np.sum(self.binary, axis=(1, 2)), integral).all()
+    #########################################
+    # Special operations
+    #########################################
+    def log(self):
+        return Sequence(np.log(self.unary), np.log(self.binary), log=True)
 
-    def are_consistent(self):
-        ans = True
-        from_left_binary = np.sum(self.binary, axis=1)
-        from_right_binary = np.sum(self.binary, axis=2)
-        if not np.isclose(from_left_binary, self.unary[1:]).all():
-            ans = False
-            # print("Marginalisation of the left of the binary marginals is inconsistent with
-            # unary marginals.")
-        if not np.isclose(from_right_binary, self.unary[:-1]).all():
-            ans = False
-            # print("Marginalisation of the right of the binary marginals is inconsistent with
-            # unary marginals.")
-        if not np.isclose(from_right_binary[1:], from_left_binary[:-1]).all():
-            ans = False
-            # print("Marginalisation of the left and right of the binary marginals are
-            # inconsistent.")
-        return ans
+    def exp(self):
+        return Sequence(np.exp(self.unary), np.exp(self.binary), log=False)
 
-    def subtract(self, other):
-        return Probability(unary=self.unary - other.unary,
-                           binary=self.binary - other.binary)
-
-    def multiply(self, other):
-        return Probability(unary=self.unary * other.unary,
-                           binary=self.binary * other.binary)
-
-    def sum(self):
+    def reduce(self):
         """Return the special summation where the marginals on the separations are
         subtracted."""
         return np.sum(self.binary) - np.sum(self.unary[1:-1])
@@ -112,116 +97,36 @@ class Sequence:
     def inner_product(self, other):
         """Return the special inner product where the marginals on the separations are
         subtracted."""
-        return self.multiply(other).sum()
+        return self.multiply(other).reduce()
 
-    def map(self, func):
-        return Probability(unary=func(self.unary), binary=func(self.binary))
+    def log_reduce_exp(self, to_add):
+        themax = max(np.amax(self.unary[1:-1]), np.amax(self.binary))
+        return themax + np.log(np.sum(np.exp(self.binary - themax))
+                               - np.sum(np.exp(self.unary[1:-1] - themax))
+                               + to_add * np.exp(-themax))
 
-    # def special_function(self, newmargs):
-    #   """To handle the second derivative in th eline search"""
-    #     unary_filter = (self.unary != 0)
-    #     binary_filter = (self.binary != 0)
-    #
-    # def add(self, other):
-    #     return Probability(unary=self.unary + other.unary,
-    #                        binary=self.binary + other.binary)
-    #
-    # def divide(self, other):
-    #     return Probability(unary=self.unary / other.unary,
-    #                        binary=self.binary / other.binary)
-    #
-    # def multiply_scalar(self, scalar):
-    #     return Probability(unary=scalar * self.unary,
-    #                        binary=scalar * self.binary)
-
-    def to_logprobability(self):
-        return LogProbability(unary=np.log(self.unary),
-                              binary=np.log(self.binary))
-
-    def __init__(self, unary=None, binary=None, word_length=None):
-        if unary is None or binary is None:  # assume uniform
-            self.unary = np.ones([word_length, ALPHABET_SIZE]) * (-np.log(ALPHABET_SIZE))
-            self.binary = np.ones([word_length - 1, ALPHABET_SIZE, ALPHABET_SIZE]) * (
-                -2 * np.log(ALPHABET_SIZE))
-        else:  # take what is given
-            Sequence.__init__(self, unary, binary)
-
-    def entropy(self, returnlog=False):
-        cliques = utils.entropy(self.binary, returnlog=True)
-        separations = utils.entropy(self.unary[1:-1], returnlog=True)
-
-        assert cliques >= separations, (cliques, separations, self.unary, self.binary)
-
-        if cliques == separations:
-            return 0
-
-        else:
-            try:
-                ans = cliques + np.log(1 - np.exp(separations - cliques))
-
-                if returnlog:
-                    return ans
-                else:
-                    return np.exp(ans)
-
-            except FloatingPointError:
-                print(
-                    "KL problem", cliques, separations,
-                    "\n binary \n", self.binary,
-                    "\n unary \n", self.unary
-                )
-                raise
-
-    def kullback_leibler(self, other, returnlog=False):
-        cliques = utils.kullback_leibler(self.binary, other.binary, returnlog=True)
-        separations = utils.kullback_leibler(self.unary[1:-1], other.unary[1:-1], returnlog=True)
-        assert cliques >= separations, (cliques, separations, self.unary, other.unary, self.binary,
-                                        other.binary)
-
-        if cliques == separations:
-            return 0
-
-        else:
-            try:
-                ans = cliques + np.log(1 - np.exp(separations - cliques))
-
-                if returnlog:
-                    return ans
-                else:
-                    return np.exp(ans)
-
-            except FloatingPointError:
-                print("KL problem", cliques, separations, "\n",
-                      self.binary, other.binary,
-                      self.unary, other.unary)
-                raise
-
-    def convex_combination(self, other, gamma):
-        """Return (1-gamma)*self + gamma*other"""
-        if gamma == 0:
+    def convex_combination(self, other, s):
+        """Return (1-s)*self + s*other"""
+        if s == 0:
             return self
-        elif gamma == 1:
+        if s == 1:
             return other
+
+        if self.log:
+            unary = np.minimum(0, utils.logsumexp(
+                np.asarray([self.unary + np.log(1 - s), other.unary + np.log(s)]), axis=0))
+            binary = np.minimum(0, utils.logsumexp(
+                np.asarray([self.binary + np.log(1 - s), other.binary + np.log(s)]), axis=0))
         else:
-            unary = utils.logsumexp(
-                np.array([self.unary + np.log(1 - gamma), other.unary + np.log(gamma)]), axis=0)
-            binary = utils.logsumexp(
-                np.array([self.binary + np.log(1 - gamma), other.binary + np.log(gamma)]), axis=0)
-            unary = np.minimum(unary, 0)
-            binary = np.minimum(binary, 0)
-            return LogProbability(unary=unary, binary=binary)
+            unary = (1 - s) * self.unary + s * other.unary
+            binary = (1 - s) * self.binary + s * other.binary
+        return Sequence(unary=unary, binary=binary, log=self.log)
 
-    def divide(self, other):
-        return LogProbability(unary=self.unary - other.unary,
-                              binary=self.binary - other.binary)
+    def subtract_exp(self, other):
+        """Return the ascent direction without numerical issues
 
-    def inverse(self):
-        return LogProbability(unary=-self.unary,
-                              binary=-self.binary)
-
-    def smart_subtract(self, other):
-        """Gives the ascent direction without numerical issues"""
-
+        Should start from the log space.
+        """
         max_unary = np.maximum(self.unary, other.unary)
         unary = np.exp(max_unary) * (np.exp(self.unary - max_unary)
                                      - np.exp(other.unary - max_unary))
@@ -230,17 +135,82 @@ class Sequence:
         binary = np.exp(max_binary) * (np.exp(self.binary - max_binary)
                                        - np.exp(other.binary - max_binary))
 
-        return Probability(unary=unary, binary=binary)
+        return Sequence(unary=unary, binary=binary, log=False)
 
-    def logsumexp(self, to_add):
-        themax = max(np.amax(self.unary[1:-1]), np.amax(self.binary))
-        return themax + np.log(np.sum(np.exp(self.binary - themax))
-                               - np.sum(np.exp(self.unary[1:-1] - themax))
-                               + to_add * np.exp(-themax))
+    #########################################
+    # Typical arithmetic operations
+    #########################################
+    def combine(self, other, ufunc):
+        unary = ufunc(self.unary, other.unary)
+        binary = ufunc(self.binary, other.binary)
+        return Sequence(unary, binary, self.log)
+
+    def add(self, other):
+        return self.combine(other, np.add)
+
+    def subtract(self, other):
+        return self.combine(other, np.subtract)
+
+    def multiply(self, other):
+        return self.combine(other, np.multiply)
+
+    def map(self, ufunc):
+        return Sequence(ufunc(self.unary), ufunc(self.binary), self.log)
+
+    def absolute(self):
+        return self.map(np.absolute)
 
     def multiply_scalar(self, scalar):
-        return LogProbability(unary=self.unary * scalar, binary=self.binary * scalar)
+        return Sequence(scalar * self.unary, scalar * self.binary, self.log)
 
-    def to_probability(self):
-        return Probability(unary=np.exp(self.unary),
-                           binary=np.exp(self.binary))
+    #########################################
+    # Assertion operations
+    #########################################
+    def is_density(self, integral=1):
+        return np.isclose(np.sum(self.unary, axis=1), integral).all() \
+               and np.isclose(np.sum(self.binary, axis=(1, 2)), integral).all()
+
+    def is_consistent(self):
+        ans = True
+        from_left_binary = np.sum(self.binary, axis=1)
+        from_right_binary = np.sum(self.binary, axis=2)
+        if not np.isclose(from_left_binary, self.unary[1:]).all():
+            ans = False
+            # print("Left inconsistent with unary.")
+        if not np.isclose(from_right_binary, self.unary[:-1]).all():
+            ans = False
+            # print("Right inconsistent with unary.")
+        if not np.isclose(from_right_binary[1:], from_left_binary[:-1]).all():
+            ans = False
+            # print("Left inconsistent with right.")
+        return ans
+
+    #########################################
+    # Information theory
+    #########################################
+    def entropy(self, returnlog=False):
+        cliques = utils.entropy(self.binary, returnlog=True)
+        separations = utils.entropy(self.unary[1:-1], returnlog=True)
+        return Sequence._safe_reduce(cliques, separations, returnlog)
+
+    def kullback_leibler(self, other, returnlog=False):
+        cliques = utils.kullback_leibler(self.binary, other.binary, returnlog=True)
+        separations = utils.kullback_leibler(self.unary[1:-1], other.unary[1:-1],
+                                             returnlog=True)
+        return Sequence._safe_reduce(cliques, separations, returnlog)
+
+    @staticmethod
+    def _safe_reduce(cliques, separations, returnlog):
+        if cliques <= separations:
+            return -np.inf if returnlog else 0
+
+        try:
+            ans = cliques + np.log(1 - np.exp(separations - cliques))
+            if returnlog:
+                return ans
+            else:
+                return np.exp(ans)
+
+        except FloatingPointError:
+            print("Entropy problem:", cliques, separations)
+            raise

@@ -2,9 +2,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 import oracles
-from chains import LogProbability, Probability
 from ocr import parse
 from ocr.constant import ALPHABET, ALPHABET_SIZE, NB_PIXELS
+from sequence import Sequence
 
 
 # RADIUS OF THE CORRECTED FEATURES
@@ -137,16 +137,13 @@ class Features:
         """
         return (images.shape[0] - 1) * [self.transition]
 
-    def infer_probabilities(self, images, log):
+    def infer_probabilities(self, images):
         uscores = self.unary_scores(images)
         bscores = self.binary_scores(images)
-        umargs, bmargs, log_partition = oracles.chain_sum_product(uscores, bscores, log=log)
+        umargs, bmargs, log_partition = oracles.chain_sum_product(uscores, bscores)
         umargs = np.minimum(umargs, 0)
         bmargs = np.minimum(bmargs, 0)
-        if log:
-            return LogProbability(umargs, bmargs), log_partition
-        else:
-            return Probability(umargs, bmargs), log_partition
+        return Sequence(umargs, bmargs, log=True), log_partition
 
     def word_score(self, images, labels):
         """Return the score <self,F(images,labels)>."""
@@ -185,10 +182,10 @@ class Features:
         else:
             return Features(self.emission * scalar, self.bias * scalar, self.transition * scalar)
 
-    def combine(self, other, operator):
-        emission = operator(self.emission, other.emission)
-        bias = operator(self.bias, other.bias)
-        transition = operator(self.transition, other.transition)
+    def combine(self, other, ufunc):
+        emission = ufunc(self.emission, other.emission)
+        bias = ufunc(self.bias, other.bias)
+        transition = ufunc(self.transition, other.transition)
         return Features(emission, bias, transition)
 
     def add(self, other):

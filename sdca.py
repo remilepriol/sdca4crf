@@ -45,7 +45,7 @@ def dual_score(weights, marginals, regularization_parameter):
 def divergence_gaps(marginals, weights, images):
     ans = []
     for margs, imgs in zip(marginals, images):
-        newmargs, _ = weights.infer_probabilities(imgs, log=True)
+        newmargs, _ = weights.infer_probabilities(imgs)
         ans.append(margs.kullback_leibler(newmargs))
     return np.array(ans)
 
@@ -55,10 +55,10 @@ def get_slopes(marginals, weights, images, regu):
     ans = []
 
     for margs, imgs in zip(marginals, images):
-        newmargs, _ = weights.infer_probabilities(imgs, log=True)
+        newmargs, _ = weights.infer_probabilities(imgs)
         dual_direction = newmargs.to_probability().subtract(margs.to_probability())
-        assert dual_direction.are_densities(integral=0)
-        assert dual_direction.are_consistent()
+        assert dual_direction.is_density(integral=0)
+        assert dual_direction.is_consistent()
 
         primal_direction = Features()
         primal_direction.add_centroid(imgs, dual_direction)
@@ -156,7 +156,7 @@ def sdca(x, y, regu=1, npass=5, monitoring_period=5, sampler_period=None, precis
         sum_log_partitions = 0
         dgaps = []
         for margs, imgs in zip(marginals, x):
-            newmargs, log_partition = weights.infer_probabilities(imgs, log=True)
+            newmargs, log_partition = weights.infer_probabilities(imgs)
             dgaps.append(margs.kullback_leibler(newmargs))
             sum_log_partitions += log_partition
 
@@ -245,16 +245,16 @@ def sdca(x, y, regu=1, npass=5, monitoring_period=5, sampler_period=None, precis
         ##################################################################################
         # MARGINALIZATION ORACLE and ASCENT DIRECTION (primal to dual)
         ##################################################################################
-        beta_i, log_partition_i = weights.infer_probabilities(x[i], log=True)
-        nbeta_i = beta_i.to_probability()
-        assert nbeta_i.are_consistent()
-        assert nbeta_i.are_densities(1), (parse.display_word(y[i], x[i]),
-                                          beta_i.display(),
-                                          weights.display())
+        beta_i, log_partition_i = weights.infer_probabilities(x[i])
+        nbeta_i = beta_i.exp()
+        assert nbeta_i.is_consistent()
+        assert nbeta_i.is_density(1), (parse.display_word(y[i], x[i]),
+                                       beta_i.display(),
+                                       weights.display())
 
-        dual_direction = beta_i.smart_subtract(alpha_i)
-        assert dual_direction.are_densities(integral=0)
-        assert dual_direction.are_consistent()
+        dual_direction = beta_i.subtract_exp(alpha_i)
+        assert dual_direction.is_density(integral=0)
+        assert dual_direction.is_consistent()
 
         ##################################################################################
         # EXPECTATION of FEATURES (dual to primal)
@@ -299,9 +299,8 @@ def sdca(x, y, regu=1, npass=5, monitoring_period=5, sampler_period=None, precis
 
                 # new marginals
                 newmargs = alpha_i.convex_combination(beta_i, gamma)
-                # assert newmargs.are_densities(1)
-                # assert newmargs.are_consistent()
-                # assert newmargs.are_positive(), newmargs.display
+                # assert newmargs.is_density(1)
+                # assert newmargs.is_consistent()
 
                 # first derivative gf
                 if gamma == 0:
@@ -321,11 +320,10 @@ def sdca(x, y, regu=1, npass=5, monitoring_period=5, sampler_period=None, precis
                 # first derivative divided by the second derivative
                 # this is the step size used by Newton-Raphson
                 log_ggf = dual_direction \
-                    .map(np.absolute) \
-                    .to_logprobability() \
+                    .absolute().log() \
                     .multiply_scalar(2) \
-                    .divide(newmargs) \
-                    .logsumexp(- 2 * quadratic_coeff)  # stable logsumexp
+                    .subtract(newmargs) \
+                    .log_reduce_exp(- 2 * quadratic_coeff)  # stable log sum exp
                 gfdggf = np.log(np.absolute(gf)) - log_ggf  # log(absolute(gf(x)/ggf(x)))
                 gfdggf = - np.sign(gf) * np.exp(gfdggf)  # gf(x)/ggf(x)
                 if returnf:
@@ -335,14 +333,14 @@ def sdca(x, y, regu=1, npass=5, monitoring_period=5, sampler_period=None, precis
                 else:
                     return gf, gfdggf
 
-            gammaopt, subobjective = utils.find_root_decreasing(evaluator=evaluator,
-                                                                precision=1e-2)
+            gammaopt, subobjective = utils.find_root_decreasing(
+                evaluator=evaluator, precision=1e-2)
 
         ##################################################################################
         # UPDATE : the primal and dual coordinates
         ##################################################################################
         marginals[i] = alpha_i.convex_combination(beta_i, gammaopt)
-        weights = weights.add(primal_direction.multiply_scalar(gammaopt, inplace=False))
+        weights = weights.add(primal_direction.multiply_scalar(gammaopt))
 
         ##################################################################################
         # ANNEX
