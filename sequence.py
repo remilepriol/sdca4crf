@@ -5,18 +5,17 @@ import numpy as np
 # custom imports
 import oracles
 import utils
-from ocr.constant import ALPHABET, ALPHABET_SIZE
 
 
-def uniform(length, log=True):
-    unary = np.ones([length, ALPHABET_SIZE])
-    binary = np.ones([length - 1, ALPHABET_SIZE, ALPHABET_SIZE])
+def uniform(length, alphabet_size, log=True):
+    unary = np.ones([length, alphabet_size])
+    binary = np.ones([length - 1, alphabet_size, alphabet_size])
     if log:
-        unary *= - np.log(ALPHABET_SIZE)
-        binary *= -2 * np.log(ALPHABET_SIZE)
+        unary *= - np.log(alphabet_size)
+        binary *= -2 * np.log(alphabet_size)
     else:
-        unary /= ALPHABET_SIZE
-        binary /= ALPHABET_SIZE ** 2
+        unary /= alphabet_size
+        binary /= alphabet_size ** 2
     return Sequence(unary=unary, binary=binary, log=log)
 
 
@@ -69,14 +68,15 @@ class Sequence:
         return "unary: \n" + np.array_repr(self.unary) \
                + "\n binary: \n" + np.array_repr(self.binary)
 
-    def display(self):
+    def display(self, alphabet):
+        alength = len(alphabet)
         plt.matshow(self.unary)
-        plt.xticks(range(ALPHABET_SIZE), [ALPHABET[x] for x in range(ALPHABET_SIZE)])
+        plt.xticks(range(alength), [alphabet[x] for x in range(alength)])
         plt.colorbar(fraction=0.046, pad=0.04)
         plt.title("unary marginals")
         plt.matshow(self.binary.sum(axis=0))
-        plt.xticks(range(ALPHABET_SIZE), [ALPHABET[x] for x in range(ALPHABET_SIZE)])
-        plt.yticks(range(ALPHABET_SIZE), [ALPHABET[x] for x in range(ALPHABET_SIZE)])
+        plt.xticks(range(alength), [alphabet[x] for x in range(alength)])
+        plt.yticks(range(alength), [alphabet[x] for x in range(alength)])
         plt.colorbar(fraction=0.046, pad=0.04)
         plt.title("sum of binary marginals")
 

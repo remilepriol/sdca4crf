@@ -9,6 +9,7 @@ from tqdm import tqdm
 # custom imports
 import utils
 from ocr import parse
+from ocr.constant import ALPHABET, ALPHABET_SIZE
 from ocr.features import Features, radii
 from random_counters import RandomCounters
 from sequence import dirac
@@ -137,7 +138,7 @@ def sdca(x, y, regu=1, npass=5, monitoring_period=5, sampler_period=None, precis
         # gradient in appendix D of the SAG-NUS for CRF paper
         marginals = []
         for imgs, labels in zip(x, y):
-            marginals.append(dirac(imgs, labels, log=True))
+            marginals.append(dirac(labels, ALPHABET_SIZE, log=True))
         marginals = np.array(marginals)
 
     ground_truth_centroid = Features()
@@ -249,8 +250,8 @@ def sdca(x, y, regu=1, npass=5, monitoring_period=5, sampler_period=None, precis
         nbeta_i = beta_i.exp()
         assert nbeta_i.is_consistent()
         assert nbeta_i.is_density(1), (parse.display_word(y[i], x[i]),
-                                       beta_i.display(),
-                                       weights.display())
+                                       beta_i.display(ALPHABET),
+                                       weights.display(ALPHABET))
 
         dual_direction = beta_i.subtract_exp(alpha_i)
         assert dual_direction.is_density(integral=0)
