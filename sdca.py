@@ -17,18 +17,13 @@ from sequence import dirac
 
 # Initialize the weights as the centroid of the ground truth features minus the centroid of the
 # features given by the uniform marginals.
-def marginals_to_features_centroid(images, labels, marginals=None, log=True):
+def marginals_to_features_centroid(images, labels, marginals=None):
     nb_words = labels.shape[0]
 
     centroid = Features()
     if marginals is None:  # assume uniform
         for image in images:
             centroid.add_centroid(image)
-
-    elif log:
-        for image, margs in zip(images, marginals):
-            centroid.add_centroid(image, margs.to_probability())
-
     else:
         for image, margs in zip(images, marginals):
             centroid.add_centroid(image, margs)
@@ -138,13 +133,13 @@ def sdca(x, y, regu=1, npass=5, monitoring_period=5, sampler_period=None, precis
         # gradient in appendix D of the SAG-NUS for CRF paper
         marginals = []
         for imgs, labels in zip(x, y):
-            marginals.append(dirac(labels, ALPHABET_SIZE, log=True))
+            marginals.append(dirac(labels, ALPHABET_SIZE))
         marginals = np.array(marginals)
 
     ground_truth_centroid = Features()
     ground_truth_centroid.add_dictionary(x, y)
     ground_truth_centroid.multiply_scalar(1 / nb_words, inplace=True)
-    weights = marginals_to_features_centroid(x, y, marginals=marginals, log=True)
+    weights = marginals_to_features_centroid(x, y, marginals=marginals)
     weights = ground_truth_centroid.subtract(weights)
     weights.multiply_scalar(1 / regu, inplace=True)
 
