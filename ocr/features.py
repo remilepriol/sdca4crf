@@ -110,6 +110,8 @@ class Features:
             self._add_unary_centroid(images, None)
             self._add_binary_centroid(images, None)
         else:
+            if marginals.islog:
+                marginals = marginals.exp()
             self._add_unary_centroid(images, marginals.unary)
             self._add_binary_centroid(images, marginals.binary)
 
