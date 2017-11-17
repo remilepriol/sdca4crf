@@ -3,13 +3,12 @@ import numpy as np
 import utils
 
 
-def chain_sum_product(uscores, bscores, log=False):
+def chain_sum_product(uscores, bscores):
     """Apply the sum-product algorithm on a chain
 
     :param uscores: array T*K, (unary) scores on individual nodes
     :param bscores: array (T-1)*K*K, (binary) scores on the edges
-    :param log: if True, return the log-marginals
-    :return: marginals on nodes, marginals on edges, log-partition
+    :return: log-marginals on nodes, log-marginals on edges, log-partition
     """
 
     # I keep track of the log messages instead of the messages
@@ -45,10 +44,7 @@ def chain_sum_product(uscores, bscores, log=False):
         binary_marginals[t] = forward_messages[t - 1, :, np.newaxis] + uscores[t, :, np.newaxis] + bscores[t] + uscores[
             t + 1] + backward_messages[t + 1]
 
-    if log:
-        return unary_marginals, binary_marginals, log_partition
-    else:
-        return np.exp(unary_marginals), np.exp(binary_marginals), log_partition
+    return unary_marginals, binary_marginals, log_partition
 
 
 def chain_viterbi(uscores, bscores):
