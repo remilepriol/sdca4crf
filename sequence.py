@@ -33,7 +33,7 @@ def dirac(labels, alphabet_size, log=True):
     binary = np.zeros([length - 1, alphabet_size, alphabet_size])
     binary[np.arange(length - 1), labels[:-1], labels[1:]] = constant
     if log:
-        unary, binary, _ = oracles.chain_sum_product(unary, binary)
+        unary, binary, _ = oracles.sequence_sum_product(unary, binary)
     return Sequence(unary=binary, binary=binary, log=log)
 
 

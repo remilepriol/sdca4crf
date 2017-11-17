@@ -3,7 +3,7 @@ import numpy as np
 import utils
 
 
-def chain_sum_product(uscores, bscores):
+def sequence_sum_product(uscores, bscores):
     """Apply the sum-product algorithm on a chain
 
     :param uscores: array T*K, (unary) scores on individual nodes
@@ -47,7 +47,7 @@ def chain_sum_product(uscores, bscores):
     return unary_marginals, binary_marginals, log_partition
 
 
-def chain_viterbi(uscores, bscores):
+def sequence_viterbi(uscores, bscores):
     # I keep track of the score instead of the potentials
     # because summation is more stable than multiplication
     chain_length, nb_class = uscores.shape

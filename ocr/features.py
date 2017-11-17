@@ -140,7 +140,7 @@ class Features:
     def infer_probabilities(self, images):
         uscores = self.unary_scores(images)
         bscores = self.binary_scores(images)
-        umargs, bmargs, log_partition = oracles.chain_sum_product(uscores, bscores)
+        umargs, bmargs, log_partition = oracles.sequence_sum_product(uscores, bscores)
         umargs = np.minimum(umargs, 0)
         bmargs = np.minimum(bmargs, 0)
         return Sequence(umargs, bmargs, log=True), log_partition
@@ -155,7 +155,7 @@ class Features:
     def predict(self, images):
         uscores = self.unary_scores(images)
         bscores = self.binary_scores(images)
-        return oracles.chain_viterbi(uscores, bscores)
+        return oracles.sequence_viterbi(uscores, bscores)
 
     def prediction_score(self, x, y):
         loss01 = 0
