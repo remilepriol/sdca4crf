@@ -7,58 +7,58 @@ import oracles
 import utils
 
 
-def uniform(length, alphabet_size, log=True):
-    unary = np.ones([length, alphabet_size])
-    binary = np.ones([length - 1, alphabet_size, alphabet_size])
+def uniform(length, nb_class, log=True):
+    unary = np.ones([length, nb_class])
+    binary = np.ones([length - 1, nb_class, nb_class])
     if log:
-        unary *= - np.log(alphabet_size)
-        binary *= -2 * np.log(alphabet_size)
+        unary *= - np.log(nb_class)
+        binary *= -2 * np.log(nb_class)
     else:
-        unary /= alphabet_size
-        binary /= alphabet_size ** 2
+        unary /= nb_class
+        binary /= nb_class ** 2
     return Sequence(unary=unary, binary=binary, log=log)
 
 
-def dirac(labels, alphabet_size, log=True):
+def dirac(labels, nb_class, log=True):
     """Return an array of dirac over the observed labels.
 
     :param labels:
-    :param alphabet_size:
+    :param nb_class:
     :param log: if True, return smoothed log-probabilities
     """
     length = labels.shape[0]
     constant = 10 if log else 1
-    unary = np.zeros([length, alphabet_size])
+    unary = np.zeros([length, nb_class])
     unary[np.arange(length), labels] = constant
-    binary = np.zeros([length - 1, alphabet_size, alphabet_size])
+    binary = np.zeros([length - 1, nb_class, nb_class])
     binary[np.arange(length - 1), labels[:-1], labels[1:]] = constant
     if log:
         unary, binary, _ = oracles.sequence_sum_product(unary, binary)
-    return Sequence(unary=binary, binary=binary, log=log)
+    return Sequence(unary=unary, binary=binary, log=log)
 
 
 class Sequence:
     """Represent anything that is decomposable over the nodes and edges of a sequential model.
 
     It can be a score, a conditional probability p(y|x) under the form of MARGINALS or
-    LOG-MARGINALS (in which case self.log=True), the ascent direction, the derivative of the KL
+    LOG-MARGINALS (in which case self.islog=True), the ascent direction, the derivative of the KL
     or the entropy."""
 
     def __init__(self, unary, binary, log):
         if unary.shape[0] != binary.shape[0] + 1:
             raise ValueError("Wrong length of marginals: %i vs %i"
-                             % (unary.shape[0], binary.shape[0]))
+                             % (unary.shape[0], binary.shape[0] + 1))
         self.length = unary.shape[0]
 
         if unary.shape[1] != binary.shape[1] \
                 or unary.shape[1] != binary.shape[2]:
             raise ValueError("Wring alphabet size: %i vs (%i, %i)"
                              % (unary.shape[1], binary.shape[1], binary.shape[2]))
-        self.alphabet_size = unary.shape[1]
+        self.nb_class = unary.shape[1]
 
         self.unary = unary
         self.binary = binary
-        self.log = log
+        self.islog = log
 
     def __str__(self):
         return "unary: \n" + np.array_str(self.unary) \
@@ -112,7 +112,7 @@ class Sequence:
         if s == 1:
             return other
 
-        if self.log:
+        if self.islog:
             unary = np.minimum(0, utils.logsumexp(
                 np.asarray([self.unary + np.log(1 - s), other.unary + np.log(s)]), axis=0))
             binary = np.minimum(0, utils.logsumexp(
@@ -120,7 +120,7 @@ class Sequence:
         else:
             unary = (1 - s) * self.unary + s * other.unary
             binary = (1 - s) * self.binary + s * other.binary
-        return Sequence(unary=unary, binary=binary, log=self.log)
+        return Sequence(unary=unary, binary=binary, log=self.islog)
 
     def subtract_exp(self, other):
         """Return the ascent direction without numerical issues
@@ -143,7 +143,7 @@ class Sequence:
     def combine(self, other, ufunc):
         unary = ufunc(self.unary, other.unary)
         binary = ufunc(self.binary, other.binary)
-        return Sequence(unary, binary, self.log)
+        return Sequence(unary, binary, self.islog)
 
     def add(self, other):
         return self.combine(other, np.add)
@@ -155,13 +155,13 @@ class Sequence:
         return self.combine(other, np.multiply)
 
     def map(self, ufunc):
-        return Sequence(ufunc(self.unary), ufunc(self.binary), self.log)
+        return Sequence(ufunc(self.unary), ufunc(self.binary), self.islog)
 
     def absolute(self):
         return self.map(np.absolute)
 
     def multiply_scalar(self, scalar):
-        return Sequence(scalar * self.unary, scalar * self.binary, self.log)
+        return Sequence(scalar * self.unary, scalar * self.binary, self.islog)
 
     #########################################
     # Assertion operations
