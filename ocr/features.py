@@ -149,11 +149,13 @@ class Features:
 
     def word_score(self, images, labels):
         """Return the score <self,F(images,labels)>."""
-        return \
-            np.sum(images * self.emission[labels]) \
-            + np.sum(self.bias[labels, np.zeros(labels.shape[0])]) \
-            + np.sum(self.transition[labels[:-1], labels[1:]])
-
+        ans = np.sum(images * self.emission[labels])
+        ans += np.sum(self.bias[labels, 0])
+        ans += self.bias[labels[0], 1]
+        ans += self.bias[labels[-1], 2]
+        ans += np.sum(self.transition[labels[:-1], labels[1:]])
+        return ans
+    
     def predict(self, images):
         uscores = self.unary_scores(images)
         bscores = self.binary_scores(images)
