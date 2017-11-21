@@ -161,7 +161,7 @@ class Features:
         bscores = self.binary_scores(images)
         return oracles.sequence_viterbi(uscores, bscores)
 
-    def prediction_score(self, x, y):
+    def prediction_loss(self, x, y):
         loss01 = 0
         loss_hamming = 0
         nb_letters = 0

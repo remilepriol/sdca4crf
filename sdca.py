@@ -195,7 +195,7 @@ def sdca(x, y, regu=1, npass=5, monitoring_period=5, sampler_period=None, precis
     # compute the test error if a test set is present:
     do_test = xtest is not None and ytest is not None
     if do_test:
-        loss01, loss_hamming = weights.prediction_score(xtest, ytest)
+        loss01, loss_hamming = weights.prediction_loss(xtest, ytest)
         objs.extend([loss01, loss_hamming])
 
     objectives = [objs]
@@ -413,7 +413,7 @@ def sdca(x, y, regu=1, npass=5, monitoring_period=5, sampler_period=None, precis
                 t += nb_words  # count the full batch in the number of steps
 
             if do_test:
-                loss01, loss_hamming = weights.prediction_score(xtest, ytest)
+                loss01, loss_hamming = weights.prediction_loss(xtest, ytest)
                 objs.extend([loss01, loss_hamming])
 
             objectives.append(objs)
