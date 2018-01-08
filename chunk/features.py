@@ -4,51 +4,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 import oracles
+from chunk.parse import ALPHALEN, get_unary_attributes
 from sequence import Sequence
-
-ALPHABET = [
-    'I-INTJ', 'I-CONJP', 'O', 'I-ADVP', 'B-VP', 'B-LST', 'I-LST', 'I-PRT', 'I-SBAR', 'I-UCP',
-    'B-CONJP', 'I-PP', 'B-ADVP', 'I-NP', 'I-VP', 'B-ADJP', 'B-PP', 'B-NP', 'I-ADJP', 'B-PRT',
-    'B-SBAR', 'B-UCP', 'B-INTJ'
-]
-ALPHALEN = len(ALPHABET)
-TAG2INT = {tag: i for i, tag in enumerate(ALPHABET)}
-TEMPLATES = (
-    ((0, -2),),
-    ((0, -1),),
-    ((0, 0),),
-    ((0, 1),),
-    ((0, 2),),
-    ((0, -1), (0, 0)),
-    ((0, 0), (0, 1)),
-    ((1, -2),),
-    ((1, -1),),
-    ((1, 0),),
-    ((1, 1),),
-    ((1, 2),),
-    ((1, -2), (1, -1)),
-    ((1, -1), (1, 0)),
-    ((1, 0), (1, 1)),
-    ((1, 1), (1, 2)),
-    ((1, -2), (1, -1), (1, 0)),
-    ((1, -1), (1, 0), (1, 1)),
-    ((1, 0), (1, 1), (1, 2)),
-)
-
-
-def get_unary_attributes(sentence, t):
-    keys = []
-    for template in TEMPLATES:
-        values = []
-        for (field, offset) in template:
-            p = t + offset
-            if p < 0 or p >= len(sentence):
-                values = []
-                break
-            values.append(sentence[p][field])
-        if values:
-            keys.append("%s=%s" % (str(template), '|'.join(values)))
-    return keys
 
 
 def radius(*args):
