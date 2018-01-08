@@ -52,29 +52,32 @@ def sequence_sum_product(us, bs):
 def sequence_viterbi(uscores, bscores):
     # I keep track of the score instead of the potentials
     # because summation is more stable than multiplication
-    chain_length, nb_class = uscores.shape
+    length, nb_class = uscores.shape
+    if length == 1:
+        global_argmax = np.argmax(uscores[0])
+        return global_argmax, uscores[0, global_argmax]
 
     # backward pass
-    argmax_messages = np.empty([chain_length - 1, nb_class], dtype=int)
-    max_messages = np.empty([chain_length - 1, nb_class], dtype=float)
+    argmax_messages = np.empty([length - 1, nb_class], dtype=int)
+    max_messages = np.empty([length - 1, nb_class], dtype=float)
     tmp = bscores[-1] + uscores[-1]
     # Find the arg max
     argmax_messages[-1] = np.argmax(tmp, axis=-1)
     # Store the max
     max_messages[-1] = tmp[np.arange(nb_class), argmax_messages[-1]]
-    for t in range(chain_length - 3, -1, -1):
+    for t in range(length - 3, -1, -1):
         tmp = bscores[t] + uscores[t + 1] + max_messages[t + 1]
         argmax_messages[t] = np.argmax(tmp, axis=-1)
         max_messages[t] = tmp[np.arange(nb_class), argmax_messages[t]]
 
     # Label to be returned
-    global_argmax = np.empty(chain_length, dtype=int)
+    global_argmax = np.empty(length, dtype=int)
 
     # forward pass
     tmp = max_messages[0] + uscores[0]
     global_argmax[0] = np.argmax(tmp)
     global_max = tmp[global_argmax[0]]
-    for t in range(1, chain_length):
+    for t in range(1, length):
         global_argmax[t] = argmax_messages[t - 1, global_argmax[t - 1]]
 
     return global_argmax, global_max
