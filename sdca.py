@@ -103,7 +103,7 @@ def sdca(features_module, x, y, regu=1, npass=5, monitoring_period=5, sampler_pe
         marginals = warm_start
     else:  # empirical initialization
         # The empirical marginals give a good value of the dual objective : 0,
-        # and primal objective : average sequence length times log alphabet size = 23
+        # and primal objective : average sequence length times log alphabet-size = 23
         # but the entropy has an infinite slope and curvature in the corners
         # of the simplex. Hence we take a convex combination between a lot of
         # empirical and a bit of uniform.
@@ -222,9 +222,7 @@ def sdca(features_module, x, y, regu=1, npass=5, monitoring_period=5, sampler_pe
         beta_i, log_partition_i = weights.infer_probabilities(x[i])
         nbeta_i = beta_i.exp()
         assert nbeta_i.is_consistent()
-        assert nbeta_i.is_density(1), \
-            (beta_i.display(features_module.ALPHABET),
-             weights.display(features_module.ALPHABET))
+        assert nbeta_i.is_density(1)
 
         dual_direction = beta_i.subtract_exp(alpha_i)
         assert dual_direction.is_density(integral=0)
