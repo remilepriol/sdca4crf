@@ -1,5 +1,4 @@
 # standard imports
-import importlib
 import time
 
 import numpy as np
@@ -8,19 +7,16 @@ from tqdm import tqdm
 
 # custom imports
 import utils
-from ocr import parse
-from ocr.constant import ALPHABET, ALPHABET_SIZE
-from ocr.features import Features, radii
 from random_counters import RandomCounters
 from sequence import dirac
 
 
 # Initialize the weights as the centroid of the ground truth features minus the centroid of the
 # features given by the uniform marginals.
-def marginals_to_features_centroid(images, labels, marginals=None):
+def marginals_to_features_centroid(images, labels, features_cls, marginals=None):
     nb_words = labels.shape[0]
 
-    centroid = Features()
+    centroid = features_cls()
     if marginals is None:  # assume uniform
         for image in images:
             centroid.add_centroid(image)
@@ -46,28 +42,8 @@ def divergence_gaps(marginals, weights, images):
     return np.array(ans)
 
 
-def get_slopes(marginals, weights, images, regu):
-    nb_words = marginals.shape[0]
-    ans = []
-
-    for margs, imgs in zip(marginals, images):
-        newmargs, _ = weights.infer_probabilities(imgs)
-        dual_direction = newmargs.to_probability().subtract(margs.to_probability())
-        assert dual_direction.is_density(integral=0)
-        assert dual_direction.is_consistent()
-
-        primal_direction = Features()
-        primal_direction.add_centroid(imgs, dual_direction)
-        primal_direction.multiply_scalar(-1 / regu / nb_words, inplace=True)
-
-        slope = - dual_direction.inner_product(newmargs) \
-                - regu * nb_words * weights.inner_product(primal_direction)
-        ans.append(slope)
-
-    return ans
-
-
-def sdca(x, y, regu=1, npass=5, monitoring_period=5, sampler_period=None, precision=1e-5,
+def sdca(features_module, x, y, regu=1, npass=5, monitoring_period=5, sampler_period=None,
+         precision=1e-5,
          sampling="uniform", non_uniformity=0, step_size=None,
          warm_start=None, _debug=False, logdir=None, xtest=None, ytest=None):
     """Update alpha and weights with the stochastic dual coordinate ascent algorithm to fit
@@ -76,6 +52,8 @@ def sdca(x, y, regu=1, npass=5, monitoring_period=5, sampler_period=None, precis
     Unless warm_start is used, the initial point is a concatenation of the smoothed empirical
     distributions.
 
+    :param features_module: module corresponding to the dataset, with the relevant alphabet and
+    features.
     :param x: data points organized by rows
     :param y: labels as a one dimensional array. They should be positive.
     :param regu: value of the l2 regularization parameter
@@ -133,13 +111,14 @@ def sdca(x, y, regu=1, npass=5, monitoring_period=5, sampler_period=None, precis
         # gradient in appendix D of the SAG-NUS for CRF paper
         marginals = []
         for imgs, labels in zip(x, y):
-            marginals.append(dirac(labels, ALPHABET_SIZE))
+            marginals.append(dirac(labels, features_module.ALPHALEN))
         marginals = np.array(marginals)
 
-    ground_truth_centroid = Features()
+    ground_truth_centroid = features_module.Features()
     ground_truth_centroid.add_dictionary(x, y)
     ground_truth_centroid.multiply_scalar(1 / nb_words, inplace=True)
-    weights = marginals_to_features_centroid(x, y, marginals=marginals)
+    weights = marginals_to_features_centroid(x, y, features_module.Features,
+                                             marginals=marginals)
     weights = ground_truth_centroid.subtract(weights)
     weights.multiply_scalar(1 / regu, inplace=True)
 
@@ -201,7 +180,6 @@ def sdca(x, y, regu=1, npass=5, monitoring_period=5, sampler_period=None, precis
     objectives = [objs]
 
     # tensorboard_logger commands
-    importlib.reload(tl)
     if logdir is not None:
         tl.configure(logdir=logdir, flush_secs=15)
 
@@ -216,7 +194,7 @@ def sdca(x, y, regu=1, npass=5, monitoring_period=5, sampler_period=None, precis
     annex = []
 
     # non-uniform sampling
-    importances = 1 + radii(x, y) ** 2 / nb_words / regu
+    importances = 1 + features_module.radii(x, y) ** 2 / nb_words / regu
     if sampling == "uniform" or sampling == "gap":
         sampler = RandomCounters(100 * np.ones(nb_words))
     elif sampling == "importance" or sampling == "gap+":
@@ -244,9 +222,9 @@ def sdca(x, y, regu=1, npass=5, monitoring_period=5, sampler_period=None, precis
         beta_i, log_partition_i = weights.infer_probabilities(x[i])
         nbeta_i = beta_i.exp()
         assert nbeta_i.is_consistent()
-        assert nbeta_i.is_density(1), (parse.display_word(y[i], x[i]),
-                                       beta_i.display(ALPHABET),
-                                       weights.display(ALPHABET))
+        assert nbeta_i.is_density(1), \
+            (beta_i.display(features_module.ALPHABET),
+             weights.display(features_module.ALPHABET))
 
         dual_direction = beta_i.subtract_exp(alpha_i)
         assert dual_direction.is_density(integral=0)
@@ -255,7 +233,7 @@ def sdca(x, y, regu=1, npass=5, monitoring_period=5, sampler_period=None, precis
         ##################################################################################
         # EXPECTATION of FEATURES (dual to primal)
         ##################################################################################
-        primal_direction = Features()
+        primal_direction = features_module.Features()
         primal_direction.add_centroid(x[i], dual_direction)
 
         # Centroid of the corrected features in the dual direction

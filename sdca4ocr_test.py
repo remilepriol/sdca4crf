@@ -9,13 +9,13 @@ import numpy as np
 import sdca
 from ocr import features, parse
 
-labels, images, folds = parse.letters_to_labels_and_words(
-    parse.read_lettersfile('../data/ocr/letter.data.tsv'))
+images, labels, folds = parse.letters_to_labels_and_words(
+    parse.read_data('../data/ocr/letter.data.tsv'))
 
 radii = features.radii(images, labels)
 max_radius = np.amax(radii)
 
-training_folds = set(range(1))
+training_folds = set(range(0, 1))
 training_mask = np.array([fold in training_folds for fold in folds])
 xtrain = images[training_mask]
 ytrain = labels[training_mask]
@@ -47,12 +47,11 @@ if not os.path.exists(dirname):
 parameters = {
     'regu': regu,
     'npass': 100,
-    'sampling': 'importance',
+    'sampling': 'gap+',
     'non_uniformity': .8,
     'monitoring_period': 5,
     'sampler_period': None,
     'precision': 1e-7,
-    'subprecision': 1e-2,
     'logdir': dirname,
     '_debug': True,
 }
@@ -68,7 +67,7 @@ with open(dirname + '/parameters.txt', 'w') as file:
         file.write("\n" + key + " : " + str(value))
 
 fullmargs, fullweights, fullobjective, fullannex = \
-    sdca.sdca(xtrain, ytrain, xtest=xtest, ytest=ytest)
+    sdca.sdca(features, xtrain, ytrain, xtest=xtest, ytest=ytest, **parameters)
 
 os.system('say "I am done."')
 
