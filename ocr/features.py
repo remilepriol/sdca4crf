@@ -2,13 +2,25 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 import oracles
-from ocr import parse
-from ocr.constant import ALPHABET, ALPHABET_SIZE, NB_PIXELS
 from sequence import Sequence
 
+ALPHABET = "abcdefghijklmnopqrstuvwxyz"
+ALPHALEN = len(ALPHABET)
+# Field values to parse the csv
+LETTER_ID = 0
+LETTER_VALUE = 1
+NEXT_ID = 2
+WORD_ID = 3
+POSITION = 4
+FOLD = 5
+FIRST_PIXEL = 6
+IMAGE_HEIGHT = 16
+IMAGE_WIDTH = 8
+NB_PIXELS = IMAGE_HEIGHT * IMAGE_WIDTH
+NB_FEATURES = ALPHALEN * (NB_PIXELS + ALPHALEN + 3)
+MAX_LENGTH = 20
 
 # RADIUS OF THE CORRECTED FEATURES
-
 def radius(word, label):
     """Return \max_y \|F(x_i,y_i) - F(x_i,y) \|^2
 
@@ -23,7 +35,7 @@ def radius(word, label):
 
     # the optimal y puts all the weight on one character
     # that is not included in the true label
-    char = np.setdiff1d(np.arange(ALPHABET_SIZE), label)[0]
+    char = np.setdiff1d(np.arange(ALPHALEN), label)[0]
     label2 = char * np.ones_like(label)
     feat.add_word(word, label2)
 
@@ -44,23 +56,23 @@ class Features:
 
     def __init__(self, emission=None, bias=None, transition=None, random=False):
         if random:
-            self.emission = np.random.randn(ALPHABET_SIZE, NB_PIXELS)
-            self.bias = np.random.randn(ALPHABET_SIZE, 3)
-            self.transition = np.random.randn(ALPHABET_SIZE, ALPHABET_SIZE)
+            self.emission = np.random.randn(ALPHALEN, NB_PIXELS)
+            self.bias = np.random.randn(ALPHALEN, 3)
+            self.transition = np.random.randn(ALPHALEN, ALPHALEN)
             return
 
         if emission is None:
-            self.emission = np.zeros([ALPHABET_SIZE, NB_PIXELS])
+            self.emission = np.zeros([ALPHALEN, NB_PIXELS])
         else:
             self.emission = emission
 
         if bias is None:
-            self.bias = np.zeros([ALPHABET_SIZE, 3])
+            self.bias = np.zeros([ALPHALEN, 3])
         else:
             self.bias = bias
 
         if transition is None:
-            self.transition = np.zeros([ALPHABET_SIZE, ALPHABET_SIZE])
+            self.transition = np.zeros([ALPHALEN, ALPHALEN])
         else:
             self.transition = transition
 
@@ -90,9 +102,9 @@ class Features:
 
     def _add_unary_centroid(self, images, unary_marginals=None):
         if unary_marginals is None:  # assume uniform marginal
-            self.emission += np.sum(images, axis=0) / ALPHABET_SIZE
-            self.bias[:, 0] += images.shape[0] / ALPHABET_SIZE
-            self.bias[:, 1:] += 1 / ALPHABET_SIZE
+            self.emission += np.sum(images, axis=0) / ALPHALEN
+            self.bias[:, 0] += images.shape[0] / ALPHALEN
+            self.bias[:, 1:] += 1 / ALPHALEN
         else:
             self.emission += np.dot(unary_marginals.T, images)
             self.bias[:, 0] += np.sum(unary_marginals, axis=0)
@@ -101,7 +113,7 @@ class Features:
 
     def _add_binary_centroid(self, images, binary_marginals=None):
         if binary_marginals is None:  # assume uniform marginal
-            self.transition += (images.shape[0] - 1) / ALPHABET_SIZE ** 2
+            self.transition += (images.shape[0] - 1) / ALPHALEN ** 2
         else:
             self.transition += np.sum(binary_marginals, axis=0)
 
@@ -208,9 +220,9 @@ class Features:
 
     def display(self):
         cmap = "Greys"
-        emissions = parse.letters2wordimage(self.emission)
+        emissions = letters2wordimage(self.emission)
         plt.matshow(emissions, cmap=cmap)
-        ticks_positions = np.linspace(0, emissions.shape[1], ALPHABET_SIZE + 2).astype(int)[1:-1]
+        ticks_positions = np.linspace(0, emissions.shape[1], ALPHALEN + 2).astype(int)[1:-1]
         plt.xticks(ticks_positions, list(ALPHABET))
         plt.colorbar(fraction=0.046, pad=0.04)
         plt.matshow(self.transition, cmap=cmap)
@@ -223,3 +235,12 @@ class Features:
         plt.xticks(range(26), [ALPHABET[x] for x in range(26)])
         plt.colorbar(fraction=0.046, pad=0.04)
         plt.title("Bias features")
+
+
+def letters2wordimage(letters_images):
+    word_image = np.zeros([IMAGE_HEIGHT, 2])
+    spacing = np.zeros([IMAGE_HEIGHT, 2])
+    for letter in letters_images:
+        letter_image = letter.reshape((IMAGE_HEIGHT, IMAGE_WIDTH))
+        word_image = np.hstack((word_image, letter_image, spacing))
+    return word_image

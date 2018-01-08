@@ -3,8 +3,7 @@ import csv
 import matplotlib.pyplot as plt
 import numpy as np
 
-from ocr.constant import ALPHABET, FIRST_PIXEL, FOLD, IMAGE_HEIGHT, IMAGE_WIDTH, LETTER_VALUE, \
-    NEXT_ID
+from ocr.features import ALPHABET, FIRST_PIXEL, FOLD, LETTER_VALUE, NEXT_ID, letters2wordimage
 
 
 def letter2integer(letter):
@@ -26,15 +25,6 @@ def word2list(word):
     return [letter2integer(letter) for letter in word]
 
 
-def letters2wordimage(letters_images):
-    word_image = np.zeros([IMAGE_HEIGHT, 2])
-    spacing = np.zeros([IMAGE_HEIGHT, 2])
-    for letter in letters_images:
-        letter_image = letter.reshape((IMAGE_HEIGHT, IMAGE_WIDTH))
-        word_image = np.hstack((word_image, letter_image, spacing))
-    return word_image
-
-
 def display_word(letters_labels, letters_images):
     word_string = list2word(letters_labels)
     word_image = letters2wordimage(letters_images)
@@ -44,7 +34,7 @@ def display_word(letters_labels, letters_images):
     plt.show()
 
 
-def read_lettersfile(tsv_file):
+def read_data(tsv_file):
     import io
     letters = []
     with io.open(tsv_file, newline='') as file:
@@ -80,7 +70,7 @@ def letters_to_labels_and_words(letters):
             allfolds.append(letter[FOLD])
             labels = []
             images = []
-    return np.array(alllabels), np.array(allimages), np.array(allfolds)
+    return np.array(allimages), np.array(alllabels), np.array(allfolds)
 
 
 def extract_wordlengths(letters):
