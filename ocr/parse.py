@@ -3,7 +3,21 @@ import csv
 import matplotlib.pyplot as plt
 import numpy as np
 
-from ocr.features import ALPHABET, FIRST_PIXEL, FOLD, LETTER_VALUE, NEXT_ID, letters2wordimage
+# Field values to parse the csv
+ALPHABET = "abcdefghijklmnopqrstuvwxyz"
+ALPHALEN = len(ALPHABET)
+LETTER_ID = 0
+LETTER_VALUE = 1
+NEXT_ID = 2
+WORD_ID = 3
+POSITION = 4
+FOLD = 5
+FIRST_PIXEL = 6
+IMAGE_HEIGHT = 16
+IMAGE_WIDTH = 8
+NB_PIXELS = IMAGE_HEIGHT * IMAGE_WIDTH
+NB_FEATURES = ALPHALEN * (NB_PIXELS + ALPHALEN + 3)
+MAX_LENGTH = 20
 
 
 def letter2integer(letter):
@@ -92,3 +106,12 @@ def unique_words(words_labels):
     for word in words_labels:
         list_of_words.append(list2word(word))
     return np.unique(list_of_words, return_counts=True)
+
+
+def letters2wordimage(letters_images):
+    word_image = np.zeros([IMAGE_HEIGHT, 2])
+    spacing = np.zeros([IMAGE_HEIGHT, 2])
+    for letter in letters_images:
+        letter_image = letter.reshape((IMAGE_HEIGHT, IMAGE_WIDTH))
+        word_image = np.hstack((word_image, letter_image, spacing))
+    return word_image

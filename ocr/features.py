@@ -2,23 +2,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 import oracles
+from ocr.parse import ALPHABET, ALPHALEN, NB_PIXELS, letters2wordimage
 from sequence import Sequence
 
-ALPHABET = "abcdefghijklmnopqrstuvwxyz"
-ALPHALEN = len(ALPHABET)
-# Field values to parse the csv
-LETTER_ID = 0
-LETTER_VALUE = 1
-NEXT_ID = 2
-WORD_ID = 3
-POSITION = 4
-FOLD = 5
-FIRST_PIXEL = 6
-IMAGE_HEIGHT = 16
-IMAGE_WIDTH = 8
-NB_PIXELS = IMAGE_HEIGHT * IMAGE_WIDTH
-NB_FEATURES = ALPHALEN * (NB_PIXELS + ALPHALEN + 3)
-MAX_LENGTH = 20
 
 # RADIUS OF THE CORRECTED FEATURES
 def radius(word, label):
@@ -237,10 +223,3 @@ class Features:
         plt.title("Bias features")
 
 
-def letters2wordimage(letters_images):
-    word_image = np.zeros([IMAGE_HEIGHT, 2])
-    spacing = np.zeros([IMAGE_HEIGHT, 2])
-    for letter in letters_images:
-        letter_image = letter.reshape((IMAGE_HEIGHT, IMAGE_WIDTH))
-        word_image = np.hstack((word_image, letter_image, spacing))
-    return word_image
