@@ -26,7 +26,7 @@ def dirac(labels, nb_class, log=True):
     :param nb_class:
     :param log: if True, return smoothed log-probabilities
     """
-    length = labels.shape[0]
+    length = len(labels)
     constant = 10 if log else 1
     unary = np.zeros([length, nb_class])
     unary[np.arange(length), labels] = constant
