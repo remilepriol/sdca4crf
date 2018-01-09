@@ -51,22 +51,29 @@ def read_data(file, attributes_dictionary, nb_sentences=None):
                 yi.append(TAG2INT[row[0]])
 
                 # build a sparse binary embedding of the attributes
-                column_indices = []
+                xij = []
                 for att in row[1:]:
                     if att in attributes_dictionary:
-                        column_indices.append(attributes_dictionary[att])
-
-                nb_attributes = len(column_indices)
-                xij = sps.csr_matrix(
-                    (np.ones(nb_attributes),  # values
-                     (np.zeros(nb_attributes), column_indices)),  # row and column indices
-                    shape=(1, total_attributes))  # shape
-
+                        xij.append(attributes_dictionary[att])
                 xi.append(xij)
 
             else:  # end of sentence
+                # transform xi from list to sparse matrix
+                nb_attributes = 0
+                row_ind = []
+                col_ind = []
+                for j, xij in enumerate(xi):
+                    nb_attributes += len(xij)
+                    row_ind.extend([j] * len(xij))
+                    col_ind.extend(xij)
+
+                xxi = sps.csr_matrix(
+                    ([1] * nb_attributes,  # values
+                     (row_ind, col_ind)),  # row and column indices
+                    shape=(len(xi), total_attributes))  # shape
+
                 # append new sentence to the list
-                x.append(xi)
+                x.append(xxi)
                 y.append(yi)
                 xi = []
                 yi = []
