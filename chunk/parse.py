@@ -3,7 +3,7 @@ import csv
 
 import matplotlib.pyplot as plt
 import numpy as np
-import scipy.sparse as sparse
+import scipy.sparse as sps
 
 ALPHABET = [
     'I-INTJ', 'I-CONJP', 'O', 'I-ADVP', 'B-VP', 'B-LST', 'I-LST', 'I-PRT', 'I-SBAR', 'I-UCP',
@@ -14,7 +14,7 @@ ALPHALEN = len(ALPHABET)
 TAG2INT = {tag: i for i, tag in enumerate(ALPHABET)}
 
 
-def build_dictionary(file):
+def build_dictionary(file, min_occurence=3):
     """Build a dictionary mapping all the possible attributes to an integer."""
 
     with open(file) as f:
@@ -26,9 +26,9 @@ def build_dictionary(file):
                 attributes.extend(row[1:])
 
         # remove duplicates
-        attributes = set(attributes)
+        uattributes, counts = np.unique(attributes, return_counts=True)
         # make dictionaries
-        dattributes = {tag: i for i, tag in enumerate(attributes)}
+        dattributes = {tag: i for i, tag in enumerate(uattributes[counts >= min_occurence])}
 
         return dattributes
 
@@ -46,16 +46,7 @@ def read_data(file, attributes_dictionary, nb_sentences=None):
         yi = []
         count_sentences = 0
         for row in reader:
-            if len(row) == 0:  # end of sentence
-                # append new sentence to the list
-                x.append(xi)
-                y.append(yi)
-                xi = []
-                yi = []
-                count_sentences += 1
-                if nb_sentences is not None and count_sentences >= nb_sentences:
-                    break
-            else:
+            if len(row) > 0:
                 # append to sentence
                 yi.append(TAG2INT[row[0]])
 
@@ -66,12 +57,22 @@ def read_data(file, attributes_dictionary, nb_sentences=None):
                         column_indices.append(attributes_dictionary[att])
 
                 nb_attributes = len(column_indices)
-                xij = sparse.csr_matrix(
+                xij = sps.csr_matrix(
                     (np.ones(nb_attributes),  # values
                      (np.zeros(nb_attributes), column_indices)),  # row and column indices
                     shape=(1, total_attributes))  # shape
 
                 xi.append(xij)
+
+            else:  # end of sentence
+                # append new sentence to the list
+                x.append(xi)
+                y.append(yi)
+                xi = []
+                yi = []
+                count_sentences += 1
+                if nb_sentences is not None and count_sentences >= nb_sentences:
+                    break
 
         return x, y
 
