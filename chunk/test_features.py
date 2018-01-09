@@ -1,12 +1,12 @@
-from chunk.parse import build_dictionaries
+from chunk.parse import build_dictionary, read_data
 
-filename = "../../data/conll2000/train.txt"
-dwords, dpos, dchunk = build_dictionaries(filename)
-# x, y = read_data(filename)
+filename = "../../data/conll2000/train.att.txt"
+dattributes = build_dictionary(filename)
+x, y = read_data(filename, dattributes)
 
-print(len(dwords.keys()))
-print(dpos.keys())
-print(dchunk.keys())
+print(len(dattributes.keys()))
+print(y[:10])
+print(x[0])
 
 # feat = Features()
 # feat.add_dictionary(x, y)

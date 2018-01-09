@@ -1,6 +1,9 @@
+"""Parse the data file containing the unary attributes created by CRF suite."""
 import csv
 
 import matplotlib.pyplot as plt
+import numpy as np
+import scipy.sparse as sparse
 
 ALPHABET = [
     'I-INTJ', 'I-CONJP', 'O', 'I-ADVP', 'B-VP', 'B-LST', 'I-LST', 'I-PRT', 'I-SBAR', 'I-UCP',
@@ -9,68 +12,34 @@ ALPHABET = [
 ]
 ALPHALEN = len(ALPHABET)
 TAG2INT = {tag: i for i, tag in enumerate(ALPHABET)}
-TEMPLATES = (
-    ((0, -2),),
-    ((0, -1),),
-    ((0, 0),),
-    ((0, 1),),
-    ((0, 2),),
-    ((0, -1), (0, 0)),
-    ((0, 0), (0, 1)),
-    ((1, -2),),
-    ((1, -1),),
-    ((1, 0),),
-    ((1, 1),),
-    ((1, 2),),
-    ((1, -2), (1, -1)),
-    ((1, -1), (1, 0)),
-    ((1, 0), (1, 1)),
-    ((1, 1), (1, 2)),
-    ((1, -2), (1, -1), (1, 0)),
-    ((1, -1), (1, 0), (1, 1)),
-    ((1, 0), (1, 1), (1, 2)),
-)
 
 
-def build_dictionaries(file):
-    """Build 3 dictionaries : one for words, one for part-of-speech tags and
-    one for chunk tags from the training set. Our goal is to output a chunk tag for each token.
-    If a word or a tag is present in the test set but not in the training set, it will be omitted
-    as it won't have any weight into the linear model anyway.
-    """
+def build_dictionary(file):
+    """Build a dictionary mapping all the possible attributes to an integer."""
 
     with open(file) as f:
 
-        reader = csv.reader(f, delimiter=' ')
-
-        # create lists of values
-        words = []
-        pos_tags = []
-        chunk_tags = []
+        reader = csv.reader(f, delimiter='\t')
+        attributes = []
         for row in reader:
             if len(row) > 0:
-                words.append(row[0])
-                pos_tags.append(row[1])
-                chunk_tags.append(row[2])
+                attributes.extend(row[1:])
 
         # remove duplicates
-        words = set(words)
-        pos_tags = set(pos_tags)
-        chunk_tags = set(chunk_tags)
-
+        attributes = set(attributes)
         # make dictionaries
-        dwords = {tag: i for i, tag in enumerate(words)}
-        dpos_tags = {tag: i for i, tag in enumerate(pos_tags)}
-        dchunk_tags = {tag: i for i, tag in enumerate(chunk_tags)}
+        dattributes = {tag: i for i, tag in enumerate(attributes)}
 
-        return dwords, dpos_tags, dchunk_tags
+        return dattributes
 
 
-def read_data(file, nb_sentences=None):
+def read_data(file, attributes_dictionary, nb_sentences=None):
     """Read the data file and output x,y tuple."""
 
+    total_attributes = len(attributes_dictionary)
+
     with open(file) as f:
-        reader = csv.reader(f, delimiter=' ')
+        reader = csv.reader(f, delimiter='\t')
         x = []
         y = []
         xi = []
@@ -88,35 +57,23 @@ def read_data(file, nb_sentences=None):
                     break
             else:
                 # append to sentence
-                xi.append(row[:2])
-                yi.append(row[2])
+                yi.append(TAG2INT[row[0]])
+
+                # build a sparse binary embedding of the attributes
+                column_indices = []
+                for att in row[1:]:
+                    if att in attributes_dictionary:
+                        column_indices.append(attributes_dictionary[att])
+
+                nb_attributes = len(column_indices)
+                xij = sparse.csr_matrix(
+                    (np.ones(nb_attributes),  # values
+                     (np.zeros(nb_attributes), column_indices)),  # row and column indices
+                    shape=(1, total_attributes))  # shape
+
+                xi.append(xij)
 
         return x, y
-
-
-def map_to_integers(x, y, dwords, dpos, dchunks):
-    """Take x and y lists of strings and transform them into lists of indexes given by the
-    dictionaries."""
-
-
-def get_unary_attributes(sentence, t, templates=TEMPLATES):
-    keys = []
-    for template in templates:
-        values = []
-        for (field, offset) in template:
-            p = t + offset
-            if p < 0 or p >= len(sentence):
-                values = []
-                break
-            values.append(sentence[p][field])
-        if values:
-            keys.append("%s=%s" % (str(template), '|'.join(values)))
-    return keys
-
-
-def embed(sentence, t):
-    keys = get_unary_attributes(sentence, t)
-
 
 
 def average_length(x):
@@ -141,4 +98,3 @@ def print_sentences(x, start, end):
     for sent in x[start:end]:
         words = [w[0] for w in sent]
         print(' '.join(words))
-
