@@ -59,6 +59,7 @@ def read_data(file, attributes_dictionary, nb_sentences=None):
 
             else:  # end of sentence
                 # transform xi from list to sparse matrix
+                # each row is the embedding of a word.
                 nb_attributes = 0
                 row_ind = []
                 col_ind = []

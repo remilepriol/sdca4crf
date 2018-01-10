@@ -1,3 +1,4 @@
+from chunk.features import Features
 from chunk.parse import build_dictionary, read_data
 
 filename = "../../data/conll2000/train.att.txt"
@@ -8,10 +9,10 @@ print(len(dattributes.keys()))
 print(y[:10])
 print(x[0])
 
-# feat = Features()
-# feat.add_dictionary(x, y)
-# feat.display()
-#
+feat = Features()
+feat.add_dictionary(x, y)
+feat.display()
+
 # probas, log_part = feat.infer_probabilities(x[0])
 # probas.display(Features.TAGS)
 #
