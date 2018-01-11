@@ -82,6 +82,9 @@ def read_data(file, attributes_dictionary, nb_sentences=None):
                 if nb_sentences is not None and count_sentences >= nb_sentences:
                     break
 
+        x = np.array(x)
+        y = np.array(y)
+
         return x, y
 
 
