@@ -8,9 +8,24 @@ from chunk.parse import ALPHABET, ALPHALEN
 from sequence import Sequence
 
 
-def radius(*args):
-    """Not implemented yet."""
-    return 1
+def radius(xi, yi):
+    """Return the radius (not squared) of the corrected features.
+
+    Not implemented yet."""
+    feat = Features()
+
+    # ground truth feature
+    feat.add_word(xi, yi)
+    feat.multiply_scalar(-1, inplace=True)
+
+    # the optimal y puts all the weight on one character
+    # that is not included in the true label
+    # ychars = np.unique(yi, return_counts=True)
+    char = np.setdiff1d(np.arange(ALPHALEN), yi)
+    label2 = char * np.ones_like(yi)
+    feat.add_word(xi, label2)
+
+    return np.sqrt(feat.squared_norm())
 
 
 def radii(words, labels):
@@ -102,9 +117,7 @@ class Features:
         self._init_emission(xi.shape[1])
         # Important part. I hope it works
         for xit, mt in zip(xi, unary_marginals):
-            # self.emission += sps.csr_matrix(xit.dot(mt.T))
-            for k, mtk in enumerate(mt):
-                self.emission[k] += mtk * xit
+            self.emission[:, xit.indices] += mt[:, np.newaxis]
 
         self.bias[:, 0] += np.sum(unary_marginals, axis=0)
         self.bias[:, 1] += unary_marginals[0]
