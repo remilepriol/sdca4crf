@@ -142,8 +142,11 @@ class Features:
         :param xi: T*d, each column is a word embedding (csr matrix).
         :return: u unary scores T*K, u(t,k) is the score for word t and label k.
         """
+        uscores = np.zeros([xi.shape[0], ALPHALEN])
         # Important part. I hope it works.
-        uscores = xi.dot(self.emission.T)
+        # uscores = xi.dot(self.emission.T)
+        for t, xit in enumerate(xi):
+            uscores[t] += self.emission[:, xit.indices].sum(axis=1)
 
         uscores += self.bias[:, 0]  # model bias
         uscores[0] += self.bias[:, 1]  # beginning of word bias
@@ -212,11 +215,15 @@ class Features:
             return Features(ufunc(self.emission), ufunc(self.bias), ufunc(self.transition))
 
     def multiply_scalar(self, scalar, inplace=False):
-        ufunc = lambda x: scalar * x
-        return self.map(ufunc, inplace)
+        if inplace:
+            self.emission = scalar * self.emission
+            self.bias = scalar * self.bias
+            self.transition = scalar * self.transition
+        else:
+            return Features(scalar * self.emission, scalar * self.bias, scalar * self.transition)
 
     def squared_norm(self):
-        return self.map(lambda x: x ** 2).reduce()
+        return np.sum(self.emission ** 2) + np.sum(self.bias ** 2) + np.sum(self.transition ** 2)
 
     def add(self, other):
         emission = self.emission + other.emission
