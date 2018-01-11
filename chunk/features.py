@@ -2,10 +2,9 @@ from warnings import warn
 
 import matplotlib.pyplot as plt
 import numpy as np
-import scipy.sparse as sps
 
 import oracles
-from chunk.parse import ALPHALEN
+from chunk.parse import ALPHABET, ALPHALEN
 from sequence import Sequence
 
 
@@ -28,7 +27,8 @@ class Features:
     
     Features are composed of:
     - sparse emission features (unary), which counts the number of apparitions of a each
-    attribute for each tag.
+    attribute for each tag. Because we use Features to represent the weights vector, that may
+    not be sparse, at least not exactly, we represent emission as a dense matrix.
     - dense bias features (unary), which counts the number of apparition of each tag, 
     (1) in general, (2) at the beginning, (3) at the end.
     - dense transition features (binary), which counts the number of transition between every tags.
@@ -55,23 +55,26 @@ class Features:
     #########################################
     def _init_emission(self, nb_features):
         if self.emission is None:
-            self.emission = sps.csr_matrix((ALPHALEN, nb_features))
+            self.emission = np.zeros((ALPHALEN, nb_features))
 
-    def _add_unary(self, xi, yit, t):
-        self.emission[yit] += xi[t]
+    def _add_unary(self, xi, yit, t, emission_counts):
+        if emission_counts is None:
+            self.emission[yit, xi[t].indices] += xi[t].data
+        else:
+            emission_counts[yit].extend(xi[t].indices)
         self.bias[yit] += [1, t == 0, t == xi.shape[0] - 1]
 
     def _add_binary(self, yit, yitp):
         self.transition[yit, yitp] += 1
 
-    def add_word(self, xi, yi):
+    def add_word(self, xi, yi, emission_counts=None):
         if xi.shape[0] != len(yi):
             raise ValueError(
                 "Not the same number of tags (%i) and words (%i) in sentence."
                 % (xi.shape[0], len(yi)))
         self._init_emission(xi.shape[1])
         for t, label in enumerate(yi):
-            self._add_unary(xi, label, t)
+            self._add_unary(xi, label, t, emission_counts)
         for t in range(xi.shape[0] - 1):
             self._add_binary(yi[t], yi[t + 1])
 
@@ -80,8 +83,20 @@ class Features:
             raise ValueError(
                 "Not the same number of labels (%i) and data points (%i)."
                 % (len(points_set), len(labels_set)))
+
+        # to be fast, I have to avoid the addition of vectors of size nb_features = 75k at each
+        # iteration. I use the same method as for the dictionary initialization with the numpy
+        # unique method.
+        emission_counts = np.empty(ALPHALEN, dtype=list)
+        for i in range(ALPHALEN):
+            emission_counts[i] = []
+
         for xi, yi in zip(points_set, labels_set):
-            self.add_word(xi, yi)
+            self.add_word(xi, yi, emission_counts)
+
+        for i, em in enumerate(emission_counts):
+            indices, values = np.unique(em, return_counts=True)
+            self.emission[i][indices.astype(np.int)] = values
 
     def _add_unary_centroid(self, xi, unary_marginals):
         self._init_emission(xi.shape[1])
@@ -114,7 +129,7 @@ class Features:
         :return: u unary scores T*K, u(t,k) is the score for word t and label k.
         """
         # Important part. I hope it works.
-        uscores = xi.dot(self.emission.T).toarray()
+        uscores = xi.dot(self.emission.T)
 
         uscores += self.bias[:, 0]  # model bias
         uscores[0] += self.bias[:, 1]  # beginning of word bias
@@ -176,13 +191,11 @@ class Features:
             raise ValueError("ufunc %s should return 0 in 0." % (ufunc))
 
         if inplace:
-            self.emission.data = ufunc(self.emission.data)
+            self.emission = ufunc(self.emission)
             self.bias = ufunc(self.bias)
             self.transition = ufunc(self.transition)
         else:
-            emission = self.emission.copy()
-            emission.data = ufunc(self.emission.data)
-            return Features(emission, ufunc(self.bias), ufunc(self.transition))
+            return Features(ufunc(self.emission), ufunc(self.bias), ufunc(self.transition))
 
     def multiply_scalar(self, scalar, inplace=False):
         ufunc = lambda x: scalar * x
@@ -204,7 +217,7 @@ class Features:
         return Features(emission, bias, transition)
 
     def multiply(self, other):
-        emission = self.emission.multiply(other.emission)
+        emission = self.emission * other.emission
         bias = self.bias * other.bias
         transition = self.transition * other.transition
         return Features(emission, bias, transition)
@@ -225,13 +238,15 @@ class Features:
         plt.matshow(self.transition, cmap=cmap)
         plt.grid()
         tags_range = range(ALPHALEN)
-        plt.xticks(tags_range, ALPHALEN, rotation='vertical')
-        plt.yticks(tags_range, ALPHALEN)
+        plt.xticks(tags_range, ALPHABET, rotation='vertical')
+        plt.yticks(tags_range, ALPHABET)
         plt.colorbar(fraction=0.046, pad=0.04)
         plt.title("Transition Features", y=1.3)
 
         rescale_bias = np.array([1 / 23, 1, 1])
         plt.matshow((self.bias * rescale_bias).T, cmap=cmap)
-        plt.xticks(tags_range, ALPHALEN)
+        plt.xticks(tags_range, ALPHABET)
         plt.colorbar(fraction=0.046, pad=0.04)
         plt.title("Bias features", y=1.15)
+
+        plt.show()
