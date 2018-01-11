@@ -1,5 +1,3 @@
-from warnings import warn
-
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -9,19 +7,23 @@ from sequence import Sequence
 
 
 def radius(xi, yi):
-    """Return the radius (not squared) of the corrected features.
-
-    Not implemented yet."""
+    """Return the maximum radius (not squared) of the corrected feature for tuple (xi, yi)"""
     feat = Features()
 
     # ground truth feature
     feat.add_word(xi, yi)
     feat.multiply_scalar(-1, inplace=True)
 
-    # the optimal y puts all the weight on one character
-    # that is not included in the true label
-    # ychars = np.unique(yi, return_counts=True)
-    char = np.setdiff1d(np.arange(ALPHALEN), yi)
+    # the near-optimal y puts all the weight on one character
+    # that is the least present in the true label
+
+    ychars, ycounts = np.unique(yi, return_counts=True)
+    diffchars = np.setdiff1d(np.arange(ALPHALEN), yi)
+    if len(diffchars) > 0:
+        char = diffchars[0]
+    else:
+        char = ychars[np.argmin(ycounts)]
+
     label2 = char * np.ones_like(yi)
     feat.add_word(xi, label2)
 
@@ -29,7 +31,6 @@ def radius(xi, yi):
 
 
 def radii(words, labels):
-    warn("Not implemented yet.")
     rs = np.empty_like(words)
     for i, (word, label) in enumerate(zip(words, labels)):
         rs[i] = radius(word, label)
