@@ -14,16 +14,21 @@ ALPHALEN = len(ALPHABET)
 TAG2INT = {tag: i for i, tag in enumerate(ALPHABET)}
 
 
-def build_dictionary(file, min_occurence=3):
+def build_dictionary(file, min_occurence=3, nb_sentences=None):
     """Build a dictionary mapping all the possible attributes to an integer."""
 
     with open(file) as f:
 
         reader = csv.reader(f, delimiter='\t')
         attributes = []
+        count_sentences = 0
         for row in reader:
             if len(row) > 0:
                 attributes.extend(row[1:])
+            else:
+                count_sentences += 1
+                if nb_sentences is not None and count_sentences >= nb_sentences:
+                    break
 
         # remove duplicates
         uattributes, counts = np.unique(attributes, return_counts=True)
