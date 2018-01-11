@@ -9,24 +9,27 @@ import numpy as np
 import sdca
 from chunk import features, parse
 
-xtrain, ytrain = parse.split_points_labels(
-    parse.read_data("../data/conll2000/train.txt"))
+trainfile = "../data/conll2000/train.att.txt"
+testfile = "../data/conll2000/test.att.txt"
+
+dattributes = parse.build_dictionary(trainfile)
+
+xtrain, ytrain = parse.read_data(trainfile, dattributes)
 xtrain = xtrain[:10]
 ytrain = ytrain[:10]
 train_size = xtrain.shape[0]
 print("Size of training set:", train_size)
 
-xtest, ytest = parse.split_points_labels(
-    parse.read_data("../data/conll2000/test.txt"))
-test_size = xtrain.shape[0]
-print("Size of test set:", train_size)
+xtest, ytest = parse.read_data(testfile, dattributes)
+test_size = xtest.shape[0]
+print("Size of test set:", test_size)
 
 regu = 1 / train_size
 
 parameters = {
     'regu': regu,
     'npass': 100,
-    'sampling': 'gap+',
+    'sampling': 'gap',
     'non_uniformity': .8,
     'monitoring_period': 5,
     'sampler_period': None,
@@ -60,6 +63,7 @@ with open(dirname + '/parameters.txt', 'w') as file:
 fullmargs, fullweights, fullobjective, fullannex = \
     sdca.sdca(features, xtrain, ytrain, xtest=xtest, ytest=ytest, **parameters)
 
+print("End")
 os.system('say "I am done."')
 
 np.save(dirname + "/weights.npy", fullweights)
