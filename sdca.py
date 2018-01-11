@@ -194,10 +194,10 @@ def sdca(features_module, x, y, regu=1, npass=5, monitoring_period=5, sampler_pe
     annex = []
 
     # non-uniform sampling
-    importances = 1 + features_module.radii(x, y) ** 2 / nb_words / regu
     if sampling == "uniform" or sampling == "gap":
         sampler = RandomCounters(100 * np.ones(nb_words))
     elif sampling == "importance" or sampling == "gap+":
+        importances = 1 + features_module.radii(x, y) ** 2 / nb_words / regu
         sampler = RandomCounters(100 * importances)
     else:
         raise ValueError(" %s is not a valid argument for sampling" % str(sampling))
