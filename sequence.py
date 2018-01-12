@@ -92,7 +92,10 @@ class Sequence:
     def reduce(self):
         """Return the special summation where the marginals on the separations are
         subtracted."""
-        return np.sum(self.binary) - np.sum(self.unary[1:-1])
+        if self.length == 2:
+            return np.sum(self.binary)
+        else:
+            return np.sum(self.binary) - np.sum(self.unary[1:-1])
 
     def inner_product(self, other):
         """Return the special inner product where the marginals on the separations are
@@ -100,10 +103,15 @@ class Sequence:
         return self.multiply(other).reduce()
 
     def log_reduce_exp(self, to_add):
-        themax = max(np.amax(self.unary[1:-1]), np.amax(self.binary))
-        return themax + np.log(np.sum(np.exp(self.binary - themax))
-                               - np.sum(np.exp(self.unary[1:-1] - themax))
-                               + to_add * np.exp(-themax))
+        if self.length == 2:
+            themax = np.amax(self.binary)
+            return themax + np.log(np.sum(np.exp(self.binary - themax))
+                                   + to_add * np.exp(-themax))
+        else:
+            themax = max(np.amax(self.unary[1:-1]), np.amax(self.binary))
+            return themax + np.log(np.sum(np.exp(self.binary - themax))
+                                   - np.sum(np.exp(self.unary[1:-1] - themax))
+                                   + to_add * np.exp(-themax))
 
     def convex_combination(self, other, s):
         """Return (1-s)*self + s*other"""
@@ -189,15 +197,33 @@ class Sequence:
     # Information theory
     #########################################
     def entropy(self, returnlog=False):
-        cliques = utils.entropy(self.binary, returnlog=True)
-        separations = utils.entropy(self.unary[1:-1], returnlog=True)
-        return Sequence._safe_reduce(cliques, separations, returnlog)
+        if self.length == 1:
+            return utils.entropy(self.unary, returnlog=returnlog)
+
+        elif self.length == 2:
+            return utils.entropy(self.binary, returnlog=returnlog)
+
+        else:
+            cliques = utils.entropy(self.binary, returnlog=True)
+            separations = utils.entropy(self.unary[1:-1], returnlog=True)
+            return Sequence._safe_reduce(cliques, separations, returnlog)
 
     def kullback_leibler(self, other, returnlog=False):
-        cliques = utils.kullback_leibler(self.binary, other.binary, returnlog=True)
-        separations = utils.kullback_leibler(self.unary[1:-1], other.unary[1:-1],
-                                             returnlog=True)
-        return Sequence._safe_reduce(cliques, separations, returnlog)
+
+        if self.length != other.length:
+            raise ValueError("Not the same sequence length %i %i" % (self.length, other.length))
+
+        if self.length == 1:
+            return utils.kullback_leibler(self.unary, other.unary, returnlog=returnlog)
+
+        elif self.length == 2:
+            return utils.kullback_leibler(self.binary, other.binary, returnlog=returnlog)
+
+        else:
+            cliques = utils.kullback_leibler(self.binary, other.binary, returnlog=True)
+            separations = utils.kullback_leibler(self.unary[1:-1], other.unary[1:-1],
+                                                 returnlog=True)
+            return Sequence._safe_reduce(cliques, separations, returnlog)
 
     @staticmethod
     def _safe_reduce(cliques, separations, returnlog):
