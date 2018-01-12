@@ -15,6 +15,12 @@ def sequence_sum_product(us, bs):
     # This is more stable numerically
 
     length, nb_class = us.shape
+
+    if length == 1:
+        log_partition = utils.logsumexp(us[0])
+        umargs = us - log_partition
+        return umargs, None, log_partition
+
     bm = np.zeros([length - 1, nb_class])  # backward_messages
     fm = np.zeros([length - 1, nb_class])  # forward_messages
 
@@ -23,7 +29,7 @@ def sequence_sum_product(us, bs):
     for t in range(length - 3, -1, -1):
         bm[t] = utils.logsumexp(bs[t] + us[t + 1] + bm[t + 1])
 
-    # we compute the islog-partition and include it in the forward messages
+    # we compute the log-partition and include it in the forward messages
     log_partition = utils.logsumexp(bm[0] + us[0])
 
     # forward pass
@@ -40,11 +46,15 @@ def sequence_sum_product(us, bs):
 
     # binary marginals
     bmargs = np.empty([length - 1, nb_class, nb_class])
-    bmargs[0] = us[0, :, np.newaxis] + bs[0] + us[1] + bm[1] - log_partition
-    bmargs[-1] = fm[-2, :, np.newaxis] + us[-2, :, np.newaxis] + bs[-1] + us[-1]
-    for t in range(1, length - 2):
-        bmargs[t] = fm[t - 1, :, np.newaxis] + us[t, :, np.newaxis] + bs[t] + us[
-            t + 1] + bm[t + 1]
+
+    if length == 2:
+        bmargs[0] = us[0, :, np.newaxis] + bs[0] + us[1] - log_partition
+    else:
+        bmargs[0] = us[0, :, np.newaxis] + bs[0] + us[1] + bm[1] - log_partition
+        bmargs[-1] = fm[-2, :, np.newaxis] + us[-2, :, np.newaxis] + bs[-1] + us[-1]
+        for t in range(1, length - 2):
+            bmargs[t] = fm[t - 1, :, np.newaxis] + us[t, :, np.newaxis] + bs[t] + us[
+                t + 1] + bm[t + 1]
 
     return umargs, bmargs, log_partition
 
