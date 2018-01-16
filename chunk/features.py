@@ -11,7 +11,7 @@ def radius(xi, yi):
     feat = Features()
 
     # ground truth feature
-    feat.add_word(xi, yi)
+    feat.add_datapoint(xi, yi)
     feat.multiply_scalar(-1, inplace=True)
 
     # the near-optimal y puts all the weight on one character
@@ -25,7 +25,7 @@ def radius(xi, yi):
         char = ychars[np.argmin(ycounts)]
 
     label2 = char * np.ones_like(yi)
-    feat.add_word(xi, label2)
+    feat.add_datapoint(xi, label2)
 
     return np.sqrt(feat.squared_norm())
 
@@ -75,7 +75,7 @@ class Features:
 
     def _add_unary(self, xi, yit, t, emission_counts):
         if emission_counts is None:
-            self.emission[yit, xi[t].indices] += xi[t].data
+            self.emission[yit, xi[t].indices] += 1
         else:
             emission_counts[yit].extend(xi[t].indices)
         self.bias[yit] += [1, t == 0, t == xi.shape[0] - 1]
@@ -83,22 +83,22 @@ class Features:
     def _add_binary(self, yit, yitp):
         self.transition[yit, yitp] += 1
 
-    def add_word(self, xi, yi, emission_counts=None):
+    def add_datapoint(self, xi, yi, emission_counts=None):
         if xi.shape[0] != len(yi):
             raise ValueError(
                 "Not the same number of tags (%i) and words (%i) in sentence."
                 % (xi.shape[0], len(yi)))
-        self._init_emission(xi.shape[1])
+        self._init_emission(xi[0].dimension)
         for t, label in enumerate(yi):
             self._add_unary(xi, label, t, emission_counts)
         for t in range(xi.shape[0] - 1):
             self._add_binary(yi[t], yi[t + 1])
 
-    def add_dictionary(self, points_set, labels_set):
-        if len(points_set) != len(labels_set):
+    def add_dataset(self, x, y):
+        if len(x) != len(y):
             raise ValueError(
                 "Not the same number of labels (%i) and data points (%i)."
-                % (len(points_set), len(labels_set)))
+                % (len(x), len(y)))
 
         # to be fast, I have to avoid the addition of vectors of size nb_features = 75k at each
         # iteration. I use the same method as for the dictionary initialization with the numpy
@@ -107,15 +107,16 @@ class Features:
         for i in range(ALPHALEN):
             emission_counts[i] = []
 
-        for xi, yi in zip(points_set, labels_set):
-            self.add_word(xi, yi, emission_counts)
+        for xi, yi in zip(x, y):
+            self.add_datapoint(xi, yi, emission_counts)
 
         for i, em in enumerate(emission_counts):
-            indices, values = np.unique(em, return_counts=True)
-            self.emission[i][indices.astype(np.int)] = values
+            if len(em) > 0:
+                indices, values = np.unique(em, return_counts=True)
+                self.emission[i, indices] = values
 
     def _add_unary_centroid(self, xi, unary_marginals):
-        self._init_emission(xi.shape[1])
+        self._init_emission(xi[0].dimension)
         # Important part. I hope it works
         for xit, mt in zip(xi, unary_marginals):
             self.emission[:, xit.indices] += mt[:, np.newaxis]
@@ -173,7 +174,7 @@ class Features:
     def label_score(self, xi, yi):
         """Return the score <self,F(xi, yi)>."""
         label_feat = Features()
-        label_feat.add_word(xi, yi)
+        label_feat.add_datapoint(xi, yi)
         return label_feat.inner_product(self)
 
     def predict(self, xi):
