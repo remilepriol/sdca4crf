@@ -17,14 +17,14 @@ testfile = "../data/conll2000/test.att.txt"
 train_size = 60000000
 test_size = 100000000
 
-dattributes = parse.build_dictionary(trainfile, train_size)
+dattributes = parse.build_dictionary(trainfile, min_occurence=3, nb_sentences=train_size)
 print("Number of different features:", len(dattributes))
 
-xtrain, ytrain = parse.read_data(trainfile, dattributes, train_size)
+xtrain, ytrain = parse.read_data(trainfile, dattributes, nb_sentences=train_size)
 train_size = xtrain.shape[0]
 print("Size of training set:", train_size)
 
-xtest, ytest = parse.read_data(testfile, dattributes, test_size)
+xtest, ytest = parse.read_data(testfile, dattributes, nb_sentences=test_size)
 test_size = xtest.shape[0]
 print("Size of test set:", test_size)
 
