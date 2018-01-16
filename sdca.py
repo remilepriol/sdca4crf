@@ -115,7 +115,7 @@ def sdca(features_module, x, y, regu=1, npass=5, monitoring_period=5, sampler_pe
         marginals = np.array(marginals)
 
     ground_truth_centroid = features_module.Features()
-    ground_truth_centroid.add_dictionary(x, y)
+    ground_truth_centroid.add_dataset(x, y)
     ground_truth_centroid.multiply_scalar(1 / nb_words, inplace=True)
     weights = marginals_to_features_centroid(x, y, features_module.Features,
                                              marginals=marginals)
