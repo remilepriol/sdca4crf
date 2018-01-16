@@ -40,17 +40,10 @@ regu = 1 / training_size
 # step_size = regu * nb_words * 2 / (max_radius ** 2 + regu * nb_words * 2)
 # print("step size:", step_size)
 
-time_stamp = time.strftime("%Y%m%d_%H%M%S")
-dirname = "logs/" + time_stamp + "_n" + str(training_size)
-if not os.path.exists("logs"):
-    os.mkdir("logs")
-if not os.path.exists(dirname):
-    os.mkdir(dirname)
-
 parameters = {
     'regu': regu,
     'npass': 100,
-    'sampling': 'gap+',
+    'sampling': 'gap',
     'non_uniformity': .8,
     'monitoring_period': 5,
     'sampler_period': None,
@@ -59,6 +52,19 @@ parameters = {
     '_debug': True,
 }
 print(parameters)
+
+time_stamp = time.strftime("%Y%m%d_%H%M%S")
+dirname = "logs/" + time_stamp \
+          + "_OCR_" \
+          + parameters['sampling'] + "_" \
+          + str(parameters['non_uniformity']) + "_" \
+          + str(parameters['sampler_period'])
+
+if not os.path.exists("logs"):
+    os.mkdir("logs")
+if not os.path.exists(dirname):
+    os.mkdir(dirname)
+
 
 # write parameters to text file
 with open(dirname + '/parameters.txt', 'w') as file:

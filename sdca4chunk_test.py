@@ -9,13 +9,16 @@ import numpy as np
 import sdca
 from chunk import features, parse
 
+# I want to come down to 30% of the time on the line search.
+
 trainfile = "../data/conll2000/train.att.txt"
 testfile = "../data/conll2000/test.att.txt"
 
-train_size = 100
-test_size = 50
+train_size = 60000000
+test_size = 100000000
 
 dattributes = parse.build_dictionary(trainfile, train_size)
+print("Number of different features:", len(dattributes))
 
 xtrain, ytrain = parse.read_data(trainfile, dattributes, train_size)
 train_size = xtrain.shape[0]
