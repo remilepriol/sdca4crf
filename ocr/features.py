@@ -16,14 +16,14 @@ def radius(word, label):
     feat = Features()
 
     # ground truth feature
-    feat.add_word(word, label)
+    feat.add_datapoint(word, label)
     feat.multiply_scalar(-1, inplace=True)
 
     # the optimal y puts all the weight on one character
     # that is not included in the true label
     char = np.setdiff1d(np.arange(ALPHALEN), label)[0]
     label2 = char * np.ones_like(label)
-    feat.add_word(word, label2)
+    feat.add_datapoint(word, label2)
 
     return np.sqrt(feat.squared_norm())
 
@@ -72,19 +72,19 @@ class Features:
     def _add_binary(self, label, next_label):
         self.transition[label, next_label] += 1
 
-    def add_word(self, images, labels):
+    def add_datapoint(self, images, labels):
         for t in range(images.shape[0]):
             self._add_unary(images, labels[t], t)
         for t in range(images.shape[0] - 1):
             self._add_binary(labels[t], labels[t + 1])
 
-    def add_dictionary(self, images_set, labels_set):
+    def add_dataset(self, images_set, labels_set):
         for images, labels in zip(images_set, labels_set):
             word_size = labels.shape[0]
             if word_size != images.shape[0]:
                 raise ValueError("Not the same number of labels (%i) and images (%i) inside word."
                                  % (word_size, images.shape[0]))
-            self.add_word(images, labels)
+            self.add_datapoint(images, labels)
 
     def _add_unary_centroid(self, images, unary_marginals=None):
         if unary_marginals is None:  # assume uniform marginal
