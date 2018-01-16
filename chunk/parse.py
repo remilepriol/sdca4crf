@@ -3,7 +3,6 @@ import csv
 
 import matplotlib.pyplot as plt
 import numpy as np
-import scipy.sparse as sps
 
 ALPHABET = [
     'I-INTJ', 'I-CONJP', 'O', 'I-ADVP', 'B-VP', 'B-LST', 'I-LST', 'I-PRT', 'I-SBAR', 'I-UCP',
@@ -38,10 +37,19 @@ def build_dictionary(file, min_occurence=3, nb_sentences=None):
         return dattributes
 
 
+class WordEmbedding:
+
+    def __init__(self, attributes, attributes_dictionary):
+        self.dimension = len(attributes_dictionary)
+        indices = []
+        for att in attributes:
+            if att in attributes_dictionary:
+                indices.append(attributes_dictionary[att])
+        self.indices = np.array(indices).astype(int)
+
+
 def read_data(file, attributes_dictionary, nb_sentences=None):
     """Read the data file and output x,y tuple."""
-
-    total_attributes = len(attributes_dictionary)
 
     with open(file) as f:
         reader = csv.reader(f, delimiter='\t')
@@ -55,32 +63,14 @@ def read_data(file, attributes_dictionary, nb_sentences=None):
                 # append to sentence
                 yi.append(TAG2INT[row[0]])
 
-                # build a sparse binary embedding of the attributes
-                xij = []
-                for att in row[1:]:
-                    if att in attributes_dictionary:
-                        xij.append(attributes_dictionary[att])
-                xi.append(xij)
+                # each sentence is represented as an array of words,
+                # where each word is an array containing the indices of its attributes
+                # as defined by the dictionary.
+                xi.append(WordEmbedding(row[1:], attributes_dictionary))
 
             else:  # end of sentence
-                # transform xi from list to sparse matrix
-                # each row is the embedding of a word.
-                nb_attributes = 0
-                row_ind = []
-                col_ind = []
-                for j, xij in enumerate(xi):
-                    nb_attributes += len(xij)
-                    row_ind.extend([j] * len(xij))
-                    col_ind.extend(xij)
-
-                xxi = sps.csr_matrix(
-                    ([1] * nb_attributes,  # values
-                     (row_ind, col_ind)),  # row and column indices
-                    shape=(len(xi), total_attributes))  # shape
-
-                # append new sentence to the list
-                x.append(xxi)
-                y.append(yi)
+                x.append(np.array(xi))
+                y.append(np.array(yi))
                 xi = []
                 yi = []
                 count_sentences += 1
