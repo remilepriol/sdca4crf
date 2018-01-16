@@ -3,58 +3,59 @@ import numpy as np
 import utils
 
 
-def sequence_sum_product(us, bs):
+def sequence_sum_product(uscores, bscores):
     """Apply the sum-product algorithm on a chain
 
-    :param us: array T*K, (unary) scores on individual nodes
-    :param bs: array (T-1)*K*K, (binary) scores on the edges
+    :param uscores: array T*K, (unary) scores on individual nodes
+    :param bscores: array (T-1)*K*K, (binary) scores on the edges
     :return: log-marginals on nodes, log-marginals on edges, log-partition
     """
 
     # I keep track of the islog messages instead of the messages
     # This is more stable numerically
 
-    length, nb_class = us.shape
+    length, nb_class = uscores.shape
 
     if length == 1:
-        log_partition = utils.logsumexp(us[0])
-        umargs = us - log_partition
-        return umargs, None, log_partition
+        log_partition = utils.logsumexp(uscores[0])
+        umargs = uscores - log_partition
+        bmargs = np.zeros([length - 1, nb_class, nb_class])
+        return umargs, bmargs, log_partition
 
     bm = np.zeros([length - 1, nb_class])  # backward_messages
     fm = np.zeros([length - 1, nb_class])  # forward_messages
 
     # backward pass
-    bm[-1] = utils.logsumexp(bs[-1] + us[-1])
+    bm[-1] = utils.logsumexp(bscores[-1] + uscores[-1])
     for t in range(length - 3, -1, -1):
-        bm[t] = utils.logsumexp(bs[t] + us[t + 1] + bm[t + 1])
+        bm[t] = utils.logsumexp(bscores[t] + uscores[t + 1] + bm[t + 1])
 
     # we compute the log-partition and include it in the forward messages
-    log_partition = utils.logsumexp(bm[0] + us[0])
+    log_partition = utils.logsumexp(bm[0] + uscores[0])
 
     # forward pass
-    fm[0] = utils.logsumexp(bs[0].T + us[0] - log_partition)
+    fm[0] = utils.logsumexp(bscores[0].T + uscores[0] - log_partition)
     for t in range(1, length - 1):
-        fm[t] = utils.logsumexp(bs[t].T + us[t] + fm[t - 1])
+        fm[t] = utils.logsumexp(bscores[t].T + uscores[t] + fm[t - 1])
 
     # unary marginals
     umargs = np.empty([length, nb_class])
-    umargs[0] = us[0] + bm[0] - log_partition
-    umargs[-1] = fm[-1] + us[-1]
+    umargs[0] = uscores[0] + bm[0] - log_partition
+    umargs[-1] = fm[-1] + uscores[-1]
     for t in range(1, length - 1):
-        umargs[t] = fm[t - 1] + us[t] + bm[t]
+        umargs[t] = fm[t - 1] + uscores[t] + bm[t]
 
     # binary marginals
     bmargs = np.empty([length - 1, nb_class, nb_class])
 
     if length == 2:
-        bmargs[0] = us[0, :, np.newaxis] + bs[0] + us[1] - log_partition
+        bmargs[0] = uscores[0, :, np.newaxis] + bscores[0] + uscores[1] - log_partition
     else:
-        bmargs[0] = us[0, :, np.newaxis] + bs[0] + us[1] + bm[1] - log_partition
-        bmargs[-1] = fm[-2, :, np.newaxis] + us[-2, :, np.newaxis] + bs[-1] + us[-1]
+        bmargs[0] = uscores[0, :, np.newaxis] + bscores[0] + uscores[1] + bm[1] - log_partition
+        bmargs[-1] = fm[-2, :, np.newaxis] + uscores[-2, :, np.newaxis] + bscores[-1] + uscores[-1]
         for t in range(1, length - 2):
-            bmargs[t] = fm[t - 1, :, np.newaxis] + us[t, :, np.newaxis] + bs[t] + us[
-                t + 1] + bm[t + 1]
+            bmargs[t] = fm[t - 1, :, np.newaxis] + uscores[t, :, np.newaxis] + bscores[t] + \
+                        uscores[t + 1] + bm[t + 1]
 
     return umargs, bmargs, log_partition
 
