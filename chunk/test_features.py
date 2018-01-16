@@ -3,15 +3,15 @@ from chunk.parse import ALPHABET, ALPHALEN, build_dictionary, read_data
 from sequence import uniform
 
 filename = "../../data/conll2000/train.att.txt"
-dattributes = build_dictionary(filename)
-x, y = read_data(filename, dattributes)
+dattributes = build_dictionary(filename, nb_sentences=100)
+x, y = read_data(filename, dattributes, nb_sentences=200)
 
 print(len(dattributes.keys()))
 print(y[:10])
 print(x[0])
 
 feat = Features()
-feat.add_dictionary(x, y)
+feat.add_dataset(x, y)
 # feat.display()
 
 probas, log_part = feat.infer_probabilities(x[0])
