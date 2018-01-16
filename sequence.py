@@ -45,20 +45,23 @@ class Sequence:
     or the entropy."""
 
     def __init__(self, unary, binary, log):
-        if unary.shape[0] != binary.shape[0] + 1:
-            raise ValueError("Wrong length of marginals: %i vs %i"
-                             % (unary.shape[0], binary.shape[0] + 1))
         self.length = unary.shape[0]
-
-        if unary.shape[1] != binary.shape[1] \
-                or unary.shape[1] != binary.shape[2]:
-            raise ValueError("Wring alphabet size: %i vs (%i, %i)"
-                             % (unary.shape[1], binary.shape[1], binary.shape[2]))
         self.nb_class = unary.shape[1]
-
         self.unary = unary
         self.binary = binary
         self.islog = log
+
+        if self.length == 0:
+            raise ValueError("Sequences of length 0 are not accepted.")
+
+        if self.length != binary.shape[0] + 1:
+            raise ValueError("Wrong length of marginals: %i vs %i"
+                             % (unary.shape[0], binary.shape[0] + 1))
+
+        if self.nb_class != binary.shape[1] \
+                or self.nb_class != binary.shape[2]:
+            raise ValueError("Wrong alphabet size: %i vs (%i, %i)"
+                             % (unary.shape[1], binary.shape[1], binary.shape[2]))
 
     def __str__(self):
         return "unary: \n" + np.array_str(self.unary) \
@@ -74,11 +77,12 @@ class Sequence:
         plt.xticks(range(alength), [alphabet[x] for x in range(alength)])
         plt.colorbar(fraction=0.046, pad=0.04)
         plt.title("unary marginals")
-        plt.matshow(self.binary.sum(axis=0))
-        plt.xticks(range(alength), [alphabet[x] for x in range(alength)])
-        plt.yticks(range(alength), [alphabet[x] for x in range(alength)])
-        plt.colorbar(fraction=0.046, pad=0.04)
-        plt.title("sum of binary marginals")
+        if self.length > 1:
+            plt.matshow(self.binary.sum(axis=0))
+            plt.xticks(range(alength), [alphabet[x] for x in range(alength)])
+            plt.yticks(range(alength), [alphabet[x] for x in range(alength)])
+            plt.colorbar(fraction=0.046, pad=0.04)
+            plt.title("sum of binary marginals")
 
     #########################################
     # Special operations
@@ -92,6 +96,8 @@ class Sequence:
     def reduce(self):
         """Return the special summation where the marginals on the separations are
         subtracted."""
+        if self.length == 1:
+            return np.sum(self.unary)
         if self.length == 2:
             return np.sum(self.binary)
         else:
@@ -103,7 +109,11 @@ class Sequence:
         return self.multiply(other).reduce()
 
     def log_reduce_exp(self, to_add):
-        if self.length == 2:
+        if self.length == 1:  # the joint is the unary
+            themax = np.amax(self.unary)
+            return themax + np.log(np.sum(np.exp(self.unary - themax)
+                                          + to_add * np.exp(-themax)))
+        elif self.length == 2:  # the joint is the binary
             themax = np.amax(self.binary)
             return themax + np.log(np.sum(np.exp(self.binary - themax))
                                    + to_add * np.exp(-themax))
@@ -175,10 +185,13 @@ class Sequence:
     # Assertion operations
     #########################################
     def is_density(self, integral=1):
+
         return np.isclose(np.sum(self.unary, axis=1), integral).all() \
                and np.isclose(np.sum(self.binary, axis=(1, 2)), integral).all()
 
     def is_consistent(self):
+        if self.length == 1:
+            return True
         ans = True
         from_left_binary = np.sum(self.binary, axis=1)
         from_right_binary = np.sum(self.binary, axis=2)
