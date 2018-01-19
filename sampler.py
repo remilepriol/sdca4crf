@@ -1,7 +1,7 @@
 import numpy as np
 
 
-class RandomCounters:
+class Sampler:
     """Implement the random counters algorithm from 'Efficiency of coordinate descent methods on huge-scale
     optimization problems', by Yuri Nesterov, 2012. It is a binary search over changing scores.
     Complexity of changing one score is O(log n). Complexity of sampling is O(log n). Complexity of initialization is

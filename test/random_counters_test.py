@@ -1,13 +1,13 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
-import random_counters as randc
+import sampler as randc
 
 ############################################################################
 # RANDOM COUNTERS
 ############################################################################
 bins = 17
-rc = randc.RandomCounters(np.ones(bins))
+rc = randc.Sampler(np.ones(bins))
 rc.update(.3, 6)
 rc.update(.3, 7)
 rc.update(.5, 1)

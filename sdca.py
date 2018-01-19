@@ -7,7 +7,7 @@ from tqdm import tqdm
 
 # custom imports
 import utils
-from random_counters import RandomCounters
+from sampler import Sampler
 from sequence import dirac
 
 
@@ -195,10 +195,10 @@ def sdca(features_module, x, y, regu=1, npass=5, monitoring_period=5, sampler_pe
 
     # non-uniform sampling
     if sampling == "uniform" or sampling == "gap":
-        sampler = RandomCounters(100 * np.ones(nb_words))
+        sampler = Sampler(100 * np.ones(nb_words))
     elif sampling == "importance" or sampling == "gap+":
         importances = 1 + features_module.radii(x, y) ** 2 / nb_words / regu
-        sampler = RandomCounters(100 * importances)
+        sampler = Sampler(100 * importances)
     else:
         raise ValueError(" %s is not a valid argument for sampling" % str(sampling))
 
@@ -366,9 +366,9 @@ def sdca(features_module, x, y, regu=1, npass=5, monitoring_period=5, sampler_pe
             duality_gap_estimate = duality_gap
 
             if sampling == "gap":
-                sampler = RandomCounters(dgaps)
+                sampler = Sampler(dgaps)
             elif sampling == "gap+":
-                sampler = RandomCounters(dgaps * importances)
+                sampler = Sampler(dgaps * importances)
 
             updated = True  # avoid doing a full batch update twice just to monitor.
 
