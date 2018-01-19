@@ -15,8 +15,8 @@ images, labels, folds = parse.letters_to_labels_and_words(
 radii = features.radii(images, labels)
 max_radius = np.amax(radii)
 
-training_size = 100000
-testing_size = 500000
+training_size = 60000000
+testing_size = 10000000
 
 training_folds = set(range(0, 1))
 training_mask = np.array([fold in training_folds for fold in folds])
@@ -48,7 +48,6 @@ parameters = {
     'monitoring_period': 5,
     'sampler_period': None,
     'precision': 1e-7,
-    'logdir': dirname,
     '_debug': True,
 }
 print(parameters)
@@ -59,6 +58,8 @@ dirname = "logs/" + time_stamp \
           + parameters['sampling'] + "_" \
           + str(parameters['non_uniformity']) + "_" \
           + str(parameters['sampler_period'])
+
+parameters['logdir'] = dirname
 
 if not os.path.exists("logs"):
     os.mkdir("logs")

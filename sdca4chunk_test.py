@@ -15,7 +15,7 @@ trainfile = "../data/conll2000/train.att.txt"
 testfile = "../data/conll2000/test.att.txt"
 
 train_size = 60000000
-test_size = 100000000
+test_size = 1000000
 
 dattributes = parse.build_dictionary(trainfile, min_occurence=3, nb_sentences=train_size)
 print("Number of different features:", len(dattributes))
