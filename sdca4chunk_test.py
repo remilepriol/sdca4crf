@@ -11,20 +11,29 @@ from chunk import features, parse
 
 # I want to come down to 30% of the time on the line search.
 
-trainfile = "../data/conll2000/train.att.txt"
-testfile = "../data/conll2000/test.att.txt"
-
 train_size = 60000000
-test_size = 1000000
+test_size = 100000000
 
-dattributes = parse.build_dictionary(trainfile, min_occurence=3, nb_sentences=train_size)
-print("Number of different features:", len(dattributes))
+# # Load data
+# trainfile = "../data/conll2000/train.att.txt"
+# testfile = "../data/conll2000/test.att.txt"
+#
+# dattributes = parse.build_dictionary(trainfile, min_occurence=3, nb_sentences=train_size)
+# xtrain, ytrain = parse.read_data(trainfile, dattributes, nb_sentences=train_size)
+# xtest, ytest = parse.read_data(testfile, dattributes, nb_sentences=test_size)
+# nb_features = len(dattributes)
 
-xtrain, ytrain = parse.read_data(trainfile, dattributes, nb_sentences=train_size)
+# Load data.mat
+trainfile = "../lib/sag4crf/data/coNLL_train.mat"
+testfile = "../lib/sag4crf/data/coNLL_test.mat"
+
+xtrain, ytrain, attributes = parse.read_mat(trainfile, nb_sentences=train_size)
+xtest, ytest, _ = parse.read_mat(testfile, attributes=attributes, nb_sentences=test_size)
+nb_features = attributes.total
+
+print("Number of different features:", nb_features)
 train_size = xtrain.shape[0]
 print("Size of training set:", train_size)
-
-xtest, ytest = parse.read_data(testfile, dattributes, nb_sentences=test_size)
 test_size = xtest.shape[0]
 print("Size of test set:", test_size)
 
@@ -53,6 +62,7 @@ parameters['logdir'] = dirname
 
 if not os.path.exists("logs"):
     os.mkdir("logs")
+
 if not os.path.exists(dirname):
     os.mkdir(dirname)
 
@@ -61,6 +71,7 @@ with open(dirname + '/parameters.txt', 'w') as file:
     file.write(" time :" + time_stamp)
     file.write("\n train size :" + str(train_size))
     file.write("\n test size :" + str(test_size))
+    file.write("Number of different features:", nb_features)
     for key, value in parameters.items():
         file.write("\n" + key + " : " + str(value))
 

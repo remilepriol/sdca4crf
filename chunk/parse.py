@@ -39,13 +39,21 @@ def build_dictionary(file, min_occurence=3, nb_sentences=None):
 
 class WordEmbedding:
 
-    def __init__(self, attributes, attributes_dictionary):
-        self.dimension = len(attributes_dictionary)
+    def __init__(self, dimension, indices):
+        # each word is an array containing the indices of its attributes
+        # as defined by the dictionary.
+        self.dimension = dimension
+        self.indices = indices
+
+    @staticmethod
+    def from_attributes(attributes, attributes_dictionary):
+        dimension = len(attributes_dictionary)
         indices = []
         for att in attributes:
             if att in attributes_dictionary:
                 indices.append(attributes_dictionary[att])
-        self.indices = np.array(indices).astype(int)
+        indices = np.array(indices).astype(int)
+        return WordEmbedding(dimension, indices)
 
 
 def read_data(file, attributes_dictionary, nb_sentences=None):
@@ -53,34 +61,75 @@ def read_data(file, attributes_dictionary, nb_sentences=None):
 
     with open(file) as f:
         reader = csv.reader(f, delimiter='\t')
-        x = []
-        y = []
-        xi = []
-        yi = []
-        count_sentences = 0
+        words = []
+        labels = []
         for row in reader:
             if len(row) > 0:
-                # append to sentence
-                yi.append(TAG2INT[row[0]])
+                labels.append(TAG2INT[row[0]])
+                words.append(WordEmbedding.from_attributes(row[1:], attributes_dictionary))
+            else:
+                labels.append(-1)
+                words.append([])
 
-                # each sentence is represented as an array of words,
-                # where each word is an array containing the indices of its attributes
-                # as defined by the dictionary.
-                xi.append(WordEmbedding(row[1:], attributes_dictionary))
+        return aggregate_sentences(words, labels, nb_sentences)
 
-            else:  # end of sentence
-                x.append(np.array(xi))
-                y.append(np.array(yi))
-                xi = []
-                yi = []
-                count_sentences += 1
-                if nb_sentences is not None and count_sentences >= nb_sentences:
-                    break
 
-        x = np.array(x)
-        y = np.array(y)
+class Attributes:
+    def __init__(self, nb_attributes):
+        self.counts = nb_attributes  # number of attributes for each kind
+        self.cumulative = np.cumsum(nb_attributes)
+        self.total = self.cumulative[-1]
 
-        return x, y
+
+def read_mat(matfile, attributes=None, nb_sentences=None):
+    """Read the data file used by Mark Schmidt and output x,y tuple."""
+    from scipy.io import loadmat
+    dic = loadmat(matfile)
+    words = dic['X'].squeeze()
+    # N*19 array. Each line is one word.Each column is one kind of attribute.
+    # The number (i,j) is the index of the attribute j for word i on the dictionary of attributes j
+    # If a number is 0 it means it is undefined.
+    labels = dic['y'].squeeze().astype(np.int16)  # N*1 array of labels.
+
+    if attributes is None:  # this is the train set
+        attributes = Attributes(np.amax(words, axis=0))
+
+    words = words.astype(float)
+    words[np.logical_or(words == 0, words > attributes.counts)] = np.nan  # remove non-existing
+    # attributes and attributes absent from the training set.
+    words[:, 1:] += attributes.cumulative[:-1]  # shift dictionary values
+    words = np.nan_to_num(words).astype(np.int32)  # replace nan with zero again
+
+    # We change values by minus 1 compared to matlab where matrices are indexed from 1
+    words2 = [WordEmbedding(dimension=attributes.total, indices=word[word > 0] - 1)
+              for word in words]
+    x, y = aggregate_sentences(words2, labels - 1, nb_sentences)
+    return x, y, attributes
+
+
+def aggregate_sentences(words, labels, nb_sentences):
+    x = []
+    y = []
+    xi = []
+    yi = []
+    count_sentences = 0
+    for word, label in zip(words, labels):
+        if label >= 0:
+            # append to sentence
+            yi.append(label)
+            xi.append(word)
+        else:  # end of sentence
+            x.append(np.array(xi))
+            y.append(np.array(yi))
+            xi = []
+            yi = []
+            count_sentences += 1
+            if nb_sentences is not None and count_sentences >= nb_sentences:
+                break
+
+    x = np.array(x)
+    y = np.array(y)
+    return x, y
 
 
 def average_length(x):
