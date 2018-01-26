@@ -2,12 +2,15 @@ import numpy as np
 
 
 class Sampler:
-    """Implement the random counters algorithm from 'Efficiency of coordinate descent methods on huge-scale
-    optimization problems', by Yuri Nesterov, 2012. It is a binary search over changing scores.
-    Complexity of changing one score is O(log n). Complexity of sampling is O(log n). Complexity of initialization is
-    O(n log n)."""
+    """Implement the (fairly standard) random counters algorithm from 'Efficiency of coordinate
+    descent methods on huge-scale optimization problems', by Yuri Nesterov, 2012. It is a binary
+    search over changing scores.
+
+    Complexity of changing one score is O(log n). Complexity of sampling is O(log n). Complexity
+    of initialization is O(n log n)."""
 
     def __init__(self, score_leaves):
+        self.size = len(score_leaves)
         self.score_tree = [np.array(score_leaves)]
         score_level = self.score_tree[-1]
         n = score_level.shape[0]
@@ -34,6 +37,12 @@ class Sampler:
                 index //= 2
                 level[index] = lower_level[2 * index] + lower_level[2 * index + 1]
             lower_level = level
+
+    def mixed_sample(self, non_uniformity):
+        if np.random.rand() > non_uniformity:  # then sample uniformly
+            return np.random.randint(self.size)
+        else:  # sample proportionally to the duality gaps
+            return self.sample()
 
     def sample(self):
         score_sum = self.score_tree[-1][0]

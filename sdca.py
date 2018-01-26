@@ -146,14 +146,8 @@ def sdca(features_module, x, y, regu=1, npass=5, sampler_period=None, precision=
     ##################################################################################
     for t in tqdm(range(1, nb_words * npass)):  # TODO print duality gap
 
-        ##################################################################################
         # SAMPLING
-        ##################################################################################
-        # TODO put that into the sampler class
-        if np.random.rand() > non_uniformity:  # then sample uniformly
-            i = np.random.randint(nb_words)
-        else:  # sample proportionally to the duality gaps
-            i = sampler.sample()
+        i = sampler.mixed_sample(non_uniformity)
         alpha_i = marginals[i]
 
         ##################################################################################
