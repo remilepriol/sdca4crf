@@ -1,12 +1,11 @@
 # standard imports
-import time
 
 import numpy as np
-import tensorboard_logger as tl
 from tqdm import tqdm
 
 # custom imports
 import utils
+from monitor import MonitorEpoch, MonitorIteration
 from sampler import Sampler
 from sequence import dirac
 
@@ -42,10 +41,9 @@ def divergence_gaps(marginals, weights, images):
     return np.array(ans)
 
 
-def sdca(features_module, x, y, regu=1, npass=5, monitoring_period=5, sampler_period=None,
-         precision=1e-5,
-         sampling="uniform", non_uniformity=0, step_size=None,
-         warm_start=None, _debug=False, logdir=None, xtest=None, ytest=None):
+def sdca(features_module, x, y, regu=1, npass=5, sampler_period=None, precision=1e-5,
+         sampling="uniform", non_uniformity=0, step_size=None, warm_start=None, _debug=False,
+         logdir=None, xtest=None, ytest=None):
     """Update alpha and weights with the stochastic dual coordinate ascent algorithm to fit
     the model to the data points x and the labels y.
 
@@ -58,7 +56,6 @@ def sdca(features_module, x, y, regu=1, npass=5, monitoring_period=5, sampler_pe
     :param y: labels as a one dimensional array. They should be positive.
     :param regu: value of the l2 regularization parameter
     :param npass: maximum number of pass over the data
-    :param monitoring_period: number of epochs before doing a full batch update of the individual
     duality gaps used in the non-uniform sampling and to get a convergence criterion.
     :param sampler_period: if not None, period to do a full batch update of the duality gaps,
     for the non-uniform sampling. Expressed as a number of epochs. This whole epoch will be
@@ -85,8 +82,9 @@ def sdca(features_module, x, y, regu=1, npass=5, monitoring_period=5, sampler_pe
     ##################################################################################
     # INITIALIZE : the dual and primal variables
     ##################################################################################
+
+    # TODO wrap that up into a parameters class
     nb_words = y.shape[0]
-    delta_time = time.time()
     if nb_words != x.shape[0]:
         raise ValueError(
             "Not the same number of labels (%i) and data points (%i) inside training set."
@@ -127,71 +125,12 @@ def sdca(features_module, x, y, regu=1, npass=5, monitoring_period=5, sampler_pe
     # I compute every update_period epoch to monitor the evolution.
     ##################################################################################
 
-    def monitor_full_batch(marginals, weights, weights_squared_norm, dual_objective):
-        sum_log_partitions = 0
-        dgaps = []
-        for margs, imgs in zip(marginals, x):
-            newmargs, log_partition = weights.infer_probabilities(imgs)
-            dgaps.append(margs.kullback_leibler(newmargs))
-            sum_log_partitions += log_partition
-
-        # update the value of the duality gap
-        dgaps = np.array(dgaps)
-        duality_gap = np.sum(dgaps) / nb_words
-
-        # calculate the primal score
-        primal_objective = \
-            regu / 2 * weights_squared_norm \
-            + sum_log_partitions / nb_words \
-            - weights.inner_product(ground_truth_centroid)
-
-        # check that this is coherent with my values
-        # of the duality gap and the dual objective
-        assert np.isclose(weights_squared_norm, weights.squared_norm())
-        assert np.isclose(duality_gap, primal_objective - dual_objective), print(
-            duality_gap, primal_objective, dual_objective, primal_objective - dual_objective
-        )
-
-        return duality_gap, primal_objective, dgaps
-
-    # compute the dual objective
-    entropies = np.array([margs.entropy() for margs in marginals])
-    weights_squared_norm = weights.squared_norm()
-    dual_objective = entropies.mean() - regu / 2 * weights_squared_norm
-
-    # do a whole epoch (of oracle calls) to monitor
-    t1 = time.time()
-    duality_gap, primal_objective, _ = \
-        monitor_full_batch(marginals, weights, weights_squared_norm, dual_objective)
-    delta_time += time.time() - t1
+    monitor = MonitorEpoch(regu, x, ground_truth_centroid, weights, marginals, npass,
+                           sampler_period, xtest, ytest, logdir)
 
     dgaps = 100 * np.ones(nb_words)  # fake estimate of the duality gaps
-    duality_gap_estimate = 100
-
-    objs = [duality_gap, primal_objective, dual_objective,
-            0, time.time() - delta_time]
-
-    # compute the test error if a test set is present:
-    do_test = xtest is not None and ytest is not None
-    if do_test:
-        loss01, loss_hamming = weights.prediction_loss(xtest, ytest)
-        objs.extend([loss01, loss_hamming])
-
-    objectives = [objs]
-
-    # tensorboard_logger commands
-    if logdir is not None:
-        tl.configure(logdir=logdir, flush_secs=15)
-
-        tl.log_value("log10 duality gap", np.log10(duality_gap), step=0)
-        tl.log_value("primal objective", primal_objective, step=0)
-        tl.log_value("dual objective", dual_objective, step=0)
-        if do_test:
-            tl.log_value("01 loss", loss01, step=0)
-            tl.log_value("hamming loss", loss_hamming, step=0)
-
-    # annex to give insights on the algorithm
-    annex = []
+    monitor_frequent = MonitorIteration(regu, x, weights.squared_norm(), marginals, npass, dgaps,
+                                        logdir)
 
     # non-uniform sampling
     if sampling == "uniform" or sampling == "gap":
@@ -205,11 +144,12 @@ def sdca(features_module, x, y, regu=1, npass=5, monitoring_period=5, sampler_pe
     ##################################################################################
     # MAIN LOOP
     ##################################################################################
-    for t in tqdm(range(1, nb_words * npass)):
+    for t in tqdm(range(1, nb_words * npass)):  # TODO print duality gap
 
         ##################################################################################
         # SAMPLING
         ##################################################################################
+        # TODO put that into the sampler class
         if np.random.rand() > non_uniformity:  # then sample uniformly
             i = np.random.randint(nb_words)
         else:  # sample proportionally to the duality gaps
@@ -219,6 +159,7 @@ def sdca(features_module, x, y, regu=1, npass=5, monitoring_period=5, sampler_pe
         ##################################################################################
         # MARGINALIZATION ORACLE and ASCENT DIRECTION (primal to dual)
         ##################################################################################
+        # TODO hide all the asserts into the objects
         beta_i, log_partition_i = weights.infer_probabilities(x[i])
         nbeta_i = beta_i.exp()
         assert nbeta_i.is_consistent()
@@ -231,6 +172,7 @@ def sdca(features_module, x, y, regu=1, npass=5, monitoring_period=5, sampler_pe
         ##################################################################################
         # EXPECTATION of FEATURES (dual to primal)
         ##################################################################################
+        # TODO keep the primal direction sparse
         primal_direction = features_module.Features()
         primal_direction.add_centroid(x[i], dual_direction)
 
@@ -252,9 +194,6 @@ def sdca(features_module, x, y, regu=1, npass=5, monitoring_period=5, sampler_pe
         elif sampling == "gap+":
             sampler.update(divergence_gap * importances[i], i)
 
-        duality_gap_estimate += (divergence_gap - dgaps[i]) / nb_words
-        dgaps[i] = divergence_gap
-
         ##################################################################################
         # LINE SEARCH : find the optimal step size gammaopt or use a fixed one
         ##################################################################################
@@ -264,7 +203,7 @@ def sdca(features_module, x, y, regu=1, npass=5, monitoring_period=5, sampler_pe
         if step_size:
             gammaopt = step_size
             subobjective = []
-        else:
+        else:  # TODO wrap that up into a module linesearch
 
             def evaluator(gamma, returnf=False):
                 # line search function and its derivatives
@@ -317,101 +256,37 @@ def sdca(features_module, x, y, regu=1, npass=5, monitoring_period=5, sampler_pe
         ##################################################################################
         # ANNEX
         ##################################################################################
-        # Update the weights norm, the dual objective and the entropy
-        norm_update = \
-            gammaopt * 2 * weights_dot_primaldir \
-            + gammaopt ** 2 * primaldir_squared_norm
-        weights_squared_norm += norm_update
-        dual_objective += -regu / 2 * norm_update
 
-        tmp = marginals[i].entropy()
-        dual_objective += \
-            (tmp - entropies[i]) / nb_words
-        entropies[i] = tmp
+        monitor_frequent.frequent_update(i, marginals[i], gammaopt, weights_dot_primaldir,
+                                         primaldir_squared_norm, divergence_gap)
+        monitor_frequent.log_frequent_tensorboard(t)
 
-        similarity = weights_dot_primaldir / np.sqrt(primaldir_squared_norm) / np.sqrt(
-            weights_squared_norm)
-
-        if logdir is not None and t % 10 == 0:
-            tl.log_value("log10 primaldir_squared_norm", np.log10(primaldir_squared_norm), step=t)
-            tl.log_value("weights_squared_norm", weights_squared_norm, t)
-            tl.log_value("normalized weights dot primaldir", similarity, t)
-            tl.log_value("dual objective", dual_objective, t)
-            tl.log_value("log10 duality gap estimate", np.log10(duality_gap_estimate), t)
-            tl.log_value("log10 individual gap", np.log10(divergence_gap), t)
-            tl.log_value("step size", gammaopt, t)
-            tl.log_value("number of line search step", len(subobjective), t)
-
-        if _debug and t % 10 == 0:
-            # Append relevant variables
-            annex.append([
-                np.log10(primaldir_squared_norm),
-                weights_squared_norm,
-                similarity,
-                dual_objective,
-                np.log10(duality_gap_estimate),
-                np.log10(divergence_gap),
-                gammaopt,
-                i,
-                len(subobjective),
-                t
-            ])
-
-        updated = False
-        if sampler_period is not None and t % (sampler_period * nb_words) == 0:
-            # Non-uniform sampling full batch update:
-            duality_gap, primal_objective, dgaps = monitor_full_batch(
-                marginals, weights, weights_squared_norm, dual_objective)
-
-            duality_gap_estimate = duality_gap
-
-            if sampling == "gap":
-                sampler = Sampler(dgaps)
-            elif sampling == "gap+":
-                sampler = Sampler(dgaps * importances)
-
-            updated = True  # avoid doing a full batch update twice just to monitor.
-
-        if t % (monitoring_period * nb_words) == 0:
+        # TODO log all that in monitor
+        if t % nb_words == 0:
             ##################################################################################
             # OBJECTIVES : after every update_period epochs, compute the duality gap
             ##################################################################################
+            array_gaps = monitor.full_batch_update(marginals, weights, x, ground_truth_centroid)
+            monitor.test_error(xtest, ytest)
 
-            if not updated:
-                t1 = time.time()
-                duality_gap, primal_objective, _ = monitor_full_batch(
-                    marginals, weights, weights_squared_norm, dual_objective)
-                delta_time += time.time() - t1
-
-            objs = [duality_gap, primal_objective, dual_objective, t, time.time() - delta_time]
-
-            if updated:  # if we updated the sampler
+            if sampler_period is not None and t % (sampler_period * nb_words) == 0:
+                # Non-uniform sampling full batch update:
+                monitor_frequent.update_gap_estimate(array_gaps.mean())
+                if sampling == "gap":
+                    sampler = Sampler(array_gaps)
+                elif sampling == "gap+":
+                    sampler = Sampler(array_gaps * importances)
                 t += nb_words  # count the full batch in the number of steps
 
-            if do_test:
-                loss01, loss_hamming = weights.prediction_loss(xtest, ytest)
-                objs.extend([loss01, loss_hamming])
+            monitor.log_tensorboard(t)
+            monitor.append_results(t)
 
-            objectives.append(objs)
-
-            if logdir is not None:
-
-                tl.log_value("log10 duality gap", np.log10(duality_gap), step=t)
-                tl.log_value("primal objective", primal_objective, step=t)
-
-                if do_test:
-                    tl.log_value("01 loss", loss01, step=t)
-                    tl.log_value("hamming loss", loss_hamming, step=t)
-
-            if duality_gap < precision:
+            if monitor.duality_gap < precision:
                 break
 
     ##################################################################################
     # FINISH : convert the objectives to simplify the after process.
     ##################################################################################
-    objectives = np.array(objectives)
-    if _debug:
-        annex = np.array(annex)
-        return marginals, weights, objectives, annex
-    else:
-        return marginals, weights, objectives
+    monitor.save_results()
+    monitor_frequent.save()
+    return marginals, weights
