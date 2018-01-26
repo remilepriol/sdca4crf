@@ -153,7 +153,11 @@ class Sequence:
         binary = np.exp(max_binary) * (np.exp(self.binary - max_binary)
                                        - np.exp(other.binary - max_binary))
 
-        return Sequence(unary=unary, binary=binary, log=False)
+        ans = Sequence(unary=unary, binary=binary, log=False)
+        assert ans.is_density(integral=0)
+        assert ans.is_consistent()
+
+        return ans
 
     #########################################
     # Typical arithmetic operations

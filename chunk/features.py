@@ -169,7 +169,13 @@ class Features:
         umargs, bmargs, log_partition = oracles.sequence_sum_product(uscores, bscores)
         umargs = np.minimum(umargs, 0)
         bmargs = np.minimum(bmargs, 0)
-        return Sequence(umargs, bmargs, log=True), log_partition
+        ans = Sequence(umargs, bmargs, log=True)
+
+        nans = ans.exp()
+        assert nans.is_consistent()
+        assert nans.is_density(1)
+
+        return ans, log_partition
 
     def label_score(self, xi, yi):
         """Return the score <self,F(xi, yi)>."""

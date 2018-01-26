@@ -143,7 +143,13 @@ class Features:
         umargs, bmargs, log_partition = oracles.sequence_sum_product(uscores, bscores)
         umargs = np.minimum(umargs, 0)
         bmargs = np.minimum(bmargs, 0)
-        return Sequence(umargs, bmargs, log=True), log_partition
+        ans = Sequence(umargs, bmargs, log=True)
+
+        nans = ans.exp()
+        assert nans.is_consistent()
+        assert nans.is_density(1)
+
+        return ans, log_partition
 
     def word_score(self, images, labels):
         """Return the score <self,F(images,labels)>."""
@@ -153,7 +159,7 @@ class Features:
         ans += self.bias[labels[-1], 2]
         ans += np.sum(self.transition[labels[:-1], labels[1:]])
         return ans
-    
+
     def predict(self, images):
         uscores = self.unary_scores(images)
         bscores = self.binary_scores(images)
@@ -221,5 +227,3 @@ class Features:
         plt.xticks(range(26), [ALPHABET[x] for x in range(26)])
         plt.colorbar(fraction=0.046, pad=0.04)
         plt.title("Bias features")
-
-

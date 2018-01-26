@@ -150,26 +150,16 @@ def sdca(features_module, x, y, regu=1, npass=5, sampler_period=None, precision=
         i = sampler.mixed_sample(non_uniformity)
         alpha_i = marginals[i]
 
-        ##################################################################################
-        # MARGINALIZATION ORACLE and ASCENT DIRECTION (primal to dual)
-        ##################################################################################
-        # TODO hide all the asserts into the objects
+        # MARGINALIZATION ORACLE
         beta_i, log_partition_i = weights.infer_probabilities(x[i])
-        nbeta_i = beta_i.exp()
-        assert nbeta_i.is_consistent()
-        assert nbeta_i.is_density(1)
-
+        # ASCENT DIRECTION (primal to dual)
         dual_direction = beta_i.subtract_exp(alpha_i)
-        assert dual_direction.is_density(integral=0)
-        assert dual_direction.is_consistent()
 
-        ##################################################################################
         # EXPECTATION of FEATURES (dual to primal)
-        ##################################################################################
         # TODO keep the primal direction sparse
+        # TODO implement this method as a part of the sequence module
         primal_direction = features_module.Features()
         primal_direction.add_centroid(x[i], dual_direction)
-
         # Centroid of the corrected features in the dual direction
         # = Centroid of the real features in the opposite of the dual direction
         primal_direction.multiply_scalar(-1 / regu / nb_words, inplace=True)
