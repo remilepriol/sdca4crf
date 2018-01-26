@@ -61,8 +61,7 @@ def sdca(features_cls, trainset, regu=1, npass=5, sampler_period=None, precision
 
     dgaps = 100 * np.ones(trainset.size)  # fake estimate of the duality gaps
     monitor_frequent = MonitorIteration(regu, trainset, weights.squared_norm(), marginals, npass,
-                                        dgaps,
-                                        logdir)
+                                        dgaps, logdir)
 
     # non-uniform sampling TODO move that in sampler
     if sampling == "uniform" or sampling == "gap":
@@ -77,7 +76,10 @@ def sdca(features_cls, trainset, regu=1, npass=5, sampler_period=None, precision
     ##################################################################################
     # MAIN LOOP
     ##################################################################################
-    for t in tqdm(range(1, trainset.size * npass)):  # TODO print duality gap
+    progress_bar = tqdm(range(1, trainset.size * npass))
+    progress_bar.set_description("Duality gap estimate: %e" % monitor.duality_gap)
+    # maybe that's not viable if I want to unplug the monitor.
+    for t in progress_bar:
 
         # SAMPLING
         i = sampler.mixed_sample(non_uniformity)
