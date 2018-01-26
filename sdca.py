@@ -2,7 +2,7 @@ import numpy as np
 from tqdm import tqdm
 
 import parameters
-import utils
+from line_search import LineSearch
 from monitor import MonitorEpoch, MonitorIteration
 from sampler import Sampler
 
@@ -45,17 +45,11 @@ def sdca(features_cls, trainset, regu=1, npass=5, sampler_period=None, precision
     algorithm
     """
 
-    ##################################################################################
     # INITIALIZE : the dual and primal variables
-    ##################################################################################
     marginals, weights, ground_truth_centroid = \
         parameters.initialize(warm_start, features_cls, trainset, regu)
 
-    ##################################################################################
     # OBJECTIVES : primal objective, dual objective and duality gaps.
-    # I compute every update_period epoch to monitor the evolution.
-    ##################################################################################
-
     monitor = MonitorEpoch(regu, trainset, ground_truth_centroid, weights, marginals, npass,
                            sampler_period, testset, logdir)
 
@@ -103,9 +97,6 @@ def sdca(features_cls, trainset, regu=1, npass=5, sampler_period=None, precision
         ##################################################################################
         # INTERESTING VALUES and NON-UNIFORM SAMPLING
         ##################################################################################
-        primaldir_squared_norm = primal_direction.squared_norm()
-        weights_dot_primaldir = weights.inner_product(primal_direction)
-
         divergence_gap = alpha_i.kullback_leibler(beta_i)
         reverse_gap = beta_i.kullback_leibler(alpha_i)
 
@@ -114,58 +105,11 @@ def sdca(features_cls, trainset, regu=1, npass=5, sampler_period=None, precision
         elif sampling == "gap+":
             sampler.update(divergence_gap * importances[i], i)
 
-        ##################################################################################
         # LINE SEARCH : find the optimal step size gammaopt or use a fixed one
-        ##################################################################################
-        quadratic_coeff = - regu * trainset.size / 2 * primaldir_squared_norm
-        linear_coeff = - regu * trainset.size * weights_dot_primaldir
-
-        if step_size:
-            gammaopt = step_size
-            subobjective = []
-        else:  # TODO wrap that up into a module linesearch
-
-            def evaluator(gamma, returnf=False):
-                # line search function and its derivatives
-
-                # new marginals
-                newmargs = alpha_i.convex_combination(beta_i, gamma)
-                # assert newmargs.is_density(1)
-                # assert newmargs.is_consistent()
-
-                # first derivative gf
-                if gamma == 0:
-                    gf = divergence_gap + reverse_gap
-                elif gamma == 1:
-                    gf = 2 * quadratic_coeff
-                else:
-                    gf = \
-                        divergence_gap \
-                        + beta_i.kullback_leibler(newmargs) \
-                        - alpha_i.kullback_leibler(newmargs) \
-                        + gamma * 2 * quadratic_coeff
-
-                if gf == 0:
-                    return gf, 0
-
-                # first derivative divided by the second derivative
-                # this is the step size used by Newton-Raphson
-                log_ggf = dual_direction \
-                    .absolute().log() \
-                    .multiply_scalar(2) \
-                    .subtract(newmargs) \
-                    .log_reduce_exp(- 2 * quadratic_coeff)  # stable log sum exp
-                gfdggf = np.log(np.absolute(gf)) - log_ggf  # log(absolute(gf(x)/ggf(x)))
-                gfdggf = - np.sign(gf) * np.exp(gfdggf)  # gf(x)/ggf(x)
-                if returnf:
-                    entropy = newmargs.entropy()
-                    norm = gamma ** 2 * quadratic_coeff + gamma * linear_coeff
-                    return entropy, norm, gf, gfdggf
-                else:
-                    return gf, gfdggf
-
-            gammaopt, subobjective = utils.find_root_decreasing(
-                evaluator=evaluator, precision=1e-2)
+        # TODO Line search should replace monitor frequent
+        line_search = LineSearch(weights, primal_direction, dual_direction, alpha_i, beta_i,
+                                 divergence_gap, reverse_gap, regu, trainset.size, step_size)
+        gammaopt, subobjective = line_search.run()
 
         ##################################################################################
         # UPDATE : the primal and dual coordinates
@@ -181,9 +125,8 @@ def sdca(features_cls, trainset, regu=1, npass=5, sampler_period=None, precision
                                          primaldir_squared_norm, divergence_gap)
         monitor_frequent.log_frequent_tensorboard(t)
 
-        # TODO log all that in monitor
         if t % trainset.size == 0:
-            # OBJECTIVES : after every update_period epochs, compute the duality gap
+            # OBJECTIVES : after every epochs, compute the duality gap
             array_gaps = monitor.full_batch_update(marginals, weights, trainset,
                                                    ground_truth_centroid)
             monitor.test_error(testset, weights)
@@ -203,9 +146,7 @@ def sdca(features_cls, trainset, regu=1, npass=5, sampler_period=None, precision
         if monitor_frequent.duality_gap_estimate < precision:
             break
 
-    ##################################################################################
-    # FINISH : convert the objectives to simplify the after process.
-    ##################################################################################
+    # FINISH : save results and return weights
     monitor.full_batch_update(marginals, weights, trainset, ground_truth_centroid)
     monitor.save_results()
     monitor_frequent.save()
