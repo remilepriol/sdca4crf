@@ -20,3 +20,9 @@ class Data:
             self.index = -1
             raise StopIteration
         return self.points[self.index], self.labels[self.index]
+
+    def get_point(self, i):
+        return self.points[i]
+
+    def get_label(self, i):
+        return self.labels[i]

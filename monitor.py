@@ -23,9 +23,9 @@ class Monitor:
 
 class MonitorEpoch(Monitor):
 
-    def __init__(self, regularization, x, ground_truth_centroid, weights, marginals,
-                 npass, sampler_period, xtest=None, ytest=None, logdir=None):
-        Monitor.__init__(self, regularization, len(x), npass, logdir)
+    def __init__(self, regularization, trainset, ground_truth_centroid, weights, marginals,
+                 npass, sampler_period, testset=None, logdir=None):
+        Monitor.__init__(self, regularization, trainset.size, npass, logdir)
 
         self.sampler_period = sampler_period
 
@@ -35,15 +35,15 @@ class MonitorEpoch(Monitor):
         self.array_gaps = None
         self.duality_gap = None
         self.delta_time = time.time()
-        self.full_batch_update(marginals, weights, x, ground_truth_centroid)
+        self.full_batch_update(marginals, weights, trainset, ground_truth_centroid)
 
         # compute the test error if a test set is present:
-        self.do_test = xtest is not None and ytest is not None
+        self.do_test = testset is not None
         self.loss01 = None
         self.hamming = None
         if self.do_test:
-            self.ntest = len(ytest)
-            self.test_error(xtest, ytest, weights)
+            self.ntest = testset.size
+            self.test_error(testset, weights)
         else:
             self.ntest = 0
 
@@ -76,15 +76,14 @@ class MonitorEpoch(Monitor):
 
     def __repr__(self):
         return "regularization: %f \t nb train: %i \n" \
-               "\|w\|^2= %f \t entropy = %f \n" \
                "Primal - Dual = %f - %f = %f \t Duality gap =  %f" \
                "Test error 0/1 = %f \t Hamming = %f" \
-               % (self.regularization, self.ntrain, self.weights_squared_norm, self.entropy,
+               % (self.regularization, self.ntrain,
                   self.primal_objective, self.dual_objective, self.primal_objective -
                   self.dual_objective, self.duality_gap,
                   self.loss01, self.hamming)
 
-    def full_batch_update(self, marginals, weights, x, ground_truth_centroid):
+    def full_batch_update(self, marginals, weights, trainset, ground_truth_centroid):
         t1 = time.time()
 
         weights_squared_norm = weights.squared_norm()
@@ -94,8 +93,8 @@ class MonitorEpoch(Monitor):
 
         array_gaps = np.empty(self.ntrain, dtype=float)
         sum_log_partitions = 0
-        for i, (margs, imgs) in enumerate(zip(marginals, x)):
-            newmargs, log_partition = weights.infer_probabilities(imgs)
+        for i, (point, margs) in enumerate(zip(trainset.points, marginals)):
+            newmargs, log_partition = weights.infer_probabilities(point)
             array_gaps[i] = margs.kullback_leibler(newmargs)
             sum_log_partitions += log_partition
 
@@ -114,19 +113,32 @@ class MonitorEpoch(Monitor):
 
         # check that this is coherent with my values
         # of the duality gap and the dual objective
-        assert self.check_norm(), self
+        assert self.check_norm(weights), self
         assert self.check_duality_gap(), self
 
         return array_gaps
 
-    # def check_norm(self, weights):
-    #     return np.isclose(self.weights_squared_norm, weights.squared_norm())
+    def check_norm(self, weights):
+        # TODO return np.isclose(self.weights_squared_norm, weights.squared_norm())
+        return True
 
     def check_duality_gap(self):
         return np.isclose(self.duality_gap, self.primal_objective - self.dual_objective)
 
-    def test_error(self, xtest, ytest, weights):
-        self.loss01, self.hamming = weights.prediction_loss(xtest, ytest)
+    def test_error(self, testset, weights):
+        self.loss01 = 0
+        self.hamming = 0
+        total_labels = 0
+
+        for point, label in testset:
+            prediction = weights.predict(point)[0]
+            tmp = np.sum(label != prediction)
+            self.hamming += tmp
+            self.loss01 += (tmp > 0)
+            total_labels += len(label)
+
+        self.loss01 /= testset.size
+        self.hamming /= total_labels
 
     def append_results(self, step):
         self.results["steps"].append(step)
@@ -150,14 +162,14 @@ class MonitorEpoch(Monitor):
             tl.log_value("dual objective", self.dual_objective, step)
             if self.do_test:
                 tl.log_value("01 loss", self.loss01, step)
-                tl.log_value("hamming loss", self.loss_hamming, step)
+                tl.log_value("hamming loss", self.hamming, step)
 
 
 class MonitorIteration(Monitor):
 
-    def __init__(self, regularization, x, weights_squared_norm, marginals,
+    def __init__(self, regularization, trainset, weights_squared_norm, marginals,
                  npass, array_gaps, logdir=None):
-        Monitor.__init__(self, regularization, len(x), npass, logdir)
+        Monitor.__init__(self, regularization, trainset.size, npass, logdir)
 
         self.weights_squared_norm = weights_squared_norm
         self.entropies = np.array([margs.entropy() for margs in marginals])

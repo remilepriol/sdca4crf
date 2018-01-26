@@ -186,21 +186,7 @@ class Features:
     def predict(self, xi):
         uscores = self._unary_scores(xi)
         bscores = self._binary_scores(xi)
-        return oracles.sequence_viterbi(uscores, bscores)
-
-    def prediction_loss(self, x, y):
-        loss01 = 0
-        loss_hamming = 0
-        nb_letters = 0
-
-        for images, truth in zip(x, y):
-            prediction = self.predict(images)[0]
-            tmp = np.sum(truth != prediction)
-            loss_hamming += tmp
-            loss01 += (tmp > 0)
-            nb_letters += len(truth)
-
-        return loss01 / len(y), loss_hamming / nb_letters
+        return oracles.sequence_viterbi(uscores, bscores)[0]
 
     #########################################
     # Arithmetic operations
