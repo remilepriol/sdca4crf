@@ -184,8 +184,8 @@ class MonitorIteration(Monitor):
         self.dual_objective += \
             (self.entropies[i] - tmp) / self.ntrain - self.regularization / 2 * norm_update
 
-        similarity = weights_dot_primaldir / np.sqrt(primaldir_squared_norm) / np.sqrt(
-            self.weights_squared_norm)
+        # similarity = weights_dot_primaldir / np.sqrt(primaldir_squared_norm) / np.sqrt(
+        #     self.weights_squared_norm)
 
         self.duality_gap_estimate += (divergence_gap - self.array_gaps[i]) / self.ntrain
         self.array_gaps[i] = divergence_gap
