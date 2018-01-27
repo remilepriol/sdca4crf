@@ -120,7 +120,6 @@ def sdca(features_cls, trainset, regu=1, npass=5, sampler_period=None, precision
         ##################################################################################
         # ANNEX
         ##################################################################################
-
         monitor_frequent.frequent_update(i, marginals[i], gammaopt, weights_dot_primaldir,
                                          primaldir_squared_norm, divergence_gap)
         monitor_frequent.log_frequent_tensorboard(t)
@@ -130,6 +129,8 @@ def sdca(features_cls, trainset, regu=1, npass=5, sampler_period=None, precision
             array_gaps = monitor.full_batch_update(marginals, weights, trainset,
                                                    ground_truth_centroid)
             monitor.test_error(testset, weights)
+
+            progress_bar.set_description("Duality gap estimate: %e" % monitor.duality_gap)
 
             if sampler_period is not None and t % (sampler_period * trainset.size) == 0:
                 # Non-uniform sampling full batch update:
