@@ -36,7 +36,7 @@ class LineSearch:
             if df != 0 and return_newton:
                 ans.append(self._newton(newmarg, df))
 
-        return ans
+        return tuple(ans)
 
     def _function(self, newmarg, gamma):
         return newmarg.entropy() + gamma ** 2 * self.quadratic_coeff + gamma * self.linear_coeff
@@ -66,31 +66,15 @@ class LineSearch:
         if self.step_size is not None:
             return self.step_size, []
         else:
-            return find_root_decreasing(evaluator=self.evaluator, precision=1e-2)
+            u0, = self.evaluator(0, return_df=True)
+            u1, = self.evaluator(1, return_df=True)
+            if u1 >= 0:  # 1 is optimal
+                return 1, [u1]
+
+            return safe_newton(self.evaluator, 0, 1, u0, u1, precision=1e-2)
 
 
-def find_root_decreasing(evaluator, precision):
-    """Return the root x0 of a decreasing function u defined on [0,1] with given precision.
-    The root can be smaller than 0, in which case, return 0.
-    The root can be larger than 1, in which case, return 1.
-
-    :param evaluator: function that return the values u(x) and u(x)/u'(x)
-    :param precision: maximum value of |u(x)| so that x is returned
-    :return: x an approximate root of u
-    """
-
-    u0, _ = evaluator(0)
-    # if u0 <= precision:  # 0 is optimal
-    #     return 0, [u0]
-
-    u1, _ = evaluator(1)
-    if u1 >= 0:  # 1 is optimal
-        return 1, [u1]
-
-    return safe_newton(evaluator, 0, 1, u0, u1, precision=precision)
-
-
-def bounded_newton(evaluator, init, lowerbound, upperbound, precision=1e-12, max_iter=20):
+def bounded_newton(evaluator, init, lowerbound, upperbound, precision=1e-12):
     """Return the root x0 of a function u defined on [lowerbound, upperbound] with given precision,
     using Newton-Raphson method.
 
@@ -99,27 +83,26 @@ def bounded_newton(evaluator, init, lowerbound, upperbound, precision=1e-12, max
     :param lowerbound:
     :param upperbound:
     :param precision: on the value of |u(x)|
-    :param max_iter: maximum number of iterations
     :return: x an approximate root of u
     """
+    MAX_ITER = 20
     x = init
-    fx, gx = evaluator(x)
-    obj = [fx]
+    u, newton = evaluator(x, return_df=True, return_newton=True)
+    obj = [u]
     count = 0
-    while np.absolute(fx) > precision and count < max_iter:
+    while np.absolute(u) > precision and count < MAX_ITER:
         # stop condition to avoid cycling over an extremity of the segment
         count += 1
-        x -= gx
+        x -= newton
         # Make sure x is in (lower bound, upper bound)
         x = max(lowerbound, x)
         x = min(upperbound, x)
-        fx, gx = evaluator(x)
-        obj.append(fx)
+        u, newton = evaluator(x)
+        obj.append(u)
     return x, obj
 
 
-# define MAXIT 100 Maximum allowed number of iterations.
-def safe_newton(evaluator, lowerbound, upperbound, flower, fupper, precision, max_iter=200):
+def safe_newton(evaluator, lowerbound, upperbound, u_lower, u_upper, precision):
     """Using a combination of Newton-Raphson and bisection, find the root of a function bracketed
     between lowerbound and upperbound.
 
@@ -128,18 +111,18 @@ def safe_newton(evaluator, lowerbound, upperbound, flower, fupper, precision, ma
     :param lowerbound: point smaller than the root
     :param upperbound: point larger than the root
     :param precision: accuracy on the root value rts
-    :param max_iter: maximum number of iteration
     :return: The root, returned as the value rts
     """
+    MAX_ITER = 100
 
-    if (flower > 0 and fupper > 0) or (flower < 0 and fupper < 0):
+    if (u_lower > 0 and u_upper > 0) or (u_lower < 0 and u_upper < 0):
         raise ValueError("Root must be bracketed in [lower bound, upper bound]")
-    if flower == 0:
+    if u_lower == 0:
         return lowerbound
-    if fupper == 0:
+    if u_upper == 0:
         return upperbound
 
-    if flower < 0:  # Orient the search so that f(xl) < 0.
+    if u_lower < 0:  # Orient the search so that f(xl) < 0.
         xl, xh = lowerbound, upperbound
     else:
         xh, xl = lowerbound, upperbound
@@ -148,19 +131,19 @@ def safe_newton(evaluator, lowerbound, upperbound, flower, fupper, precision, ma
     dxold = abs(upperbound - lowerbound)  # the “stepsize before last"
     dx = dxold  # and the last step
 
-    f, fdf = evaluator(rts)
-    obj = [[f]]
+    u, newton = evaluator(rts, return_df=True, return_newton=True)
+    obj = [u]
 
-    for _ in np.arange(max_iter):  # Loop over allowed iterations.
+    for _ in np.arange(MAX_ITER):  # Loop over allowed iterations.
         rtsold = rts
-        rts -= fdf  # Newton step
 
-        if (rts - xh) * (rts - xl) <= 0 and abs(fdf) <= abs(dxold) / 2:
+        rts -= newton  # Newton step
+        if (rts - xh) * (rts - xl) <= 0 and abs(newton) <= abs(dxold) / 2:
             # Keep the Newton step  if it remains in the bracket and
             # if it is converging fast enough.
             # This will be false if fdf is NaN.
             dxold = dx
-            dx = fdf
+            dx = newton
             if rtsold == rts:  # change in root is negligible
                 return rts, np.array(obj)
 
@@ -173,9 +156,10 @@ def safe_newton(evaluator, lowerbound, upperbound, flower, fupper, precision, ma
 
         if abs(dx) < precision:  # Convergence criterion.
             return rts, np.array(obj)
-        f, fdf = evaluator(rts)  # the one new function evaluation per iteration
-        obj.append([f])
-        if f < 0:  # maintain the bracket on the root
+        u, newton = evaluator(rts, return_df=True,
+                              return_newton=True)  # the one new function evaluation per iteration
+        obj.append([u])
+        if u < 0:  # maintain the bracket on the root
             xl = rts
         else:
             xh = rts
