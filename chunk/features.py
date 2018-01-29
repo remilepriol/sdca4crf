@@ -94,27 +94,6 @@ class Features:
         for t in range(xi.shape[0] - 1):
             self._add_binary(yi[t], yi[t + 1])
 
-    def add_dataset(self, x, y):
-        if len(x) != len(y):
-            raise ValueError(
-                "Not the same number of labels (%i) and data points (%i)."
-                % (len(x), len(y)))
-
-        # to be fast, I have to avoid the addition of vectors of size nb_features = 75k at each
-        # iteration. I use the same method as for the dictionary initialization with the numpy
-        # unique method.
-        emission_counts = np.empty(ALPHALEN, dtype=list)
-        for i in range(ALPHALEN):
-            emission_counts[i] = []
-
-        for xi, yi in zip(x, y):
-            self.add_datapoint(xi, yi, emission_counts)
-
-        for i, em in enumerate(emission_counts):
-            if len(em) > 0:
-                indices, values = np.unique(em, return_counts=True)
-                self.emission[i, indices] = values
-
     def _add_unary_centroid(self, xi, unary_marginals):
         self._init_emission(xi[0].dimension)
         # Important part. I hope it works

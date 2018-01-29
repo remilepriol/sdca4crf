@@ -78,14 +78,6 @@ class Features:
         for t in range(images.shape[0] - 1):
             self._add_binary(labels[t], labels[t + 1])
 
-    def add_dataset(self, images_set, labels_set):
-        for images, labels in zip(images_set, labels_set):
-            word_size = labels.shape[0]
-            if word_size != images.shape[0]:
-                raise ValueError("Not the same number of labels (%i) and images (%i) inside word."
-                                 % (word_size, images.shape[0]))
-            self.add_datapoint(images, labels)
-
     def _add_unary_centroid(self, images, unary_marginals=None):
         if unary_marginals is None:  # assume uniform marginal
             self.emission += np.sum(images, axis=0) / ALPHALEN
