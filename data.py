@@ -1,4 +1,6 @@
 class Data:
+    # TODO replace data as the raw array n*(nb_attributes)
+    # TODO include the bias in x?
 
     def __init__(self, points, labels):
         self.index = -1

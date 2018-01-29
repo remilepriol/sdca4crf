@@ -1,105 +1,108 @@
 import numpy as np
+import tensorboard_logger as tl
 
 
 class LineSearch:
 
     def __init__(self, weights, primal_direction, dual_direction, alpha_i, beta_i,
-                 divergence_gap, reverse_gap, regu, ntrain, step_size):
+                 divergence_gap, regu, ntrain, fixed_step_size, monitor_dual_objective, i):
+
+        self.sample_id = i
+        self.alpha_i = alpha_i
+        self.beta_i = beta_i
+        self.newmarg = None
+        self.dual_direction = dual_direction  # TODO use log(d) instead of d.
+        self.fixed_step_size = fixed_step_size
+
+        # values for the derivative of the entropy
+        self.divergence_gap = divergence_gap
+        self.reverse_gap = self.beta_i.kullback_leibler(alpha_i)
+
+        # values for the quadratic term
         self.primaldir_squared_norm = primal_direction.squared_norm()
         self.weights_dot_primaldir = weights.inner_product(primal_direction)
-        self.divergence_gap = divergence_gap
-        self.reverse_gap = reverse_gap
         self.quadratic_coeff = - regu * ntrain / 2 * self.primaldir_squared_norm
         self.linear_coeff = - regu * ntrain * self.weights_dot_primaldir
 
-        self.alpha_i = alpha_i
-        self.beta_i = beta_i
-        self.dual_direction = dual_direction
-        self.step_size = step_size
+        # to update the value of the dual objective on the fly without redundant computations
+        self.monitor_dual_objective = monitor_dual_objective
+
+        # return values
+        self.optimal_step_size = 0
+        self.subobjectives = []
 
     def evaluator(self, gamma, return_f=False, return_df=False, return_newton=False):
         """Return the line search function f and its derivative df evaluated in the step
         size gamma. Because the second derivative can be insanely large, we return instead the
         Newton step f'(x)/f''(x). Newton can be returned only if df is returned."""
-        # new marginals
-        newmarg = self.alpha_i.convex_combination(self.beta_i, gamma)
-
         ans = []
 
+        # new marginals
+        self.newmarg = self.alpha_i.convex_combination(self.beta_i, gamma)
+
         if return_f:
-            ans.append(self._function(newmarg, gamma))
+            ans.append(self.dual_objective(gamma))
 
         if return_df:
-            df = self._derivative(newmarg, gamma)
+            df = self._derivative(gamma)
             ans.append(df)
 
             if df != 0 and return_newton:
-                ans.append(self._newton(newmarg, df))
+                ans.append(self._newton(df))
 
         return tuple(ans)
 
-    def _function(self, newmarg, gamma):
-        return newmarg.entropy() + gamma ** 2 * self.quadratic_coeff + gamma * self.linear_coeff
+    def dual_objective(self, gamma):
+        """Update the true value of the dual objective on the fly through the object dual
+        objective that is passed as an attribute of the class line search."""
+        norm_update = gamma ** 2 * self.primaldir_squared_norm \
+                      + 2 * gamma * self.weights_dot_primaldir
+        self.monitor_dual_objective.update(self.sample_id, self.newmarg.entropy(), norm_update)
+        return self.monitor_dual_objective.get_value()
 
-    def _derivative(self, newmarg, gamma):
+    def _derivative(self, gamma):
         if gamma == 0:
             return self.divergence_gap + self.reverse_gap
         elif gamma == 1:
             return 2 * self.quadratic_coeff
         else:
             return self.divergence_gap \
-                   + self.beta_i.kullback_leibler(newmarg) \
-                   - self.alpha_i.kullback_leibler(newmarg) \
+                   + self.beta_i.kullback_leibler(self.newmarg) \
+                   - self.alpha_i.kullback_leibler(self.newmarg) \
                    + 2 * gamma * self.quadratic_coeff
 
-    def _newton(self, newmarg, df):
+    def _newton(self, df):
         log_ddf = self.dual_direction \
             .absolute().log() \
             .multiply_scalar(2) \
-            .subtract(newmarg) \
+            .subtract(self.newmarg) \
             .log_reduce_exp(- 2 * self.quadratic_coeff)  # stable log sum exp
         ans = np.log(np.absolute(df)) - log_ddf  # log(|f'(x)/f''(x)|)
         ans = - np.sign(df) * np.exp(ans)  # f'(x)/f''(x)
         return ans
 
     def run(self):
-        if self.step_size is not None:
-            return self.step_size, []
+        if self.fixed_step_size is not None:
+            self.evaluator(self.fixed_step_size)  # compute the new marginals
+            self.optimal_step_size = self.fixed_step_size
         else:
             u0, = self.evaluator(0, return_df=True)
-            u1, = self.evaluator(1, return_df=True)
+            u1, newmarg = self.evaluator(1, return_df=True)
             if u1 >= 0:  # 1 is optimal
-                return 1, [u1]
+                self.optimal_step_size = 1
+                self.subobjectives = [u1]
 
-            return safe_newton(self.evaluator, 0, 1, u0, u1, precision=1e-2)
+            self.optimal_step_size, self.subobjectives = safe_newton(
+                self.evaluator, 0, 1, u0, u1, precision=1e-2)
 
+        self.dual_objective(self.optimal_step_size)  # update the dual objective
+        return self.newmarg, self.optimal_step_size
 
-def bounded_newton(evaluator, init, lowerbound, upperbound, precision=1e-12):
-    """Return the root x0 of a function u defined on [lowerbound, upperbound] with given precision,
-    using Newton-Raphson method.
-
-    :param evaluator: function that return the values u(x) and u(x)/u'(x)
-    :param init: initial point x
-    :param lowerbound:
-    :param upperbound:
-    :param precision: on the value of |u(x)|
-    :return: x an approximate root of u
-    """
-    MAX_ITER = 20
-    x = init
-    u, newton = evaluator(x, return_df=True, return_newton=True)
-    obj = [u]
-    count = 0
-    while np.absolute(u) > precision and count < MAX_ITER:
-        # stop condition to avoid cycling over an extremity of the segment
-        count += 1
-        x -= newton
-        # Make sure x is in (lower bound, upper bound)
-        x = max(lowerbound, x)
-        x = min(upperbound, x)
-        u, newton = evaluator(x)
-        obj.append(u)
-    return x, obj
+    def log_tensorboard(self, step):
+        tl.log_value("step size", self.optimal_step_size, step)
+        tl.log_value("number of line search step", len(self.subobjectives), step)
+        tl.log_value("log10 primal_direction_squared_norm", np.log10(self.primaldir_squared_norm),
+                     step=step)
 
 
 def safe_newton(evaluator, lowerbound, upperbound, u_lower, u_upper, precision):
@@ -135,7 +138,6 @@ def safe_newton(evaluator, lowerbound, upperbound, u_lower, u_upper, precision):
     obj = [u]
 
     for _ in np.arange(MAX_ITER):  # Loop over allowed iterations.
-        rtsold = rts
 
         rts -= newton  # Newton step
         if (rts - xh) * (rts - xl) <= 0 and abs(newton) <= abs(dxold) / 2:
@@ -144,21 +146,18 @@ def safe_newton(evaluator, lowerbound, upperbound, u_lower, u_upper, precision):
             # This will be false if fdf is NaN.
             dxold = dx
             dx = newton
-            if rtsold == rts:  # change in root is negligible
-                return rts, np.array(obj)
 
         else:  # Bisection otherwise
             dxold = dx
             dx = (xh - xl) / 2
             rts = xl + dx
-            if xl == rts:  # change in root is negligible
-                return rts, np.array(obj)
 
         if abs(dx) < precision:  # Convergence criterion.
-            return rts, np.array(obj)
-        u, newton = evaluator(rts, return_df=True,
-                              return_newton=True)  # the one new function evaluation per iteration
+            return rts, obj
+        u, newton = evaluator(rts, return_df=True, return_newton=True)
+        # the one new function evaluation per iteration
         obj.append([u])
+
         if u < 0:  # maintain the bracket on the root
             xl = rts
         else:
