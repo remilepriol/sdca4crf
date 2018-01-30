@@ -3,7 +3,7 @@ import numpy as np
 from sequence import dirac
 
 
-def initialize(warm_start, features_cls, data, regularization):
+def initialize(warm_start, features_module, data, regularization):
     if isinstance(warm_start, np.ndarray):
         # assume that init contains the marginals for a warm start.
         if warm_start.shape[0] != data.size:
@@ -22,13 +22,13 @@ def initialize(warm_start, features_cls, data, regularization):
         # gradient in appendix D of the SAG-NUS for CRF paper
         marginals = []
         for imgs, labels in data:
-            marginals.append(dirac(labels, features_cls.ALPHALEN))
+            marginals.append(dirac(labels, features_module.ALPHALEN))
         marginals = np.array(marginals)
 
     # Initialize the weights as the centroid of the ground truth features minus the centroid
     # of the features given by the marginals.
-    ground_truth_centroid = true_centroid(features_cls, data)
-    weights = marginals_centroid(data, features_cls.Features, marginals)
+    ground_truth_centroid = true_centroid(features_module.Features, data)
+    weights = marginals_centroid(data, features_module.Features, marginals)
 
     weights = ground_truth_centroid.subtract(weights)
     weights.multiply_scalar(1 / regularization, inplace=True)
