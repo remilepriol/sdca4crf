@@ -39,19 +39,12 @@ class MonitorAllObjectives:
         self.hamming = None
         if self.testset is not None:
             self.ntest = testset.size
-            self.update_test_error(testset, weights)
+            self.update_test_error(weights)
         else:
             self.ntest = 0
 
-        # time spent monitoring the objectives
-        self.delta_time = time.time()
-
-        self.full_batch_update(weights, marginals, count_time=False)
-
         # logging
         self.use_tensorboard = use_tensorboard
-        if self.use_tensorboard:
-            self.log_tensorboard(step=0)
 
         # save values in a dictionary
         self.results = {
@@ -65,16 +58,26 @@ class MonitorAllObjectives:
             "0/1 loss": [],
             "hamming loss": []
         }
-        self.append_results()
+
+        # time spent monitoring the objectives
+        self.delta_time = time.time()
+
+        # compute all the values once - EXPENSIVE
+        self.full_batch_update(weights, marginals, step=0, count_time=False)
 
     def __repr__(self):
-        return "regularization: %f \t nb train: %i \n" \
-               "Primal - Dual = %f - %f = %f \t Duality gap =  %f" \
-               "Test error 0/1 = %f \t Hamming = %f" \
-               % (self.regularization, self.ntrain,
-                  self.primal_objective, self.dual_objective, self.primal_objective -
-                  self.dual_objective, self.duality_gap,
-                  self.loss01, self.hamming)
+        return "regularization: {} \t nb train: {} \n" \
+               "Primal - Dual = {} - {} = {} \t Duality gap =  {} \n" \
+               "Test error 0/1 = {} \t Hamming = {}".format(
+            self.regularization,
+            self.ntrain,
+            self.primal_objective,
+            self.dual_objective,
+            self.primal_objective - self.dual_objective,
+            self.duality_gap,
+            self.loss01,
+            self.hamming
+        )
 
     def full_batch_update(self, weights, marginals, step, count_time):
         t1 = time.time()
@@ -89,13 +92,7 @@ class MonitorAllObjectives:
         self.append_results(step)
         self.log_tensorboard(step)
 
-        assert self.check_duality_gap(), self
-
         return gaps_array
-
-    def check_duality_gap(self):
-        """Check that the objective values are coherent with each other."""
-        return np.isclose(self.duality_gap, self.primal_objective - self.dual_objective)
 
     def update_objectives(self, weights, marginals):
         weights_squared_norm = weights.squared_norm()
@@ -110,9 +107,6 @@ class MonitorAllObjectives:
             gaps_array[i] = margs.kullback_leibler(newmargs)
             sum_log_partitions += log_partition
 
-        # update the value of the duality gap
-        self.duality_gap = gaps_array.mean()
-
         # calculate the primal score
         # take care that the log-partitions are not based on the corrected features (ground
         # truth minus feature) but on the raw features.
@@ -121,7 +115,16 @@ class MonitorAllObjectives:
             + sum_log_partitions / self.ntrain \
             - weights.inner_product(self.ground_truth_centroid)
 
+        # update the value of the duality gap
+        self.duality_gap = gaps_array.mean()
+
+        assert self.check_duality_gap(), self
+
         return gaps_array
+
+    def check_duality_gap(self):
+        """Check that the objective values are coherent with each other."""
+        return np.isclose(self.duality_gap, self.primal_objective - self.dual_objective)
 
     def update_test_error(self, weights):
         if self.testset is None:
@@ -152,8 +155,8 @@ class MonitorAllObjectives:
             self.results["hamming loss"].append(self.hamming)
 
     def save_results(self, logdir):
-        with open(logdir + "/objectives.pkl"):
-            pickle.dump(self.results)
+        with open(logdir + "/objectives.pkl", "wb") as out:
+            pickle.dump(self.results, out)
 
     def log_tensorboard(self, step):
         if self.use_tensorboard:
