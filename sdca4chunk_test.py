@@ -2,17 +2,14 @@
 import os
 import time
 
-import matplotlib.pyplot as plt
 import numpy as np
 
-# custom imports
+import chunk.features
 import sdca
-from chunk import features, parse
+from labeled_data import LabeledSequenceData
 
-# I want to come down to 30% of the time on the line search.
-
-train_size = 60000000
-test_size = 100000000
+train_size = 600
+test_size = 100
 
 # # Load data
 # trainfile = "../data/conll2000/train.att.txt"
@@ -27,8 +24,8 @@ test_size = 100000000
 trainfile = "../lib/sag4crf/data/coNLL_train.mat"
 testfile = "../lib/sag4crf/data/coNLL_test.mat"
 
-xtrain, ytrain, attributes = parse.read_mat(trainfile, nb_sentences=train_size)
-xtest, ytest, _ = parse.read_mat(testfile, attributes=attributes, nb_sentences=test_size)
+xtrain, ytrain, attributes = chunk.parse.read_mat(trainfile, nb_sentences=train_size)
+xtest, ytest, _ = chunk.parse.read_mat(testfile, attributes=attributes, nb_sentences=test_size)
 nb_features = attributes.total
 
 print("Number of different features:", nb_features)
@@ -37,26 +34,30 @@ print("Size of training set:", train_size)
 test_size = xtest.shape[0]
 print("Size of test set:", test_size)
 
+trainset = LabeledSequenceData(xtrain, ytrain)
+testset = LabeledSequenceData(xtest, ytest)
+
 regu = 1 / train_size
 
 parameters = {
-    'regu': regu,
+    'regularization': regu,
     'npass': 100,
     'sampling': 'gap',
     'non_uniformity': .8,
-    'monitoring_period': 5,
     'sampler_period': None,
     'precision': 1e-7,
-    '_debug': True,
+    # 'fixed_step_size': .01
 }
 print(parameters)
 
 time_stamp = time.strftime("%Y%m%d_%H%M%S")
-dirname = "logs/" + time_stamp \
-          + "_CONLL2000_" \
-          + parameters['sampling'] + "_" \
-          + str(parameters['non_uniformity']) + "_" \
-          + str(parameters['sampler_period'])
+
+dirname = "logs/conll2000/{}_n{}_{}{}".format(
+    time_stamp,
+    train_size,
+    parameters['sampling'],
+    parameters['non_uniformity']
+)
 
 parameters['logdir'] = dirname
 
@@ -68,32 +69,23 @@ if not os.path.exists(dirname):
 
 # write all parameters to text file
 with open(dirname + '/parameters.txt', 'w') as file:
-    file.write(" time :" + time_stamp)
-    file.write("\n train size :" + str(train_size))
-    file.write("\n test size :" + str(test_size))
-    file.write("Number of different features:", nb_features)
+    message = "Time: {} \n Size of the feature map: {} \n " \
+              "Train size: {} \n Test size: {} \n".format(
+        time_stamp,
+        nb_features,
+        train_size,
+        test_size
+    )
     for key, value in parameters.items():
-        file.write("\n" + key + " : " + str(value))
+        file.write("\n {} : {}".format(key, value))
 
-fullmargs, fullweights, fullobjective, fullannex = \
-    sdca.sdca(features, xtrain, ytrain, xtest=xtest, ytest=ytest, **parameters)
+# TODO implement the initialization as a clean module
+# TODO wrap SDCA with a try finally to be sure to save results and weights !
+
+fullweights, fullmargs = \
+    sdca.sdca(features_cls=chunk.features, trainset=trainset, testset=testset, **parameters)
 
 print("End")
 os.system('say "I am done."')
 
 np.save(dirname + "/weights.npy", fullweights)
-np.save(dirname + "/objectives.npy", fullobjective)
-np.save(dirname + "/annex.npy", fullannex)
-
-plt.figure(figsize=(12, 4))
-plt.suptitle("Performance of SDCA on CONLL2000 with n=%i and lambda=%.1e" % (train_size, regu))
-plt.subplot(1, 2, 1)
-plt.ylabel("log10(duality gap)")
-plt.plot(np.log10(fullobjective[:, 0]))
-ticksrange = 2 * np.arange(len(fullobjective) / 2, dtype=int)
-plt.xticks(ticksrange, parameters['monitoring_period'] * ticksrange)
-plt.xlabel("number of pass over the data")
-plt.subplot(1, 2, 2)
-plt.plot(fullobjective[:, 3], np.log10(fullobjective[:, 0]))
-plt.xlabel("time (s)")
-plt.savefig(dirname + "/duality_gap.pdf")

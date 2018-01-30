@@ -8,9 +8,9 @@ from monitor import MonitorAllObjectives, MonitorDualObjective, MonitorDualityGa
 from sampler import Sampler
 
 
-def sdca(features_cls, trainset, regularization=1, npass=5, sampler_period=None, precision=1e-5,
-         sampling="uniform", non_uniformity=0, fixed_step_size=None, warm_start=None, _debug=False,
-         logdir=None, testset=None):
+def sdca(features_cls, trainset, testset=None, regularization=1, npass=5, sampler_period=None,
+         precision=1e-5, sampling="uniform", non_uniformity=0, fixed_step_size=None,
+         warm_start=None, logdir=None):
     """Update alpha and weights with the stochastic dual coordinate ascent algorithm to fit
     the model to the trainset points x and the labels y.
 
@@ -19,8 +19,7 @@ def sdca(features_cls, trainset, regularization=1, npass=5, sampler_period=None,
 
     :param features_cls: module corresponding to the dataset, with the relevant alphabet and
     features.
-    :param x: trainset points organized by rows
-    :param y: labels as a one dimensional array. They should be positive.
+    :param trainset: training set in the LabeledSequenceData format
     :param regularization: value of the l2 regularization parameter
     :param npass: maximum number of pass over the trainset
     duality gaps used in the non-uniform sampling and to get a convergence criterion.
@@ -34,17 +33,12 @@ def sdca(features_cls, trainset, regularization=1, npass=5, sampler_period=None,
     float
     to be used as the constant step size.
     :param warm_start: if numpy array, used as marginals to start from.
-    :param _debug: if true, return a detailed list of objectives
     :param logdir: if nont None, use logdir to dump values for tensorboard
-    :param xtest: trainset points to test the prediction every few epochs
-    :param ytest: labels to test the prediction every few epochs
+    :param testset: testing set in the LabeledSequenceData format. We test the prediction after
+    every epochs.
 
     :return marginals: optimal value of the marginals
     :return weights: optimal value of the weights
-    :return objectives: list of duality gaps, primal objective, dual objective and time point
-    measured after each update_period epochs
-    :return annex: only if _debug is true, array of useful values taken at each step of the
-    algorithm
     """
 
     # INITIALIZE : the dual and primal variables
@@ -78,14 +72,14 @@ def sdca(features_cls, trainset, regularization=1, npass=5, sampler_period=None,
     ##################################################################################
     progress_bar = tqdm(range(1, trainset.size * npass + 1))
     for step in progress_bar:
-        if step % 500 == 0:
+        if step % 50 == 0:
             progress_bar.set_description(
                 "Duality gap estimate: %e" % monitor_gap_estimate.get_value())
 
         # SAMPLING
         i = sampler.mixed_sample(non_uniformity)
         alpha_i = marginals[i]
-        point_i = trainset.get_points(i)
+        point_i = trainset.get_point(i)
 
         # MARGINALIZATION ORACLE
         beta_i, log_partition_i = weights.infer_probabilities(point_i)
@@ -129,16 +123,18 @@ def sdca(features_cls, trainset, regularization=1, npass=5, sampler_period=None,
 
         if step % trainset.size == 0:
             # OBJECTIVES : after every epochs, compute the duality gap
+            # Update the sampler if necessary (count_time==True)
             count_time = sampler_period is not None and step % (
                     sampler_period * trainset.size) == 0
+
             gaps_array = monitor_all_objectives.full_batch_update(
                 weights, marginals, step, count_time)
+
             assert are_consistent(monitor_dual_objective, monitor_all_objectives)
 
             monitor_all_objectives.save_results(logdir)
 
             if count_time:
-                # Non-uniform sampling full batch update:
                 monitor_gap_estimate = MonitorDualityGapEstimate(gaps_array)
                 if sampling == "gap":
                     sampler = Sampler(gaps_array)
@@ -152,4 +148,4 @@ def sdca(features_cls, trainset, regularization=1, npass=5, sampler_period=None,
             monitor_all_objectives.save_results(logdir)
             break
 
-    return marginals, weights
+    return weights, marginals
