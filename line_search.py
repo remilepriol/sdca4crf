@@ -31,20 +31,19 @@ class LineSearch:
         self.optimal_step_size = 0
         self.subobjectives = []
 
-    def evaluator(self, gamma, return_f=False, return_df=False, return_newton=False):
+    def evaluator(self, step_size, return_f=False, return_df=False, return_newton=False):
         """Return the line search function f and its derivative df evaluated in the step
-        size gamma. Because the second derivative can be insanely large, we return instead the
+        size step_size. Because the second derivative can be insanely large, we return instead the
         Newton step f'(x)/f''(x). Newton can be returned only if df is returned."""
         ans = []
 
-        # new marginals
-        self.newmarg = self.alpha_i.convex_combination(self.beta_i, gamma)
+        self.update_new_marginal(step_size)
 
         if return_f:
-            ans.append(self.dual_objective(gamma))
+            ans.append(self.update_dual_objective(step_size))
 
         if return_df:
-            df = self._derivative(gamma)
+            df = self._derivative(step_size)
             ans.append(df)
 
             if df != 0 and return_newton:
@@ -52,24 +51,27 @@ class LineSearch:
 
         return tuple(ans)
 
-    def dual_objective(self, gamma):
+    def update_new_marginal(self, step_size):
+        self.newmarg = self.alpha_i.convex_combination(self.beta_i, step_size)
+
+    def update_dual_objective(self, step_size):
         """Update the true value of the dual objective on the fly through the object dual
         objective that is passed as an attribute of the class line search."""
-        norm_update = gamma ** 2 * self.primaldir_squared_norm \
-                      + 2 * gamma * self.weights_dot_primaldir
+        norm_update = step_size ** 2 * self.primaldir_squared_norm \
+                      + 2 * step_size * self.weights_dot_primaldir
         self.monitor_dual_objective.update(self.sample_id, self.newmarg.entropy(), norm_update)
         return self.monitor_dual_objective.get_value()
 
-    def _derivative(self, gamma):
-        if gamma == 0:
+    def _derivative(self, step_size):
+        if step_size == 0:
             return self.divergence_gap + self.reverse_gap
-        elif gamma == 1:
+        elif step_size == 1:
             return 2 * self.quadratic_coeff
         else:
             return self.divergence_gap \
                    + self.beta_i.kullback_leibler(self.newmarg) \
                    - self.alpha_i.kullback_leibler(self.newmarg) \
-                   + 2 * gamma * self.quadratic_coeff
+                   + 2 * step_size * self.quadratic_coeff
 
     def _newton(self, df):
         log_ddf = self.dual_direction \
@@ -83,19 +85,19 @@ class LineSearch:
 
     def run(self):
         if self.fixed_step_size is not None:
-            self.evaluator(self.fixed_step_size)  # compute the new marginals
             self.optimal_step_size = self.fixed_step_size
         else:
             u0, = self.evaluator(0, return_df=True)
-            u1, newmarg = self.evaluator(1, return_df=True)
-            if u1 >= 0:  # 1 is optimal
+            u1, = self.evaluator(1, return_df=True)
+            if u1 >= 0:  # 1 is optimal, the new marginal is already updated
                 self.optimal_step_size = 1
                 self.subobjectives = [u1]
+            else:
+                self.optimal_step_size, self.subobjectives = safe_newton(
+                    self.evaluator, 0, 1, u0, u1, precision=1e-2)
 
-            self.optimal_step_size, self.subobjectives = safe_newton(
-                self.evaluator, 0, 1, u0, u1, precision=1e-2)
-
-        self.dual_objective(self.optimal_step_size)  # update the dual objective
+        self.update_new_marginal(self.optimal_step_size)  # compute the new marginals
+        self.update_dual_objective(self.optimal_step_size)  # update the dual objective
         return self.newmarg, self.optimal_step_size
 
     def log_tensorboard(self, step):
