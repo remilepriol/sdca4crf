@@ -72,7 +72,7 @@ def sdca(features_cls, trainset, testset=None, regularization=1, npass=5, sample
     ##################################################################################
     progress_bar = tqdm(range(1, trainset.size * npass + 1))
     for step in progress_bar:
-        if step % 50 == 0:
+        if step % 100 == 0:
             progress_bar.set_description(
                 "Duality gap estimate: %e" % monitor_gap_estimate.get_value())
 
@@ -84,6 +84,7 @@ def sdca(features_cls, trainset, testset=None, regularization=1, npass=5, sample
         # MARGINALIZATION ORACLE
         beta_i, log_partition_i = weights.infer_probabilities(point_i)
         # ASCENT DIRECTION (primal to dual)
+        # TODO use a log value and scip's logsumexp with signs.
         dual_direction = beta_i.subtract_exp(alpha_i)
 
         # EXPECTATION of FEATURES (dual to primal)
@@ -106,20 +107,26 @@ def sdca(features_cls, trainset, testset=None, regularization=1, npass=5, sample
         # LINE SEARCH : find the optimal step size or use a fixed one
         # Update the dual objective monitor as well
         line_search = LineSearch(weights, primal_direction, dual_direction, alpha_i, beta_i,
-                                 divergence_gap, regularization, trainset.size, fixed_step_size,
-                                 monitor_dual_objective, i)
-        newmarg, optimal_step_size = line_search.run()
+                                 divergence_gap, regularization, trainset.size)
+
+        if fixed_step_size is not None:
+            optimal_step_size = fixed_step_size
+        else:
+            optimal_step_size = line_search.run()
 
         # UPDATE : the primal and dual coordinates
-        marginals[i] = newmarg
+        marginals[i] = alpha_i.convex_combination(beta_i, optimal_step_size)
         weights = weights.add(
             primal_direction.multiply_scalar(optimal_step_size))  # TODO sparsify update
+        monitor_dual_objective.update(i, marginals[i].entropy(),
+                                      line_search.norm_update(optimal_step_size))
 
         # ANNEX
         if use_tensorboard and step % 20 == 0:
             monitor_dual_objective.log_tensorboard(step)
             monitor_gap_estimate.log_tensorboard(step)
-            line_search.log_tensorboard(step)
+            if fixed_step_size is None:
+                line_search.log_tensorboard(step)
 
         if step % trainset.size == 0:
             # OBJECTIVES : after every epochs, compute the duality gap
