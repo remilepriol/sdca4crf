@@ -167,41 +167,6 @@ class MonitorAllObjectives:
                 tl.log_value("01 loss", self.loss01, step)
                 tl.log_value("hamming loss", self.hamming, step)
 
-    # def log_tensorboard(self, step):
-    #     if self.tensorboard and step % 10 == 0:
-    #         tl.log_value("weights_squared_norm", self.weights_squared_norm, step)
-    #         tl.log_value("dual objective", self.dual_objective, step)
-    #         tl.log_value("log10 duality gap estimate", np.log10(self.duality_gap_estimate), step)
-    #         # tl.log_value("normalized weights dot primaldir", similarity, step)
-    #         # tl.log_value("step size", gammaopt, step)
-    #         # tl.log_value("number of line search step", len(subobjective), step)
-    #         # tl.log_value("log10 individual gap", np.log10(divergence_gap), step)
-    #         # tl.log_value("log10 primaldir_squared_norm", np.log10(primaldir_squared_norm),
-    #         #              step=step)
-    #
-    # def append_results(self):
-    #     pass
-    #     # TODO
-    #     # if _debug and t % 10 == 0:
-    #     #     # Append relevant variables
-    #     #     annex.append([
-    #     #         np.log10(primaldir_squared_norm),
-    #     #         weights_squared_norm,
-    #     #         similarity,
-    #     #         dual_objective,
-    #     #         np.log10(duality_gap_estimate),
-    #     #         np.log10(divergence_gap),
-    #     #         gammaopt,
-    #     #         i,
-    #     #         len(subobjective),
-    #     #         t
-    #     #     ])
-    #
-    # def save(self):
-    #     # TODO
-    #     pass
-
-
 class MonitorDualObjective:
 
     def __init__(self, regularization, weights, marginals):
