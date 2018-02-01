@@ -9,7 +9,8 @@ class SamplerWrap:
     GAP = 2
     GAPP = 3
 
-    def __init__(self, sampling_scheme, gaps_array, features_cls, trainset, regularization):
+    def __init__(self, sampling_scheme, non_uniformity,
+                 gaps_array, features_cls, trainset, regularization):
 
         if sampling_scheme == "uniform":
             self.scheme = SamplerWrap.UNIFORM
@@ -30,14 +31,15 @@ class SamplerWrap:
                                / trainset.size / regularization
 
         self.sampler = Sampler(gaps_array * self.importances)
+        self.non_uniformity = non_uniformity
 
     def update(self, sample_id, divergence_gap):
-        if self.sampling_scheme in [SamplerWrap.GAP, SamplerWrap.GAPP]:
+        if self.scheme in [SamplerWrap.GAP, SamplerWrap.GAPP]:
             self.sampler.update(divergence_gap * self.importances[sample_id], sample_id)
 
     def full_update(self, gaps_array):
-        if self.sampling_scheme in [SamplerWrap.GAP, SamplerWrap.GAPP]:
+        if self.scheme in [SamplerWrap.GAP, SamplerWrap.GAPP]:
             self.sampler = Sampler(gaps_array * self.importances)
 
-    def mixed_sample(self, non_uniformity):
-        return self.sampler.mixed_sample(non_uniformity)
+    def sample(self):
+        return self.sampler.mixed_sample(self.non_uniformity)

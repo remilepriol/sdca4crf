@@ -58,7 +58,8 @@ def sdca(features_cls, trainset, testset=None, regularization=1, npass=5, sample
     monitor_gap_estimate = MonitorDualityGapEstimate(gaps_array)
 
     # non-uniform sampling
-    sampler = SamplerWrap(sampling_scheme, gaps_array, features_cls, trainset, regularization)
+    sampler = SamplerWrap(sampling_scheme, non_uniformity,
+                          gaps_array, features_cls, trainset, regularization)
 
     ##################################################################################
     # MAIN LOOP
@@ -70,7 +71,7 @@ def sdca(features_cls, trainset, testset=None, regularization=1, npass=5, sample
                 "Duality gap estimate: %e" % monitor_gap_estimate.get_value())
 
         # SAMPLING
-        i = sampler.mixed_sample(non_uniformity)
+        i = sampler.sample()
         alpha_i = marginals[i]
         point_i = trainset.get_point(i)
 
