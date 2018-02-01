@@ -38,3 +38,6 @@ class SamplerWrap:
     def full_update(self, gaps_array):
         if self.sampling_scheme in [SamplerWrap.GAP, SamplerWrap.GAPP]:
             self.sampler = Sampler(gaps_array * self.importances)
+
+    def mixed_sample(self, non_uniformity):
+        return self.sampler.mixed_sample(non_uniformity)
