@@ -5,11 +5,11 @@ import parameters
 from line_search import LineSearch
 from monitor import MonitorAllObjectives, MonitorDualObjective, MonitorDualityGapEstimate, \
     are_consistent, initialize_tensorboard
-from sampler import Sampler
+from sampler_wrap import SamplerWrap
 
 
 def sdca(features_cls, trainset, testset=None, regularization=1, npass=5, sampler_period=None,
-         precision=1e-5, sampling="uniform", non_uniformity=0, fixed_step_size=None,
+         precision=1e-5, sampling_scheme="uniform", non_uniformity=0, fixed_step_size=None,
          warm_start=None, logdir=None):
     """Update alpha and weights with the stochastic dual coordinate ascent algorithm to fit
     the model to the trainset points x and the labels y.
@@ -27,7 +27,7 @@ def sdca(features_cls, trainset, testset=None, regularization=1, npass=5, sample
     for the non-uniform sampling. Expressed as a number of epochs. This whole epoch will be
     counted in the number of pass used by sdca.
     :param precision: precision to which we wish to optimize the objective.
-    :param sampling: options are "uniform" (default), "importance", "gap", "gap+"
+    :param sampling_scheme: options are "uniform" (default), "importance", "gap", "gap+"
     :param non_uniformity: between 0 and 1. probability of sampling non-uniformly.
     :param fixed_step_size: if None, SDCA will use a line search. Otherwise should be a positive
     float
@@ -54,18 +54,11 @@ def sdca(features_cls, trainset, testset=None, regularization=1, npass=5, sample
 
     monitor_dual_objective = MonitorDualObjective(regularization, weights, marginals)
 
-    dgaps = 100 * np.ones(trainset.size)  # fake estimate of the duality gaps
-    monitor_gap_estimate = MonitorDualityGapEstimate(dgaps)
+    gaps_array = 100 * np.ones(trainset.size)  # fake estimate of the duality gaps
+    monitor_gap_estimate = MonitorDualityGapEstimate(gaps_array)
 
     # non-uniform sampling
-    if sampling == "uniform" or sampling == "gap":
-        sampler = Sampler(100 * np.ones(trainset.size))
-    elif sampling == "importance" or sampling == "gap+":
-        importances = 1 + features_cls.radii(trainset.points, trainset.labels) ** 2 \
-                      / trainset.size / regularization
-        sampler = Sampler(dgaps * importances)
-    else:
-        raise ValueError(" %s is not a valid argument for sampling" % str(sampling))
+    sampler = SamplerWrap(sampling_scheme, gaps_array, features_cls, trainset, regularization)
 
     ##################################################################################
     # MAIN LOOP
@@ -99,10 +92,7 @@ def sdca(features_cls, trainset, testset=None, regularization=1, npass=5, sample
         # DUALITY GAP
         divergence_gap = alpha_i.kullback_leibler(beta_i)
         monitor_gap_estimate.update(i, divergence_gap)
-        if sampling == "gap":
-            sampler.update(divergence_gap, i)
-        elif sampling == "gap+":
-            sampler.update(divergence_gap * importances[i], i)
+        sampler.update(i, divergence_gap)
 
         # LINE SEARCH : find the optimal step size or use a fixed one
         # Update the dual objective monitor as well
@@ -142,12 +132,9 @@ def sdca(features_cls, trainset, testset=None, regularization=1, npass=5, sample
             monitor_all_objectives.save_results(logdir)
 
             if count_time:
-                monitor_gap_estimate = MonitorDualityGapEstimate(gaps_array)
-                if sampling == "gap":
-                    sampler = Sampler(gaps_array)
-                elif sampling == "gap+":
-                    sampler = Sampler(gaps_array * importances)
                 step += trainset.size  # count the full batch in the number of steps
+                monitor_gap_estimate = MonitorDualityGapEstimate(gaps_array)
+                sampler.full_update(gaps_array)
 
         # STOP condition
         if monitor_gap_estimate.get_value() < precision:
