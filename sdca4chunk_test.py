@@ -8,8 +8,8 @@ import chunk.features
 import sdca
 from labeled_data import LabeledSequenceData
 
-train_size = 600
-test_size = 100
+train_size = 100
+test_size = 50
 
 # # Load data
 # trainfile = "../data/conll2000/train.att.txt"
@@ -42,7 +42,7 @@ regu = 1 / train_size
 parameters = {
     'regularization': regu,
     'npass': 100,
-    'sampling': 'gap',
+    'sampling_scheme': 'gap',
     'non_uniformity': .8,
     'sampler_period': None,
     'precision': 1e-7,
@@ -55,7 +55,7 @@ time_stamp = time.strftime("%Y%m%d_%H%M%S")
 dirname = "logs/conll2000/{}_n{}_{}{}".format(
     time_stamp,
     train_size,
-    parameters['sampling'],
+    parameters['sampling_scheme'],
     parameters['non_uniformity']
 )
 
@@ -80,7 +80,6 @@ with open(dirname + '/parameters.txt', 'w') as file:
         file.write("\n {} : {}".format(key, value))
 
 # TODO implement the initialization as a clean module
-# TODO wrap SDCA with a try finally to be sure to save results and weights !
 
 fullweights, fullmargs = \
     sdca.sdca(features_cls=chunk.features, trainset=trainset, testset=testset, **parameters)

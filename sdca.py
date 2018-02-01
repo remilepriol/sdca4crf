@@ -61,86 +61,89 @@ def sdca(features_cls, trainset, testset=None, regularization=1, npass=5, sample
     sampler = SamplerWrap(sampling_scheme, non_uniformity,
                           gaps_array, features_cls, trainset, regularization)
 
-    ##################################################################################
-    # MAIN LOOP
-    ##################################################################################
-    progress_bar = tqdm(range(1, trainset.size * npass + 1))
-    for step in progress_bar:
-        if step % 100 == 0:
-            progress_bar.set_description(
-                "Duality gap estimate: %e" % monitor_gap_estimate.get_value())
+    try:
 
-        # SAMPLING
-        i = sampler.sample()
-        alpha_i = marginals[i]
-        point_i = trainset.get_point(i)
+        ##################################################################################
+        # MAIN LOOP
+        ##################################################################################
+        progress_bar = tqdm(range(1, trainset.size * npass + 1))
+        for step in progress_bar:
+            if step % 100 == 0:
+                progress_bar.set_description(
+                    "Duality gap estimate: %e" % monitor_gap_estimate.get_value())
 
-        # MARGINALIZATION ORACLE
-        beta_i, log_partition_i = weights.infer_probabilities(point_i)
-        # ASCENT DIRECTION (primal to dual)
-        # TODO use a log value and scip's logsumexp with signs.
-        dual_direction = beta_i.subtract_exp(alpha_i)
+            # SAMPLING
+            i = sampler.sample()
+            alpha_i = marginals[i]
+            point_i = trainset.get_point(i)
 
-        # EXPECTATION of FEATURES (dual to primal)
-        # TODO keep the primal direction sparse
-        # TODO implement this method as dual_direction.features_expectation()
-        primal_direction = features_cls.Features()
-        primal_direction.add_centroid(point_i, dual_direction)
-        # Centroid of the corrected features in the dual direction
-        # = Centroid of the real features in the opposite of the dual direction
-        primal_direction.multiply_scalar(-1 / regularization / trainset.size, inplace=True)
+            # MARGINALIZATION ORACLE
+            beta_i, log_partition_i = weights.infer_probabilities(point_i)
+            # ASCENT DIRECTION (primal to dual)
+            # TODO use a log value and scip's logsumexp with signs.
+            dual_direction = beta_i.subtract_exp(alpha_i)
 
-        # DUALITY GAP
-        divergence_gap = alpha_i.kullback_leibler(beta_i)
-        monitor_gap_estimate.update(i, divergence_gap)
-        sampler.update(i, divergence_gap)
+            # EXPECTATION of FEATURES (dual to primal)
+            # TODO keep the primal direction sparse
+            # TODO implement this method as dual_direction.features_expectation()
+            primal_direction = features_cls.Features()
+            primal_direction.add_centroid(point_i, dual_direction)
+            # Centroid of the corrected features in the dual direction
+            # = Centroid of the real features in the opposite of the dual direction
+            primal_direction.multiply_scalar(-1 / regularization / trainset.size, inplace=True)
 
-        # LINE SEARCH : find the optimal step size or use a fixed one
-        # Update the dual objective monitor as well
-        line_search = LineSearch(weights, primal_direction, dual_direction, alpha_i, beta_i,
-                                 divergence_gap, regularization, trainset.size)
+            # DUALITY GAP
+            divergence_gap = alpha_i.kullback_leibler(beta_i)
+            monitor_gap_estimate.update(i, divergence_gap)
+            sampler.update(i, divergence_gap)
 
-        if fixed_step_size is not None:
-            optimal_step_size = fixed_step_size
-        else:
-            optimal_step_size = line_search.run()
+            # LINE SEARCH : find the optimal step size or use a fixed one
+            # Update the dual objective monitor as well
+            line_search = LineSearch(weights, primal_direction, dual_direction, alpha_i, beta_i,
+                                     divergence_gap, regularization, trainset.size)
 
-        # UPDATE : the primal and dual coordinates
-        marginals[i] = alpha_i.convex_combination(beta_i, optimal_step_size)
-        weights = weights.add(
-            primal_direction.multiply_scalar(optimal_step_size))  # TODO sparsify update
-        monitor_dual_objective.update(i, marginals[i].entropy(),
-                                      line_search.norm_update(optimal_step_size))
+            if fixed_step_size is not None:
+                optimal_step_size = fixed_step_size
+            else:
+                optimal_step_size = line_search.run()
 
-        # ANNEX
-        if use_tensorboard and step % 20 == 0:
-            monitor_dual_objective.log_tensorboard(step)
-            monitor_gap_estimate.log_tensorboard(step)
-            if fixed_step_size is None:
-                line_search.log_tensorboard(step)
+            # UPDATE : the primal and dual coordinates
+            marginals[i] = alpha_i.convex_combination(beta_i, optimal_step_size)
+            weights = weights.add(
+                primal_direction.multiply_scalar(optimal_step_size))  # TODO sparsify update
+            monitor_dual_objective.update(i, marginals[i].entropy(),
+                                          line_search.norm_update(optimal_step_size))
 
-        if step % trainset.size == 0:
-            # OBJECTIVES : after every epochs, compute the duality gap
-            # Update the sampler if necessary (count_time==True)
-            count_time = sampler_period is not None and step % (
-                    sampler_period * trainset.size) == 0
+            # ANNEX
+            if use_tensorboard and step % 20 == 0:
+                monitor_dual_objective.log_tensorboard(step)
+                monitor_gap_estimate.log_tensorboard(step)
+                if fixed_step_size is None:
+                    line_search.log_tensorboard(step)
 
-            gaps_array = monitor_all_objectives.full_batch_update(
-                weights, marginals, step, count_time)
+            if step % trainset.size == 0:
+                # OBJECTIVES : after every epochs, compute the duality gap
+                # Update the sampler if necessary (count_time==True)
+                count_time = sampler_period is not None and step % (
+                        sampler_period * trainset.size) == 0
 
-            assert are_consistent(monitor_dual_objective, monitor_all_objectives)
+                gaps_array = monitor_all_objectives.full_batch_update(
+                    weights, marginals, step, count_time)
 
-            monitor_all_objectives.save_results(logdir)
+                assert are_consistent(monitor_dual_objective, monitor_all_objectives)
 
-            if count_time:
-                step += trainset.size  # count the full batch in the number of steps
-                monitor_gap_estimate = MonitorDualityGapEstimate(gaps_array)
-                sampler.full_update(gaps_array)
+                if count_time:
+                    step += trainset.size  # count the full batch in the number of steps
+                    monitor_gap_estimate = MonitorDualityGapEstimate(gaps_array)
+                    sampler.full_update(gaps_array)
 
-        # STOP condition
-        if monitor_gap_estimate.get_value() < precision:
-            monitor_all_objectives.full_batch_update(weights, marginals, step, count_time=False)
-            monitor_all_objectives.save_results(logdir)
-            break
+            # STOP condition
+            if monitor_gap_estimate.get_value() < precision:
+                monitor_all_objectives.full_batch_update(weights, marginals, step,
+                                                         count_time=False)
+                break
+
+    finally:  # save results no matter what.
+        monitor_all_objectives.save_results(logdir)
 
     return weights, marginals
