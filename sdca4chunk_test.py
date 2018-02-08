@@ -21,8 +21,8 @@ test_size = 50
 # nb_features = len(dattributes)
 
 # Load data.mat
-trainfile = "../lib/sag4crf/data/coNLL_train.mat"
-testfile = "../lib/sag4crf/data/coNLL_test.mat"
+trainfile = "data/coNLL_train.mat"
+testfile = "data/coNLL_test.mat"
 
 xtrain, ytrain, attributes = chunk.parse.read_mat(trainfile, nb_sentences=train_size)
 xtest, ytest, _ = chunk.parse.read_mat(testfile, attributes=attributes, nb_sentences=test_size)
