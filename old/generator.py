@@ -69,7 +69,7 @@ def random_parameters(d, k, scale, randomcov):
         for i in range(k):
             sig[i] = scale * genrandomcov(d)
     else:
-        sig1 = scale * np.eye(d)
+        sig1 = scale * genrandomcov(d)
         for i in range(k):
             sig[i] = sig1
 

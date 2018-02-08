@@ -1,1 +1,0 @@
-float rtsafe(void (*func)(float, float *), void (*dfunc)(float, float *), float x1, float x2, float xacc)
