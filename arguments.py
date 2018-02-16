@@ -52,7 +52,8 @@ def get_args():
 
     time_stamp = time.strftime("%Y%m%d_%H%M%S")
     args.logdir = "logs/" + time_stamp \
-              + args.dataset \
+              + args.dataset + "_"\
+              + str(args.train_size) + "_" \
               + args.sampling_scheme + "_" \
               + str(args.non_uniformity) + "_" \
               + str(args.sampler_period)
