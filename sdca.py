@@ -33,7 +33,7 @@ def sdca(features_cls, trainset, testset=None, regularization=1, npass=5, sample
     float
     to be used as the constant step size.
     :param warm_start: if numpy array, used as marginals to start from.
-    :param logdir: if nont None, use logdir to dump values for tensorboard
+    :param logdir: if not None, use logdir to dump values for tensorboard
     :param testset: testing set in the LabeledSequenceData format. We test the prediction after
     every epochs.
 
@@ -80,7 +80,7 @@ def sdca(features_cls, trainset, testset=None, regularization=1, npass=5, sample
             # MARGINALIZATION ORACLE
             beta_i, log_partition_i = weights.infer_probabilities(point_i)
             # ASCENT DIRECTION (primal to dual)
-            # TODO use a log value and scip's logsumexp with signs.
+            # TODO use a log value and scipy's logsumexp with signs.
             dual_direction = beta_i.subtract_exp(alpha_i)
 
             # EXPECTATION of FEATURES (dual to primal)

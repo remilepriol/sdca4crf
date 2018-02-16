@@ -38,10 +38,10 @@ class MonitorAllObjectives:
         self.loss01 = None
         self.hamming = None
         if self.testset is not None:
-            self.ntest = testset.size
+            ntest = testset.size
             self.update_test_error(weights)
         else:
-            self.ntest = 0
+            ntest = 0
 
         # logging
         self.use_tensorboard = use_tensorboard
@@ -49,7 +49,7 @@ class MonitorAllObjectives:
         # save values in a dictionary
         self.results = {
             "number of training samples": self.ntrain,
-            "number of test samples": self.ntest,
+            "number of test samples": ntest,
             "steps": [],
             "times": [],
             "primal objectives": [],
@@ -66,9 +66,9 @@ class MonitorAllObjectives:
         self.full_batch_update(weights, marginals, step=0, count_time=False)
 
     def __repr__(self):
-        return "regularization: {} \t nb train: {} \n" \
-               "Primal - Dual = {} - {} = {} \t Duality gap =  {} \n" \
-               "Test error 0/1 = {} \t Hamming = {}".format(
+        return """regularization: {} \t nb train: {} \n
+               Primal - Dual = {} - {} = {} \t Duality gap =  {} \n
+               Test error 0/1 = {} \t Hamming = {}""".format(
             self.regularization,
             self.ntrain,
             self.primal_objective,
@@ -167,6 +167,7 @@ class MonitorAllObjectives:
                 tl.log_value("01 loss", self.loss01, step)
                 tl.log_value("hamming loss", self.hamming, step)
 
+
 class MonitorDualObjective:
 
     def __init__(self, regularization, weights, marginals):
@@ -181,18 +182,17 @@ class MonitorDualObjective:
     def update(self, i, newmarg_entropy, norm_update):
         self.weights_squared_norm += norm_update
 
-        tmp = self.entropies[i]
+        self.entropy += (newmarg_entropy - self.entropies[i]) / self.ntrain
         self.entropies[i] = newmarg_entropy
 
-        self.dual_objective += \
-            (self.entropies[i] - tmp) / self.ntrain - self.regularization / 2 * norm_update
+        self.dual_objective = self.entropy - self.regularization / 2 * self.weights_squared_norm
 
     def get_value(self):
         return self.dual_objective
 
     def log_tensorboard(self, step):
         tl.log_value("weights_squared_norm", self.weights_squared_norm, step)
-        tl.log_value("entropy", self.entropy)
+        tl.log_value("entropy", self.entropy, step)
         tl.log_value("dual objective", self.dual_objective, step)
 
 
