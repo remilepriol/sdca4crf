@@ -27,6 +27,20 @@ def get_args():
 
     args = parser.parse_args()
 
+    if args.dataset == 'ocr':
+        args.dataset_path = 'data/ocr.mat'
+    elif args.dataset == 'conll':
+        args.data_train_path = 'data/coNLL_train.mat'
+        args.data_test_path = 'data/coNLL_test.mat'
+    elif args.dataset == 'ner':
+        args.data_train_path = 'data/NER_train.mat'
+        args.data_test_path = 'data/NER_test.mat'
+    elif args.dataset == 'pos':
+        args.data_train_path = 'data/POS_train.mat'
+        args.data_test_path = 'data/POS_test.mat'
+    else:
+        raise ValueError('the dataset is not defined')
+
     args.dense = True if args.dataset == 'ocr' else False
 
     time_stamp = time.strftime("%Y%m%d_%H%M%S")
