@@ -28,7 +28,8 @@ def get_args():
     args = parser.parse_args()
 
     if args.dataset == 'ocr':
-        args.dataset_path = 'data/ocr.mat'
+        args.data_train_path = 'data/crf_train_processed.txt'
+        args.data_test_path = 'data/crf_test_processed.txt'
     elif args.dataset == 'conll':
         args.data_train_path = 'data/coNLL_train.mat'
         args.data_test_path = 'data/coNLL_test.mat'
