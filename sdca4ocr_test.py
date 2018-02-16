@@ -2,7 +2,6 @@
 import os
 import time
 
-import matplotlib.pyplot as plt
 import numpy as np
 
 # custom imports
@@ -66,7 +65,6 @@ if not os.path.exists("logs"):
 if not os.path.exists(dirname):
     os.mkdir(dirname)
 
-
 # write parameters to text file
 with open(dirname + '/parameters.txt', 'w') as file:
     file.write(" time :" + time_stamp)
@@ -76,25 +74,7 @@ with open(dirname + '/parameters.txt', 'w') as file:
     for key, value in parameters.items():
         file.write("\n" + key + " : " + str(value))
 
-fullmargs, fullweights, fullobjective, fullannex = \
-    sdca.sdca(features, xtrain, ytrain, xtest=xtest, ytest=ytest, **parameters)
+fullweights, fullmargs = sdca.sdca(features, xtrain, ytrain, xtest=xtest, ytest=ytest,
+                                   **parameters)
 
 os.system('say "I am done."')
-
-np.save(dirname + "/weights.npy", fullweights)
-np.save(dirname + "/objectives.npy", fullobjective)
-np.save(dirname + "/annex.npy", fullannex)
-
-plt.figure(figsize=(12, 4))
-plt.suptitle("Performance of SDCA on OCR with n=%i and lambda=%.1e" % (xtrain.shape[0], regu))
-plt.subplot(1, 2, 1)
-plt.ylabel("log10(duality gap)")
-plt.plot(np.log10(fullobjective[:, 0]))
-plt.xlabel("number of pass over the data")
-ticksrange = 2 * np.arange(len(fullobjective) / 2, dtype=int)
-plt.xticks(ticksrange, parameters['monitoring_period'] * ticksrange)
-plt.xlabel("number of pass over the data")
-plt.subplot(1, 2, 2)
-plt.plot(fullobjective[:, 3], np.log10(fullobjective[:, 0]))
-plt.xlabel("time (s)")
-plt.savefig(dirname + "/duality_gap.pdf")

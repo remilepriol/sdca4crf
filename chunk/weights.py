@@ -1,51 +1,20 @@
-import matplotlib.pyplot as plt
-import numpy as np
+class Weights:
 
-import oracles
-from chunk.parse import ALPHABET, ALPHALEN
-from sequence import Sequence
-
-
-def radius(xi, yi):
-    """Return the maximum radius (not squared) of the corrected feature for tuple (xi, yi)"""
-    feat = Features()
-
-    # ground truth feature
-    feat.add_datapoint(xi, yi)
-    feat.multiply_scalar(-1, inplace=True)
-
-    # the near-optimal y puts all the weight on one character
-    # that is the least present in the true label
-
-    ychars, ycounts = np.unique(yi, return_counts=True)
-    diffchars = np.setdiff1d(np.arange(ALPHALEN), yi)
-    if len(diffchars) > 0:
-        char = diffchars[0]
-    else:
-        char = ychars[np.argmin(ycounts)]
-
-    label2 = char * np.ones_like(yi)
-    feat.add_datapoint(xi, label2)
-
-    return np.sqrt(feat.squared_norm())
-
-
-def radii(words, labels):
-    rs = np.empty_like(words)
-    for i, (word, label) in enumerate(zip(words, labels)):
-        rs[i] = radius(word, label)
-    return rs
+    def __init__(self, emission, bias, transition):
+        self.emission = emission
+        self.bias = bias
+        self.transition = transition
 
 
 class Features:
     """Features associated to a sample and a label.
     Taking the centroid of such features gives the weights of the primal model.
-    
+
     Features are composed of:
     - sparse emission features (unary), which counts the number of apparitions of a each
     attribute for each tag. Because we use Features to represent the weights vector, that may
     not be sparse, at least not exactly, we represent emission as a dense matrix.
-    - dense bias features (unary), which counts the number of apparition of each tag, 
+    - dense bias features (unary), which counts the number of apparition of each tag,
     (1) in general, (2) at the beginning, (3) at the end.
     - dense transition features (binary), which counts the number of transition between every
     tags..
