@@ -10,7 +10,7 @@ import ocr.features
 def get_args():
     parser = argparse.ArgumentParser(description='sdca')
 
-    parser.add_argument('--dataset', type=str, default='conll',
+    parser.add_argument('--dataset', type=str, default='ocr',
                         help='which dataset to use')
     parser.add_argument('--train-size', type=int, default=100)
     parser.add_argument('--test-size', type=int, default=50)
@@ -38,8 +38,8 @@ def get_args():
     args = parser.parse_args()
 
     if args.dataset == 'ocr':
-        args.data_train_path = 'data/crf_train_processed.txt'
-        args.data_test_path = 'data/crf_test_processed.txt'
+        args.data_train_path = 'data/ocr.mat'
+        args.data_test_path = None
     elif args.dataset == 'conll':
         args.data_train_path = 'data/coNLL_train.mat'
         args.data_test_path = 'data/coNLL_test.mat'
