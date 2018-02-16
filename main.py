@@ -11,5 +11,4 @@ if __name__ == '__main__':
     train_data, test_data = get_datasets(args)
 
     # launch optimization
-    fullweights, fullmargs = \
-        sdca(trainset=train_data, testset=test_data, args=args)
+    fullweights, fullmargs = sdca(trainset=train_data, testset=test_data, args=args)
