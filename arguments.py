@@ -8,7 +8,7 @@ def get_args():
 
     parser.add_argument('--dataset', type=str, default='conll',
                         help='which dataset to use')
-    parser.add_argument('--regularization', type=float, default=1.,
+    parser.add_argument('--regularization', type=float, default=1e-3,
                         help='value of the l2 regularization parameter')
     parser.add_argument('--npass', type=int, default=100,
                         help='maximum number of pass over the trainset duality gaps used in the non-uniform sampling and to get a convergence criterion.')
@@ -45,9 +45,9 @@ def get_args():
     args.dense = True if args.dataset == 'ocr' else False
 
     time_stamp = time.strftime("%Y%m%d_%H%M%S")
-    args.dirname = "logs/" + time_stamp \
+    args.logdir = "logs/" + time_stamp \
               + args.dataset \
-              + args.sampling + "_" \
+              + args.sampling_scheme + "_" \
               + str(args.non_uniformity) + "_" \
               + str(args.sampler_period)
 

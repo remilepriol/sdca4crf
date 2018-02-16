@@ -116,7 +116,7 @@ def sdca(features_cls, trainset, testset=None, args=None):
             if use_tensorboard and step % 20 == 0:
                 monitor_dual_objective.log_tensorboard(step)
                 monitor_gap_estimate.log_tensorboard(step)
-                if args.step_size is None:
+                if args.fixed_step_size is None:
                     line_search.log_tensorboard(step)
 
             if step % trainset.size == 0:

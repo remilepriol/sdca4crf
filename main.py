@@ -1,12 +1,15 @@
 from sdca import sdca
 from arguments import get_args
+from get_datasets import get_datasets
+import chunk
 
 
 if __name__ == '__main__':
     args = get_args()
 
     # load datasets
-    feature_cls, train_data, test_data = get_features(args)
+    train_data, test_data = get_datasets(args)
 
     # launch optimization
-    sdca(features_cls=feature_cls, trainset=train_data, testset=test_data, args=args)
+    fullweights, fullmargs = \
+        sdca(features_cls=chunk.features, trainset=train_data, testset=test_data, args=args)
