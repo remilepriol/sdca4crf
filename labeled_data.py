@@ -7,10 +7,10 @@ class LabeledSequenceData:
     def __init__(self, points, labels):
         self.index = -1
         self.points = points
-        self.labels = labels
+        self.labels = labels - 1  # to account for matlab format
         self.size = labels.shape[0]
 
-        self.ends = np.where(labels == 0)[0]
+        self.ends = np.where(self.labels == -1)[0]
         self.starts = np.empty_like(self.ends)
         self.starts[0] = 0
         self.starts[1:] = self.ends[:-1] + 1
