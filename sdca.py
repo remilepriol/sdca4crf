@@ -8,7 +8,7 @@ from monitor import MonitorAllObjectives, MonitorDualObjective, MonitorDualityGa
 from sampler_wrap import SamplerWrap
 
 
-def sdca(features_cls, trainset, testset=None, args=None):
+def sdca(trainset, testset=None, args=None):
     """Update alpha and weights with the stochastic dual coordinate ascent algorithm to fit
     the model to the trainset points x and the labels y.
 
@@ -41,7 +41,7 @@ def sdca(features_cls, trainset, testset=None, args=None):
 
     # INITIALIZE : the dual and primal variables
     marginals, weights, ground_truth_centroid = \
-        parameters.initialize(args.warm_start, features_cls, trainset, args.regularization)
+        parameters.initialize(args.warm_start, args.features_cls, trainset, args.regularization)
 
     # OBJECTIVES : primal objective, dual objective and duality gaps.
     use_tensorboard = initialize_tensorboard(args.logdir)
@@ -57,7 +57,7 @@ def sdca(features_cls, trainset, testset=None, args=None):
 
     # non-uniform sampling
     sampler = SamplerWrap(args.sampling_scheme, args.non_uniformity,
-                          gaps_array, features_cls, trainset, args.regularization)
+                          gaps_array, args.features_cls, trainset, args.regularization)
 
     try:
 
@@ -84,7 +84,7 @@ def sdca(features_cls, trainset, testset=None, args=None):
             # EXPECTATION of FEATURES (dual to primal)
             # TODO keep the primal direction sparse
             # TODO implement this method as dual_direction.features_expectation()
-            primal_direction = features_cls.Features()
+            primal_direction = args.features_cls.Features()
             primal_direction.add_centroid(point_i, dual_direction)
             # Centroid of the corrected features in the dual direction
             # = Centroid of the real features in the opposite of the dual direction

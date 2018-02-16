@@ -12,4 +12,4 @@ if __name__ == '__main__':
 
     # launch optimization
     fullweights, fullmargs = \
-        sdca(features_cls=chunk.features, trainset=train_data, testset=test_data, args=args)
+        sdca(trainset=train_data, testset=test_data, args=args)

@@ -1,6 +1,8 @@
 import numpy as np
 import argparse
 import time
+import ocr.features
+import chunk.features
 
 
 def get_args():
@@ -43,6 +45,8 @@ def get_args():
         raise ValueError('the dataset is not defined')
 
     args.dense = True if args.dataset == 'ocr' else False
+
+    args.features_cls = ocr.features if args.dataset == 'ocr' else chunk.features
 
     time_stamp = time.strftime("%Y%m%d_%H%M%S")
     args.logdir = "logs/" + time_stamp \
