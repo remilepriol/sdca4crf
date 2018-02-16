@@ -10,6 +10,8 @@ def get_args():
 
     parser.add_argument('--dataset', type=str, default='conll',
                         help='which dataset to use')
+    parser.add_argument('--train-size', type=int, default=100)
+    parser.add_argument('--test-size', type=int, default=50)
     parser.add_argument('--regularization', type=float, default=1e-3,
                         help='value of the l2 regularization parameter')
     parser.add_argument('--npass', type=int, default=100,
