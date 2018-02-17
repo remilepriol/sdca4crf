@@ -1,6 +1,9 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
+import oracles
+from sequence import Sequence
+
 
 class Weights:
     """Weights of the CRF model. It is a centroid of features and decomposes the same way.
@@ -15,10 +18,17 @@ class Weights:
         label.
         """
 
-    def __init__(self, emission=None, bias=None, transition=None, nb_labels=0, nb_features=0):
+    # TODO take care of the zero case (absent attribute) for sparse features
+
+    def __init__(self, emission=None, bias=None, transition=None,
+                 nb_labels=0, nb_features=0, is_sparse_features=False):
+
         self.emission = np.zeros([nb_labels, nb_features]) if emission is None else emission
         self.bias = np.zeros([nb_labels, 3]) if bias is None else bias
         self.transition = np.zeros([nb_labels, nb_labels]) if transition is None else transition
+
+        # are the features dense or sparse?
+        self.is_sparse_features = is_sparse_features
 
     def display(self):
         """Display bias and transition features as heatmaps."""
@@ -44,7 +54,7 @@ class Weights:
             self.bias = scalar * self.bias
             self.transition = scalar * self.transition
         else:
-            return Features(scalar * self.emission, scalar * self.bias, scalar * self.transition)
+            return Weights(scalar * self.emission, scalar * self.bias, scalar * self.transition)
 
     def squared_norm(self):
         return np.sum(self.emission ** 2) + np.sum(self.bias ** 2) + np.sum(self.transition ** 2)
@@ -53,13 +63,13 @@ class Weights:
         emission = self.emission + other.emission
         bias = self.bias + other.bias
         transition = self.transition + other.transition
-        return Features(emission, bias, transition)
+        return Weights(emission, bias, transition)
 
     def subtract(self, other):
         emission = self.emission - other.emission
         bias = self.bias - other.bias
         transition = self.transition - other.transition
-        return Features(emission, bias, transition)
+        return Weights(emission, bias, transition)
 
     def inner_product(self, other):
         return np.sum(self.emission * other.emission) + \
@@ -69,133 +79,68 @@ class Weights:
     #########################################
     # Construction operations
     #########################################
-    def _add_labeled_point_emission(self, xi, yit):
-        """To be completed by subclass."""
-        pass
+    def add_datapoint(self, points_sequence, labels_sequence):
+        for t, label in enumerate(labels_sequence):
+            self.bias[label] += [1, t == 0, t == len(labels_sequence) - 1]
+            self._add_labeled_point_emission(points_sequence[t], label)
+        for t in range(points_sequence.shape[0] - 1):
+            self.transition[labels_sequence[t], labels_sequence[t + 1]] += 1
 
-    def add_datapoint(self, xi, yi):
-        for t, label in enumerate(yi):
-            self.bias[label] += [1, t == 0, t == len(yi) - 1]
-            self._add_labeled_point_emission(xi, label)
-        for t in range(xi.shape[0] - 1):
-            self.transition[yi[t], yi[t + 1]] += 1
-
-    def _add_unary_centroid(self, xi, unary_marginals):
-        # Important part. I hope it works
-        for xit, mt in zip(xi, unary_marginals):
-            self.emission[:, xit.indices] += mt[:, np.newaxis]
-
-        self.bias[:, 0] += np.sum(unary_marginals, axis=0)
-        self.bias[:, 1] += unary_marginals[0]
-        self.bias[:, 2] += unary_marginals[-1]
-
-    def _add_centroid_binary(self, binary_marginals):
-        self.transition += np.sum(binary_marginals, axis=0)
+    def _add_labeled_point_emission(self, point, label):
+        if self.is_sparse_features:
+            self.emission[label, point] += 1
+        else:
+            self.emission[label] += point
 
     def add_centroid(self, xi, marginals):
         if marginals.islog:
             marginals = marginals.exp()
-        self._add_unary_centroid(xi, marginals.unary)
-        self._add_centroid_binary(marginals.binary)
 
+        self._add_centroid_emission(xi, marginals.unary)
 
-class WeightsFromDense(Weights):
+        self.bias[:, 0] += np.sum(marginals.unary, axis=0)
+        self.bias[:, 1] += marginals.unary[0]
+        self.bias[:, 2] += marginals.unary[-1]
 
-    def __init__(self):
-        pass
+        self.transition += np.sum(marginals.binary, axis=0)
 
-
-class WeightsFromSparse(Weights):
-
-    def __init__(self):
-        pass
-
-
-class Features:
-
-    def __init__(self, emission=None, bias=None, transition=None):
-
-        self.emission = emission
-
-        if bias is None:
-            self.bias = np.zeros([ALPHALEN, 3])
+    def _add_centroid_emission(self, points_sequence, unary_marginals):
+        if self.is_sparse_features:  # slow!
+            for point, unimarginal in zip(points_sequence, unary_marginals):
+                self.emission[:, point] += unimarginal[:, np.newaxis]
         else:
-            self.bias = bias
-
-        if transition is None:
-            self.transition = np.zeros([ALPHALEN, ALPHALEN])
-        else:
-            self.transition = transition
-
-    #########################################
-    # Construction operations
-    #########################################
-    def _add_unary(self, xi, yit, t, emission_counts):
-        if emission_counts is None:
-            self.emission[yit, xi[t]] += 1
-        else:
-            emission_counts[yit].extend(xi[t].indices)
-        self.bias[yit] += [1, t == 0, t == xi.shape[0] - 1]
-
-    def _add_binary(self, yit, yitp):
-        self.transition[yit, yitp] += 1
-
-    def add_datapoint(self, xi, yi, emission_counts=None):
-        for t, label in enumerate(yi):
-            self._add_unary(xi, label, t, emission_counts)
-        for t in range(xi.shape[0] - 1):
-            self._add_binary(yi[t], yi[t + 1])
-
-    def _add_unary_centroid(self, xi, unary_marginals):
-        # Important part. I hope it works
-        for xit, mt in zip(xi, unary_marginals):
-            self.emission[:, xit.indices] += mt[:, np.newaxis]
-
-        self.bias[:, 0] += np.sum(unary_marginals, axis=0)
-        self.bias[:, 1] += unary_marginals[0]
-        self.bias[:, 2] += unary_marginals[-1]
-
-    def _add_binary_centroid(self, binary_marginals):
-        self.transition += np.sum(binary_marginals, axis=0)
-
-    def add_centroid(self, xi, marginals):
-        if marginals.islog:
-            marginals = marginals.exp()
-        self._add_unary_centroid(xi, marginals.unary)
-        self._add_binary_centroid(marginals.binary)
+            self.emission += np.dot(unary_marginals.T, points_sequence)
 
     #########################################
     # From weights to probabilities
     #########################################
-    def _unary_scores(self, xi):
-        """Return the unary scores of word when self encode the weights of the model.
+    def scores(self, points_sequence):
+        """Return the scores of points_sequence.
 
-        :param xi: T*d, each column is a word embedding (csr matrix).
-        :return: u unary scores T*K, u(t,k) is the score for word t and label k.
+        :param points_sequence: 2d array T*d representing a sequence of data point
+        :return: tuple (unary_scores, binary_scores). unary_scores is a 2d array of shape
+        T*K, where u(t,k) is the score for point t and label k. binary_scores is a 3d array of
+        shape (T-1)*K*K, where u(t,k,k') is the transition score for label k on point t and
+        label k' on point t+1.
         """
-        uscores = np.zeros([xi.shape[0], ALPHALEN])
-        # Important part. I hope it works.
-        # uscores = xi.dot(self.emission.T)
-        for t, xit in enumerate(xi):
-            uscores[t] += self.emission[:, xit.indices].sum(axis=1)
 
-        uscores += self.bias[:, 0]  # model bias
-        uscores[0] += self.bias[:, 1]  # beginning of word bias
-        uscores[-1] += self.bias[:, 2]  # end of word bias
-        return uscores
+        if self.is_sparse_features:
+            unary_scores = np.empty([points_sequence.shape[0], self.emission.shape[0]])
+            for t, point in enumerate(points_sequence):
+                unary_scores[t] += self.emission[:, point].sum(axis=1)
+        else:
+            unary_scores = np.dot(points_sequence, self.emission.T)
 
-    def _binary_scores(self, xi):
-        """Return the binary scores of a word when self encode the weights of the model.
+        unary_scores += self.bias[:, 0]  # model bias
+        unary_scores[0] += self.bias[:, 1]  # beginning of word bias
+        unary_scores[-1] += self.bias[:, 2]  # end of word bias
 
-        :param xi:
-        :return: binary scores (T-1)*K*K, each case is the transition score between two labels
-        for a given position.
-        """
-        return (xi.shape[0] - 1) * [self.transition]
+        binary_scores = (points_sequence.shape[0] - 1) * [self.transition]
 
-    def infer_probabilities(self, xi):
-        uscores = self._unary_scores(xi)
-        bscores = self._binary_scores(xi)
+        return unary_scores, binary_scores
+
+    def infer_probabilities(self, points_sequence):
+        uscores, bscores = self.scores(points_sequence)
         umargs, bmargs, log_partition = oracles.sequence_sum_product(uscores, bscores)
         umargs = np.minimum(umargs, 0)
         bmargs = np.minimum(bmargs, 0)
@@ -207,13 +152,6 @@ class Features:
 
         return ans, log_partition
 
-    def label_score(self, xi, yi):
-        """Return the score <self,F(xi, yi)>."""
-        label_feat = Features()
-        label_feat.add_datapoint(xi, yi)
-        return label_feat.inner_product(self)
-
-    def predict(self, xi):
-        uscores = self._unary_scores(xi)
-        bscores = self._binary_scores(xi)
+    def predict(self, points_sequence):
+        uscores, bscores = self.scores(points_sequence)
         return oracles.sequence_viterbi(uscores, bscores)[0]
