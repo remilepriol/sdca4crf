@@ -60,9 +60,9 @@ def get_args():
     args.features_cls = ocr.features if args.dataset == 'ocr' else chunk.features
 
     time_stamp = time.strftime("%Y%m%d_%H%M%S")
-    args.logdir = "logs/{}_n{}/{}_{}{}".format(
+    args.logdir = "logs/{}_{}/{}_{}{}".format(
         args.dataset,
-        'full' if (args.train_size is None) else str(args.train_size),
+        'full' if (args.train_size is None) else 'n' + str(args.train_size),
         time_stamp,
         args.sampling_scheme,
         str(args.non_uniformity)
