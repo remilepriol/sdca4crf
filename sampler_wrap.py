@@ -1,6 +1,7 @@
 import numpy as np
 
 from sampler import Sampler
+from weights import radii
 
 
 class SamplerWrap:
@@ -27,10 +28,7 @@ class SamplerWrap:
         if self.scheme in [SamplerWrap.UNIFORM, SamplerWrap.GAP]:
             self.importances = np.ones(len(trainset))
         elif self.scheme in [SamplerWrap.IMPORTANCE, SamplerWrap.GAPP]:
-            self.importances = 1
-            # + features_cls.radii(trainset.points, trainset.labels) ** 2 \
-            # #/ len(trainset) / regularization
-            # TODO implement radii with weights
+            self.importances = 1 + radii(trainset) ** 2 / len(trainset) / regularization
 
         self.sampler = Sampler(gaps_array * self.importances)
         self.non_uniformity = non_uniformity

@@ -6,6 +6,43 @@ from sequence import Sequence
 from utils import letters2wordimage
 
 
+def radius(points_sequence, labels_sequence, data):
+    """Return \max_y \|F(x_i,y_i) - F(x_i,y) \|
+
+    :param points_sequence: sequence of points
+    :param labels_sequence: sequence of labels
+    :param data: data set with the specifications nb_features, nb_labels, is_sparse
+    """
+    featuremap = Weights(nb_features=data.nb_features, nb_labels=data.nb_labels,
+                         is_sparse_features=data.is_sparse)
+
+    # ground truth feature
+    featuremap.add_datapoint(points_sequence, labels_sequence)
+    featuremap.multiply_scalar(-1, inplace=True)
+
+    # the optimal labels_sequence is made of only one label
+    # that is the least present in the true labels_sequence
+
+    ulabels, ucounts = np.unique(labels_sequence, return_counts=True)
+    diff_labels = np.setdiff1d(np.arange(data.nb_labels), labels_sequence)
+    if len(diff_labels) > 0:
+        optlabel = diff_labels[0]
+    else:
+        optlabel = ulabels[np.argmin(ucounts)]
+
+    optlabels_sequence = optlabel * np.ones_like(labels_sequence)
+    featuremap.add_datapoint(points_sequence, optlabels_sequence)
+
+    return np.sqrt(featuremap.squared_norm())
+
+
+def radii(data):
+    rs = np.empty(len(data))
+    for i, (points_sequence, labels_sequence) in enumerate(data):
+        rs[i] = radius(points_sequence, labels_sequence, data)
+    return rs
+
+
 class Weights:
     """Weights of the CRF model. It is a centroid of features and decomposes the same way.
 
