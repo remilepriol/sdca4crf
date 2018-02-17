@@ -10,7 +10,7 @@ class LabeledSequenceData:
     """
     # TODO include the bias in x?
 
-    def __init__(self, points, labels):
+    def __init__(self, points, labels, size=None):
 
         # store the data
         self.points = points
@@ -23,9 +23,14 @@ class LabeledSequenceData:
         self.starts[0] = 0
         self.starts[1:] = self.ends[:-1] + 1
 
+        # trim to the desired number of sequences
+        if size is not None:
+            self.trim(size)
+
         # evaluate the important sizes.
         self.nb_sequences = self.starts.shape[0]
         self.nb_points = self.labels.shape[0]
+        # important : take all the labels to evaluate the alphabet
         self.alphabet_size = labels.max()
 
         # initialize the iterator
@@ -62,6 +67,12 @@ class LabeledSequenceData:
                 % (self.nb_points, self.points.shape[0]))
         return True
 
+    def trim(self, size):
+        self.starts = self.starts[:size]
+        self.ends = self.ends[:size]
+        self.points = self.points[:self.ends[-1] + 1]
+        self.labels = self.labels[:self.ends[-1] + 1]
+
 
 class VocabularySize:
     """ Represent the size of the vocabulary for attributes of sparse data.
@@ -83,13 +94,14 @@ class SparseLabeledSequenceData(LabeledSequenceData):
     of a point.
     """
 
-    def __init__(self, points, labels, vocabularies_sizes=None):
-        super(SparseLabeledSequenceData, self).__init__(points, labels)
+    def __init__(self, points, labels, size, vocabularies_sizes=None):
 
         if vocabularies_sizes is None:  # training set
             self.vocabularies_sizes = VocabularySize(points)
         else:  # test set
             self.vocabularies_sizes = vocabularies_sizes
+
+        super(SparseLabeledSequenceData, self).__init__(points, labels, size)
 
         # total number of different attribute values
         self.vocabulary_size = vocabularies_sizes.total

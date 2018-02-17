@@ -10,13 +10,10 @@ def read_mat(path):
 
 def get_datasets(args):
     xtrain, ytrain = read_mat(args.data_train_path)
-    trainset = LabeledSequenceData(xtrain, ytrain)
+    trainset = LabeledSequenceData(xtrain, ytrain, args.train_size)
 
-    if args.data_test_path is not None:
-        xtest, ytest = read_mat(args.data_test_path)
-        testset = LabeledSequenceData(xtest, ytest)
-    else:
-        testset = None
+    xtest, ytest = read_mat(args.data_test_path)
+    testset = LabeledSequenceData(xtest, ytest, args.test_size)
 
     return trainset, testset
 
