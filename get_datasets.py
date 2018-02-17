@@ -1,13 +1,11 @@
-from labeled_data import LabeledSequenceData
-import chunk.features
 from scipy.io import loadmat
+
+from labeled_data import LabeledSequenceData
 
 
 def read_mat(path):
-    mat = loadmat(path, squeeze_me=True)
-    xtrain = mat['X']
-    ytrain = mat['y']
-    return xtrain, ytrain
+    data = loadmat(path, squeeze_me=True)
+    return data['X'], data['y']
 
 
 def get_datasets(args):
