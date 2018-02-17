@@ -30,8 +30,9 @@ class LabeledSequenceData:
         # evaluate the important sizes.
         self.nb_sequences = self.starts.shape[0]
         self.nb_points = self.labels.shape[0]
-        # important : take all the labels to evaluate the alphabet
-        self.alphabet_size = labels.max()
+        self.nb_features = self.points.shape[1]
+        # important : take all the labels to evaluate the alphabet size
+        self.nb_labels = labels.max()
 
         # initialize the iterator
         self.index = -1
@@ -106,7 +107,8 @@ class SparseLabeledSequenceData(LabeledSequenceData):
         super(SparseLabeledSequenceData, self).__init__(points, labels, size)
 
         # total number of different attribute values
-        self.max_vocabulary = self.vocabulary_sizes.total
+        # gives the size of the final embedding
+        self.nb_features = self.vocabulary_sizes.total
 
         # convert to NaN non-existing attributes and attributes absent from the training set.
         points = points.astype(float)
