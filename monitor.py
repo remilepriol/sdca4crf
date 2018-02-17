@@ -136,7 +136,7 @@ class MonitorAllObjectives:
         total_labels = 0
 
         for point, label in self.testset:
-            prediction = weights.predict(point)[0]
+            prediction = weights.predict(point)
             tmp = np.sum(label != prediction)
             self.hamming += tmp
             self.loss01 += (tmp > 0)
