@@ -1,6 +1,6 @@
 from scipy.io import loadmat
 
-from labeled_data import LabeledSequenceData
+from labeled_data import LabeledSequenceData, SparseLabeledSequenceData
 
 
 def read_mat(path):
@@ -10,11 +10,14 @@ def read_mat(path):
 
 def get_datasets(args):
     xtrain, ytrain = read_mat(args.data_train_path)
-    trainset = LabeledSequenceData(xtrain, ytrain, args.train_size)
-
     xtest, ytest = read_mat(args.data_test_path)
-    testset = LabeledSequenceData(xtest, ytest, args.test_size)
+
+    if args.dense:
+        trainset = LabeledSequenceData(xtrain, ytrain, args.train_size)
+        testset = LabeledSequenceData(xtest, ytest, args.test_size)
+    else:
+        trainset = SparseLabeledSequenceData(xtrain, ytrain, args.train_size)
+        testset = SparseLabeledSequenceData(xtest, ytest, args.test_size,
+                                            trainset.vocabulary_sizes)
 
     return trainset, testset
-
-

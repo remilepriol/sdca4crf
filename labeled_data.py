@@ -74,7 +74,7 @@ class LabeledSequenceData:
         self.labels = self.labels[:self.ends[-1] + 1]
 
 
-class VocabularySize:
+class VocabularySizes:
     """ Represent the size of the vocabulary for attributes of sparse data.
 
     Each point is represented by attributes.
@@ -91,27 +91,29 @@ class VocabularySize:
 
 class SparseLabeledSequenceData(LabeledSequenceData):
     """Instance of LabeledSequenceData where each row contains the index of the active features
-    of a point.
+    of a point. Note that we need to know the total sizes of the vocabulary to create the right
+    representation. In particular, for the test set, if some words do not appear in the train set
+    (eg index higher than the max) then we remove them.
     """
 
-    def __init__(self, points, labels, size, vocabularies_sizes=None):
+    def __init__(self, points, labels, size, vocabulary_sizes=None):
 
-        if vocabularies_sizes is None:  # training set
-            self.vocabularies_sizes = VocabularySize(points)
+        if vocabulary_sizes is None:  # training set
+            self.vocabulary_sizes = VocabularySizes(points)
         else:  # test set
-            self.vocabularies_sizes = vocabularies_sizes
+            self.vocabulary_sizes = vocabulary_sizes
 
         super(SparseLabeledSequenceData, self).__init__(points, labels, size)
 
         # total number of different attribute values
-        self.vocabulary_size = vocabularies_sizes.total
+        self.max_vocabulary = self.vocabulary_sizes.total
 
         # convert to NaN non-existing attributes and attributes absent from the training set.
         points = points.astype(float)
-        points[np.logical_or(points == 0, points > vocabularies_sizes.by_attribute)] = np.nan
+        points[np.logical_or(points == 0, points > self.vocabulary_sizes.by_attribute)] = np.nan
 
         # shift dictionary value for each attribute
-        points[:, 1:] += vocabularies_sizes.cumsum[:-1]
+        points[:, 1:] += self.vocabulary_sizes.cumsum[:-1]
 
         # convert back to zero the absent attributes
         self.points = np.nan_to_num(points).astype(np.int32)
