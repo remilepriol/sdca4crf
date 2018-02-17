@@ -40,27 +40,10 @@ class Features:
     model.
     """
 
-    def __init__(self, emission=None, bias=None, transition=None, random=False):
-        if random:
-            self.emission = np.random.randn(ALPHALEN, NB_PIXELS)
-            self.bias = np.random.randn(ALPHALEN, 3)
-            self.transition = np.random.randn(ALPHALEN, ALPHALEN)
-            return
-
-        if emission is None:
-            self.emission = np.zeros([ALPHALEN, NB_PIXELS])
-        else:
-            self.emission = emission
-
-        if bias is None:
-            self.bias = np.zeros([ALPHALEN, 3])
-        else:
-            self.bias = bias
-
-        if transition is None:
-            self.transition = np.zeros([ALPHALEN, ALPHALEN])
-        else:
-            self.transition = transition
+    def __init__(self, emission=None, bias=None, transition=None):
+        self.emission = np.zeros([ALPHALEN, NB_PIXELS]) if emission is None else emission
+        self.bias = np.zeros([ALPHALEN, 3]) if bias is None else bias
+        self.transition = np.zeros([ALPHALEN, ALPHALEN]) if transition is None else transition
 
     #########################################
     # Construction operations
