@@ -8,6 +8,7 @@ class LabeledSequenceData:
     Each sequence is represented as a contiguous block.
     Provide an iterator over the sequences.
     """
+
     # TODO include the bias in x?
 
     def __init__(self, points, labels, size=None):
@@ -36,6 +37,8 @@ class LabeledSequenceData:
 
         # initialize the iterator
         self.index = -1
+
+        self.is_sparse = False
 
         self.is_consistent()
 
@@ -105,6 +108,7 @@ class SparseLabeledSequenceData(LabeledSequenceData):
             self.vocabulary_sizes = vocabulary_sizes
 
         super(SparseLabeledSequenceData, self).__init__(points, labels, size)
+        self.is_sparse = True
 
         # total number of different attribute values
         # gives the size of the final embedding
