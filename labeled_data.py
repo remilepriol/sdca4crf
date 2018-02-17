@@ -10,6 +10,9 @@ class LabeledSequenceData:
     """
 
     # TODO include the bias in x?
+    # pro : code is shorter
+    # cons : swap under the rug this detail of the optimization
+
 
     def __init__(self, points, labels, size=None):
 

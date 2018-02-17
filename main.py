@@ -5,7 +5,6 @@ from get_datasets import get_datasets
 from sdca import sdca
 
 # TODO reproduce the results of Schmidt on conll
-# TODO run the code on other datasets
 
 if __name__ == '__main__':
     args = get_args()

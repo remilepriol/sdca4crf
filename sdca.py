@@ -62,13 +62,12 @@ def sdca(trainset, testset=None, args=None):
             # MARGINALIZATION ORACLE
             beta_i, log_partition_i = weights.infer_probabilities(point_i)
             # ASCENT DIRECTION (primal to dual)
-            # TODO use a log value and scipy's logsumexp with signs.
             log_dual_direction, signs_dual_direction = beta_i.logsubtractexp(alpha_i)
             dual_direction = log_dual_direction.exp().multiply(signs_dual_direction)
 
             # EXPECTATION of FEATURES (dual to primal)
             # TODO keep the primal direction sparse
-            # TODO implement this method as dual_direction.features_expectation()
+            # TODO implement this method as dual_direction.expected_features()
             primal_direction = Weights(
                 nb_features=trainset.nb_features,
                 nb_labels=trainset.nb_labels,
