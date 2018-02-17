@@ -60,12 +60,7 @@ dirname = "logs/conll2000/{}_n{}_{}{}".format(
 )
 
 parameters['logdir'] = dirname
-
-if not os.path.exists("logs"):
-    os.mkdir("logs")
-
-if not os.path.exists(dirname):
-    os.mkdir(dirname)
+os.makedirs(dirname)
 
 # write all parameters to text file
 with open(dirname + '/parameters.txt', 'w') as file:
