@@ -28,13 +28,18 @@ def dirac(labels, nb_class, log=True):
     """
     length = len(labels)
     constant = 10 if log else 1
-    unary = np.zeros([length, nb_class])
-    unary[np.arange(length), labels] = constant
-    binary = np.zeros([length - 1, nb_class, nb_class])
-    binary[np.arange(length - 1), labels[:-1], labels[1:]] = constant
+
+    unary_scores = np.zeros([length, nb_class])
+    unary_scores[np.arange(length), labels] = constant
+    binary_scores = np.zeros([length - 1, nb_class, nb_class])
+    binary_scores[np.arange(length - 1), labels[:-1], labels[1:]] = constant
+
     if log:
-        unary, binary, _ = oracles.sequence_sum_product(unary, binary)
-    return Sequence(unary=unary, binary=binary, log=log)
+        unary_marginal, binary_marginal, _ = oracles.sequence_sum_product(
+            unary_scores, binary_scores)
+    else:
+        unary_marginal, binary_marginal = unary_scores, binary_scores
+    return Sequence(unary=unary_marginal, binary=binary_marginal, log=log)
 
 
 class Sequence:
