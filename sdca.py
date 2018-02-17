@@ -15,28 +15,11 @@ def sdca(trainset, testset=None, args=None):
     Unless warm_start is used, the initial point is a concatenation of the smoothed empirical
     distributions.
 
-    :param features_cls: module corresponding to the dataset, with the relevant alphabet and
-    features.
     :param trainset: training set in the LabeledSequenceData format
-    :param regularization: value of the l2 regularization parameter
-    :param npass: maximum number of pass over the trainset
-    duality gaps used in the non-uniform sampling and to get a convergence criterion.
-    :param sampler_period: if not None, period to do a full batch update of the duality gaps,
-    for the non-uniform sampling. Expressed as a number of epochs. This whole epoch will be
-    counted in the number of pass used by sdca.
-    :param precision: precision to which we wish to optimize the objective.
-    :param sampling_scheme: options are "uniform" (default), "importance", "gap", "gap+"
-    :param non_uniformity: between 0 and 1. probability of sampling non-uniformly.
-    :param fixed_step_size: if None, SDCA will use a line search. Otherwise should be a positive
-    float
-    to be used as the constant step size.
-    :param warm_start: if numpy array, used as marginals to start from.
-    :param logdir: if not None, use logdir to dump values for tensorboard
     :param testset: testing set in the LabeledSequenceData format. We test the prediction after
     every epochs.
 
-    :return marginals: optimal value of the marginals
-    :return weights: optimal value of the weights
+    :return: tuple, optimal value of the (weights, marginals)
     """
 
     # INITIALIZE : the dual and primal variables
