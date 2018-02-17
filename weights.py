@@ -54,27 +54,31 @@ class Weights:
             self.bias = scalar * self.bias
             self.transition = scalar * self.transition
         else:
-            return Weights(scalar * self.emission, scalar * self.bias, scalar * self.transition)
-
-    def squared_norm(self):
-        return np.sum(self.emission ** 2) + np.sum(self.bias ** 2) + np.sum(self.transition ** 2)
+            return Weights(scalar * self.emission, scalar * self.bias, scalar * self.transition,
+                           is_sparse_features=self.is_sparse_features)
 
     def add(self, other):
         emission = self.emission + other.emission
         bias = self.bias + other.bias
         transition = self.transition + other.transition
-        return Weights(emission, bias, transition)
+        return Weights(emission, bias, transition,
+                       is_sparse_features=self.is_sparse_features)
 
     def subtract(self, other):
         emission = self.emission - other.emission
         bias = self.bias - other.bias
         transition = self.transition - other.transition
-        return Weights(emission, bias, transition)
+        return Weights(emission, bias, transition,
+                       is_sparse_features=self.is_sparse_features)
 
     def inner_product(self, other):
         return np.sum(self.emission * other.emission) + \
                np.sum(self.bias * other.bias) + \
                np.sum(self.transition * other.transition)
+
+    def squared_norm(self):
+        return np.sum(self.emission ** 2) + np.sum(self.bias ** 2) + np.sum(self.transition ** 2)
+
 
     #########################################
     # Construction operations
