@@ -2,6 +2,7 @@
 *.pdf
 .idea/*
 old/*
+snapshots/*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
