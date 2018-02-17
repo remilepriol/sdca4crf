@@ -1,6 +1,5 @@
 import numpy as np
-
-import utils
+from scipy.special import logsumexp
 
 
 def sequence_sum_product(uscores, bscores):
@@ -17,7 +16,7 @@ def sequence_sum_product(uscores, bscores):
     length, nb_class = uscores.shape
 
     if length == 1:
-        log_partition = utils.logsumexp(uscores[0])
+        log_partition = logsumexp(uscores[0])
         umargs = uscores - log_partition
         bmargs = np.zeros([length - 1, nb_class, nb_class])
         return umargs, bmargs, log_partition
@@ -26,17 +25,17 @@ def sequence_sum_product(uscores, bscores):
     fm = np.zeros([length - 1, nb_class])  # forward_messages
 
     # backward pass
-    bm[-1] = utils.logsumexp(bscores[-1] + uscores[-1])
+    bm[-1] = logsumexp(bscores[-1] + uscores[-1], axis=-1)
     for t in range(length - 3, -1, -1):
-        bm[t] = utils.logsumexp(bscores[t] + uscores[t + 1] + bm[t + 1])
+        bm[t] = logsumexp(bscores[t] + uscores[t + 1] + bm[t + 1], axis=-1)
 
     # we compute the log-partition and include it in the forward messages
-    log_partition = utils.logsumexp(bm[0] + uscores[0])
+    log_partition = logsumexp(bm[0] + uscores[0])
 
     # forward pass
-    fm[0] = utils.logsumexp(bscores[0].T + uscores[0] - log_partition)
+    fm[0] = logsumexp(bscores[0].T + uscores[0] - log_partition, axis=-1)
     for t in range(1, length - 1):
-        fm[t] = utils.logsumexp(bscores[t].T + uscores[t] + fm[t - 1])
+        fm[t] = logsumexp(bscores[t].T + uscores[t] + fm[t - 1], axis=-1)
 
     # unary marginals
     umargs = np.empty([length, nb_class])
