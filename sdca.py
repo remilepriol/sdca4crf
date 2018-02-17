@@ -52,7 +52,7 @@ def sdca(trainset, testset=None, args=None):
 
     monitor_dual_objective = MonitorDualObjective(args.regularization, weights, marginals)
 
-    gaps_array = 100 * np.ones(trainset.size)  # fake estimate of the duality gaps
+    gaps_array = 100 * np.ones(len(trainset))  # fake estimate of the duality gaps
     monitor_gap_estimate = MonitorDualityGapEstimate(gaps_array)
 
     # non-uniform sampling
@@ -64,7 +64,7 @@ def sdca(trainset, testset=None, args=None):
         ##################################################################################
         # MAIN LOOP
         ##################################################################################
-        progress_bar = tqdm(range(1, trainset.size * args.npass + 1))
+        progress_bar = tqdm(range(1, len(trainset) * args.npass + 1))
         for step in progress_bar:
             if step % 100 == 0:
                 progress_bar.set_description(
@@ -88,7 +88,8 @@ def sdca(trainset, testset=None, args=None):
             primal_direction.add_centroid(point_i, dual_direction)
             # Centroid of the corrected features in the dual direction
             # = Centroid of the real features in the opposite of the dual direction
-            primal_direction.multiply_scalar(-1 / args.regularization / trainset.size, inplace=True)
+            primal_direction.multiply_scalar(-1 / args.regularization / len(trainset),
+                                             inplace=True)
 
             # DUALITY GAP
             divergence_gap = alpha_i.kullback_leibler(beta_i)
@@ -98,7 +99,7 @@ def sdca(trainset, testset=None, args=None):
             # LINE SEARCH : find the optimal step size or use a fixed one
             # Update the dual objective monitor as well
             line_search = LineSearch(weights, primal_direction, dual_direction, alpha_i, beta_i,
-                                     divergence_gap, args.regularization, trainset.size)
+                                     divergence_gap, args.regularization, len(trainset))
 
             if args.fixed_step_size is not None:
                 optimal_step_size = args.fixed_step_size
@@ -119,11 +120,11 @@ def sdca(trainset, testset=None, args=None):
                 if args.fixed_step_size is None:
                     line_search.log_tensorboard(step)
 
-            if step % trainset.size == 0:
+            if step % len(trainset) == 0:
                 # OBJECTIVES : after every epochs, compute the duality gap
                 # Update the sampler if necessary (count_time==True)
                 count_time = args.sampler_period is not None and step % (
-                        args.sampler_period * trainset.size) == 0
+                        args.sampler_period * len(trainset)) == 0
 
                 gaps_array = monitor_all_objectives.full_batch_update(
                     weights, marginals, step, count_time)
@@ -131,7 +132,7 @@ def sdca(trainset, testset=None, args=None):
                 assert are_consistent(monitor_dual_objective, monitor_all_objectives)
 
                 if count_time:
-                    step += trainset.size  # count the full batch in the number of steps
+                    step += len(trainset)  # count the full batch in the number of steps
                     monitor_gap_estimate = MonitorDualityGapEstimate(gaps_array)
                     sampler.full_update(gaps_array)
 

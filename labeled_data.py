@@ -2,30 +2,49 @@ import numpy as np
 
 
 class LabeledSequenceData:
+    """Store sequential data in a 2D array, with labels in a 1D array.
+
+    Each data point is a row.
+    Each sequence is represented as a contiguous block.
+    Provide an iterator over the sequences.
+    """
     # TODO include the bias in x?
 
     def __init__(self, points, labels):
-        self.index = -1
-        self.points = points
-        self.labels = labels - 1  # to account for matlab format
-        self.size = labels.shape[0]
 
-        self.ends = np.where(self.labels == -1)[0]
+        # store the data
+        self.points = points
+        self.labels = labels.astype(np.int8) - 1
+        # -1 to account for Matlab format
+
+        # get the start and end indices of each sequence.
+        self.ends = np.where(labels == 0)[0]
         self.starts = np.empty_like(self.ends)
         self.starts[0] = 0
         self.starts[1:] = self.ends[:-1] + 1
 
-        self.is_consistent()  # check that everything is correct
+        # evaluate the important sizes.
+        self.nb_sequences = self.starts.shape[0]
+        self.nb_points = self.labels.shape[0]
+        self.alphabet_size = labels.max()
+
+        # initialize the iterator
+        self.index = -1
+
+        self.is_consistent()
 
     def __iter__(self):
         return self
 
     def __next__(self):
         self.index += 1
-        if self.index >= self.size:
+        if self.index >= self.nb_sequences:
             self.index = -1
             raise StopIteration
         return self.get_item(self.index)
+
+    def __len__(self):
+        return self.nb_sequences
 
     def get_item(self, i):
         return self.get_point(i), self.get_label(i)
@@ -37,10 +56,10 @@ class LabeledSequenceData:
         return self.labels[self.starts[i]:self.ends[i]]
 
     def is_consistent(self):
-        if self.size != self.points.shape[0]:
+        if self.nb_points != self.points.shape[0]:
             raise ValueError(
                 "Not the same number of labels (%i) and data points (%i) inside training set."
-                % (self.size, self.points.shape[0]))
+                % (self.nb_points, self.points.shape[0]))
         return True
 
 

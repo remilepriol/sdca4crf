@@ -25,10 +25,10 @@ class SamplerWrap:
                 sampling_scheme))
 
         if self.scheme in [SamplerWrap.UNIFORM, SamplerWrap.GAP]:
-            self.importances = np.ones(trainset.size)
+            self.importances = np.ones(len(trainset))
         elif self.scheme in [SamplerWrap.IMPORTANCE, SamplerWrap.GAPP]:
             self.importances = 1 + features_cls.radii(trainset.points, trainset.labels) ** 2 \
-                               / trainset.size / regularization
+                               / len(trainset) / regularization
 
         self.sampler = Sampler(gaps_array * self.importances)
         self.non_uniformity = non_uniformity

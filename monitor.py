@@ -23,7 +23,7 @@ class MonitorAllObjectives:
                  testset, use_tensorboard):
 
         self.regularization = regularization
-        self.ntrain = trainset.size  # size of training set
+        self.ntrain = len(trainset)  # size of training set
         self.trainset = trainset
         self.ground_truth_centroid = ground_truth_centroid
 
@@ -38,7 +38,7 @@ class MonitorAllObjectives:
         self.loss01 = None
         self.hamming = None
         if self.testset is not None:
-            ntest = testset.size
+            ntest = len(testset)
             self.update_test_error(weights)
         else:
             ntest = 0
@@ -102,9 +102,9 @@ class MonitorAllObjectives:
 
         gaps_array = np.empty(self.ntrain, dtype=float)
         sum_log_partitions = 0
-        for i, (point, margs) in enumerate(zip(self.trainset.points, marginals)):
-            newmargs, log_partition = weights.infer_probabilities(point)
-            gaps_array[i] = margs.kullback_leibler(newmargs)
+        for i in range(self.ntrain):
+            newmargs, log_partition = weights.infer_probabilities(self.trainset.get_point(i))
+            gaps_array[i] = marginals[i].kullback_leibler(newmargs)
             sum_log_partitions += log_partition
 
         # calculate the primal score
@@ -141,7 +141,7 @@ class MonitorAllObjectives:
             self.loss01 += (tmp > 0)
             total_labels += len(label)
 
-        self.loss01 /= self.testset.size
+        self.loss01 /= len(self.testset)
         self.hamming /= total_labels
 
     def append_results(self, step):

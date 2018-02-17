@@ -6,10 +6,10 @@ from sequence import dirac
 def initialize(warm_start, features_module, data, regularization):
     if isinstance(warm_start, np.ndarray):
         # assume that init contains the marginals for a warm start.
-        if warm_start.shape[0] != data.size:
+        if warm_start.shape[0] != len(data):
             raise ValueError(
                 "Not the same number of warm start marginals (%i) and data points (%i)."
-                % (warm_start.shape[0], data.size))
+                % (warm_start.shape[0], len(data)))
         marginals = warm_start
 
     else:  # empirical initialization
@@ -41,18 +41,18 @@ def true_centroid(features_cls, data):
     for point, label in data:
         ans.add_datapoint(point, label)
 
-    ans.multiply_scalar(1 / data.size, inplace=True)
+    ans.multiply_scalar(1 / len(data), inplace=True)
     return ans
 
 
 def marginals_centroid(data, features_cls, marginals=None):
     centroid = features_cls()
     if marginals is None:  # assume uniform
-        for point in data.points:
+        for point, _ in data:
             centroid.add_centroid(point)
     else:
-        for point, margs in zip(data.points, marginals):
+        for (point, _), margs in zip(data, marginals):
             centroid.add_centroid(point, margs)
 
-    centroid.multiply_scalar(1 / data.size, inplace=True)
+    centroid.multiply_scalar(1 / len(data), inplace=True)
     return centroid
