@@ -4,6 +4,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 # Field values to parse the csv
+from utils import letters2wordimage
+
 ALPHABET = "abcdefghijklmnopqrstuvwxyz"
 ALPHALEN = len(ALPHABET)
 LETTER_ID = 0
@@ -108,10 +110,3 @@ def unique_words(words_labels):
     return np.unique(list_of_words, return_counts=True)
 
 
-def letters2wordimage(letters_images):
-    word_image = np.zeros([IMAGE_HEIGHT, 2])
-    spacing = np.zeros([IMAGE_HEIGHT, 2])
-    for letter in letters_images:
-        letter_image = letter.reshape((IMAGE_HEIGHT, IMAGE_WIDTH))
-        word_image = np.hstack((word_image, letter_image, spacing))
-    return word_image

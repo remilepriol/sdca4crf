@@ -2,8 +2,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 import oracles
-from ocr.parse import letters2wordimage
 from sequence import Sequence
+from utils import letters2wordimage
 
 
 class Weights:

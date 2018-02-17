@@ -2,8 +2,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 import oracles
-from ocr.parse import ALPHABET, ALPHALEN, NB_PIXELS, letters2wordimage
+from ocr.parse import ALPHABET, ALPHALEN, NB_PIXELS
 from sequence import Sequence
+from utils import letters2wordimage
 
 
 # RADIUS OF THE CORRECTED FEATURES

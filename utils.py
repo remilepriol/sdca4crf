@@ -1,5 +1,7 @@
 import numpy as np
 
+OCR_IMAGE_HEIGHT = 16
+OCR_IMAGE_WIDTH = 8
 
 def entropy(logproba, axis=None, returnlog=False):
     themax = np.amax(logproba)
@@ -40,3 +42,12 @@ def boolean_encoding(y, k):
     ans = np.zeros([n, k])
     ans[np.arange(n), y] = 1
     return ans
+
+
+def letters2wordimage(letters_images):
+    word_image = np.zeros([OCR_IMAGE_HEIGHT, 2])
+    spacing = np.zeros([OCR_IMAGE_HEIGHT, 2])
+    for letter in letters_images:
+        letter_image = letter.reshape((OCR_IMAGE_HEIGHT, OCR_IMAGE_WIDTH))
+        word_image = np.hstack((word_image, letter_image, spacing))
+    return word_image
