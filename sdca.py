@@ -6,6 +6,7 @@ from line_search import LineSearch
 from monitor import MonitorAllObjectives, MonitorDualObjective, MonitorDualityGapEstimate, \
     are_consistent, initialize_tensorboard
 from sampler_wrap import SamplerWrap
+from weights import Weights
 
 
 def sdca(trainset, testset=None, args=None):
@@ -24,7 +25,7 @@ def sdca(trainset, testset=None, args=None):
 
     # INITIALIZE : the dual and primal variables
     marginals, weights, ground_truth_centroid = \
-        parameters.initialize(args.warm_start, args.features_cls, trainset, args.regularization)
+        parameters.initialize(args.warm_start, trainset, args.regularization)
 
     # OBJECTIVES : primal objective, dual objective and duality gaps.
     use_tensorboard = initialize_tensorboard(args.logdir)
@@ -40,7 +41,7 @@ def sdca(trainset, testset=None, args=None):
 
     # non-uniform sampling
     sampler = SamplerWrap(args.sampling_scheme, args.non_uniformity,
-                          gaps_array, args.features_cls, trainset, args.regularization)
+                          gaps_array, trainset, args.regularization)
 
     try:
 
@@ -67,7 +68,11 @@ def sdca(trainset, testset=None, args=None):
             # EXPECTATION of FEATURES (dual to primal)
             # TODO keep the primal direction sparse
             # TODO implement this method as dual_direction.features_expectation()
-            primal_direction = args.features_cls.Features()
+            primal_direction = Weights(
+                nb_features=trainset.nb_features,
+                nb_labels=trainset.nb_labels,
+                is_sparse_features=trainset.is_sparse
+            )
             primal_direction.add_centroid(point_i, dual_direction)
             # Centroid of the corrected features in the dual direction
             # = Centroid of the real features in the opposite of the dual direction
@@ -92,7 +97,8 @@ def sdca(trainset, testset=None, args=None):
             # UPDATE : the primal and dual coordinates
             marginals[i] = alpha_i.convex_combination(beta_i, optimal_step_size)
             weights = weights.add(
-                primal_direction.multiply_scalar(optimal_step_size))  # TODO sparsify update
+                primal_direction.multiply_scalar(optimal_step_size))
+            # TODO sparsify update
             monitor_dual_objective.update(i, marginals[i].entropy(),
                                           line_search.norm_update(optimal_step_size))
 

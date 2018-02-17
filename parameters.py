@@ -1,9 +1,10 @@
 import numpy as np
 
 from sequence import dirac
+from weights import Weights
 
 
-def initialize(warm_start, features_module, data, regularization):
+def initialize(warm_start, data, regularization):
     if isinstance(warm_start, np.ndarray):
         # assume that init contains the marginals for a warm start.
         if warm_start.shape[0] != len(data):
@@ -22,37 +23,30 @@ def initialize(warm_start, features_module, data, regularization):
         # gradient in appendix D of the SAG-NUS for CRF paper
         marginals = []
         for imgs, labels in data:
-            marginals.append(dirac(labels, features_module.ALPHALEN))
+            marginals.append(dirac(labels, data.nb_labels))
         marginals = np.array(marginals)
 
     # Initialize the weights as the centroid of the ground truth features minus the centroid
     # of the features given by the marginals.
-    ground_truth_centroid = true_centroid(features_module.Features, data)
-    weights = marginals_centroid(data, features_module.Features, marginals)
+    ground_truth_centroid = centroid(data)
 
+    weights = centroid(data, marginals)
     weights = ground_truth_centroid.subtract(weights)
     weights.multiply_scalar(1 / regularization, inplace=True)
 
     return marginals, weights, ground_truth_centroid
 
 
-def true_centroid(features_cls, data):
-    ans = features_cls()
-    for point, label in data:
-        ans.add_datapoint(point, label)
+def centroid(data, marginals=None):
+    ans = Weights(nb_features=data.nb_features, nb_labels=data.nb_labels,
+                  is_sparse_features=data.is_sparse)
+
+    if marginals is None:  # ground truth centroid
+        for point, label in data:
+            ans.add_datapoint(point, label)
+    else:  # marginals centroid
+        for (point, _), margs in zip(data, marginals):
+            ans.add_centroid(point, margs)
 
     ans.multiply_scalar(1 / len(data), inplace=True)
     return ans
-
-
-def marginals_centroid(data, features_cls, marginals=None):
-    centroid = features_cls()
-    if marginals is None:  # assume uniform
-        for point, _ in data:
-            centroid.add_centroid(point)
-    else:
-        for (point, _), margs in zip(data, marginals):
-            centroid.add_centroid(point, margs)
-
-    centroid.multiply_scalar(1 / len(data), inplace=True)
-    return centroid

@@ -10,7 +10,7 @@ class SamplerWrap:
     GAPP = 3
 
     def __init__(self, sampling_scheme, non_uniformity,
-                 gaps_array, features_cls, trainset, regularization):
+                 gaps_array, trainset, regularization):
 
         if sampling_scheme == "uniform":
             self.scheme = SamplerWrap.UNIFORM
@@ -27,8 +27,10 @@ class SamplerWrap:
         if self.scheme in [SamplerWrap.UNIFORM, SamplerWrap.GAP]:
             self.importances = np.ones(len(trainset))
         elif self.scheme in [SamplerWrap.IMPORTANCE, SamplerWrap.GAPP]:
-            self.importances = 1 + features_cls.radii(trainset.points, trainset.labels) ** 2 \
-                               / len(trainset) / regularization
+            self.importances = 1
+            # + features_cls.radii(trainset.points, trainset.labels) ** 2 \
+            # #/ len(trainset) / regularization
+            # TODO implement radii with weights
 
         self.sampler = Sampler(gaps_array * self.importances)
         self.non_uniformity = non_uniformity
