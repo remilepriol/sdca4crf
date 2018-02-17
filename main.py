@@ -12,5 +12,9 @@ if __name__ == '__main__':
     # load datasets
     train_data, test_data = get_datasets(args)
 
-    # launch optimization
+    args.train_size = len(train_data)
+    args.test_size = len(test_data)
+    args.regularization = 1 / args.train_size
+
+    # run optimization
     fullweights, fullmargs = sdca(trainset=train_data, testset=test_data, args=args)
