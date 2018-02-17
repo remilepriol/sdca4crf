@@ -112,7 +112,8 @@ class SparseLabeledSequenceData(LabeledSequenceData):
 
         # total number of different attribute values
         # gives the size of the final embedding
-        self.nb_features = self.vocabulary_sizes.total
+        # the +1 is for the zero-th feature which encodes absent attributes.
+        self.nb_features = int(self.vocabulary_sizes.total)
 
         # convert to NaN non-existing attributes and attributes absent from the training set.
         points = points.astype(float)
@@ -123,3 +124,6 @@ class SparseLabeledSequenceData(LabeledSequenceData):
 
         # convert back to zero the absent attributes
         self.points = np.nan_to_num(points).astype(np.int32)
+
+        # set to -1 the trash value and start the indexing from zero for the others
+        self.points = self.points - 1

@@ -2,6 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 import oracles
+from ocr.parse import letters2wordimage
 from sequence import Sequence
 
 
@@ -16,9 +17,10 @@ class Weights:
         (1) in general, (2) at the beginning, (3) at the end.
         - dense transition features (binary), which counts the number of transition between each
         label.
-        """
 
-    # TODO take care of the zero case (absent attribute) for sparse features
+        Caution: for sparse features, some indices are -1 meaning that the attribute is absent.
+        They are filtered out in the process of updating the weights.
+        """
 
     def __init__(self, emission=None, bias=None, transition=None,
                  nb_labels=0, nb_features=0, is_sparse_features=False):
@@ -31,8 +33,16 @@ class Weights:
         self.is_sparse_features = is_sparse_features
 
     def display(self):
-        """Display bias and transition features as heatmaps."""
+        """Display emission (if dense) bias and transition features as heatmaps."""
         cmap = "Greys"
+
+        emissions = letters2wordimage(self.emission)
+        plt.matshow(emissions, cmap=cmap)
+        ticks_positions = np.linspace(0, emissions.shape[1],
+                                      self.emission.shape[0] + 2).astype(int)[1:-1]
+        plt.xticks(ticks_positions, np.arange(self.emission.shape[0]))
+        plt.colorbar(fraction=0.046, pad=0.04)
+
         plt.matshow(self.transition, cmap=cmap)
         plt.grid()
         plt.colorbar(fraction=0.046, pad=0.04)
@@ -79,7 +89,6 @@ class Weights:
     def squared_norm(self):
         return np.sum(self.emission ** 2) + np.sum(self.bias ** 2) + np.sum(self.transition ** 2)
 
-
     #########################################
     # Construction operations
     #########################################
@@ -92,7 +101,7 @@ class Weights:
 
     def _add_labeled_point_emission(self, point, label):
         if self.is_sparse_features:
-            self.emission[label, point] += 1
+            self.emission[label, point[point >= 0]] += 1
         else:
             self.emission[label] += point
 
@@ -111,7 +120,7 @@ class Weights:
     def _add_centroid_emission(self, points_sequence, unary_marginals):
         if self.is_sparse_features:  # slow!
             for point, unimarginal in zip(points_sequence, unary_marginals):
-                self.emission[:, point] += unimarginal[:, np.newaxis]
+                self.emission[:, point[point >= 0]] += unimarginal[:, np.newaxis]
         else:
             self.emission += np.dot(unary_marginals.T, points_sequence)
 
@@ -131,7 +140,7 @@ class Weights:
         if self.is_sparse_features:
             unary_scores = np.empty([points_sequence.shape[0], self.emission.shape[0]])
             for t, point in enumerate(points_sequence):
-                unary_scores[t] += self.emission[:, point].sum(axis=1)
+                unary_scores[t] = self.emission[:, point].sum(axis=1)
         else:
             unary_scores = np.dot(points_sequence, self.emission.T)
 
