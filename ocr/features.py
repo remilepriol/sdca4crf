@@ -61,32 +61,20 @@ class Features:
         for t in range(images.shape[0] - 1):
             self._add_binary(labels[t], labels[t + 1])
 
-    def _add_unary_centroid(self, images, unary_marginals=None):
-        if unary_marginals is None:  # assume uniform marginal
-            self.emission += np.sum(images, axis=0) / ALPHALEN
-            self.bias[:, 0] += images.shape[0] / ALPHALEN
-            self.bias[:, 1:] += 1 / ALPHALEN
-        else:
+    def _add_unary_centroid(self, images, unary_marginals):
             self.emission += np.dot(unary_marginals.T, images)
             self.bias[:, 0] += np.sum(unary_marginals, axis=0)
             self.bias[:, 1] += unary_marginals[0]
             self.bias[:, 2] += unary_marginals[-1]
 
-    def _add_binary_centroid(self, images, binary_marginals=None):
-        if binary_marginals is None:  # assume uniform marginal
-            self.transition += (images.shape[0] - 1) / ALPHALEN ** 2
-        else:
-            self.transition += np.sum(binary_marginals, axis=0)
+    def _add_binary_centroid(self, images, binary_marginals):
+        self.transition += np.sum(binary_marginals, axis=0)
 
-    def add_centroid(self, images, marginals=None):
-        if marginals is None:  # assume uniform marginal
-            self._add_unary_centroid(images, None)
-            self._add_binary_centroid(images, None)
-        else:
-            if marginals.islog:
-                marginals = marginals.exp()
-            self._add_unary_centroid(images, marginals.unary)
-            self._add_binary_centroid(images, marginals.binary)
+    def add_centroid(self, images, marginals):
+        if marginals.islog:
+            marginals = marginals.exp()
+        self._add_unary_centroid(images, marginals.unary)
+        self._add_binary_centroid(marginals.binary)
 
     #########################################
     # From weights to probabilities
