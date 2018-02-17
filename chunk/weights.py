@@ -1,24 +1,117 @@
-class Weights:
+import matplotlib.pyplot as plt
+import numpy as np
 
-    def __init__(self, emission, bias, transition):
-        self.emission = emission
-        self.bias = bias
-        self.transition = transition
+
+class Weights:
+    """Weights of the CRF model. It is a centroid of features and decomposes the same way.
+
+        Features are composed of:
+        - sparse or dense emission features (unary). Add the embeddings for each label. Because
+        the weights vector is a centroid, it may not be sparse. Thus we represent emission as a
+        dense matrix.
+        - dense bias features (unary), which counts the number of apparition of each label,
+        (1) in general, (2) at the beginning, (3) at the end.
+        - dense transition features (binary), which counts the number of transition between each
+        label.
+        """
+
+    def __init__(self, emission=None, bias=None, transition=None, nb_labels=0, nb_features=0):
+        self.emission = np.zeros([nb_labels, nb_features]) if emission is None else emission
+        self.bias = np.zeros([nb_labels, 3]) if bias is None else bias
+        self.transition = np.zeros([nb_labels, nb_labels]) if transition is None else transition
+
+    def display(self):
+        """Display bias and transition features as heatmaps."""
+        cmap = "Greys"
+        plt.matshow(self.transition, cmap=cmap)
+        plt.grid()
+        plt.colorbar(fraction=0.046, pad=0.04)
+        plt.title("Transition Features", y=1.3)
+
+        rescale_bias = np.array([1 / 23, 1, 1])
+        plt.matshow((self.bias * rescale_bias).T, cmap=cmap)
+        plt.colorbar(fraction=0.046, pad=0.04)
+        plt.title("Bias features", y=1.15)
+
+        plt.show()
+
+    #########################################
+    # Arithmetic operations
+    #########################################
+    def multiply_scalar(self, scalar, inplace=False):
+        if inplace:
+            self.emission = scalar * self.emission
+            self.bias = scalar * self.bias
+            self.transition = scalar * self.transition
+        else:
+            return Features(scalar * self.emission, scalar * self.bias, scalar * self.transition)
+
+    def squared_norm(self):
+        return np.sum(self.emission ** 2) + np.sum(self.bias ** 2) + np.sum(self.transition ** 2)
+
+    def add(self, other):
+        emission = self.emission + other.emission
+        bias = self.bias + other.bias
+        transition = self.transition + other.transition
+        return Features(emission, bias, transition)
+
+    def subtract(self, other):
+        emission = self.emission - other.emission
+        bias = self.bias - other.bias
+        transition = self.transition - other.transition
+        return Features(emission, bias, transition)
+
+    def inner_product(self, other):
+        return np.sum(self.emission * other.emission) + \
+               np.sum(self.bias * other.bias) + \
+               np.sum(self.transition * other.transition)
+
+    #########################################
+    # Construction operations
+    #########################################
+    def _add_labeled_point_emission(self, xi, yit):
+        """To be completed by subclass."""
+        pass
+
+    def add_datapoint(self, xi, yi):
+        for t, label in enumerate(yi):
+            self.bias[label] += [1, t == 0, t == len(yi) - 1]
+            self._add_labeled_point_emission(xi, label)
+        for t in range(xi.shape[0] - 1):
+            self.transition[yi[t], yi[t + 1]] += 1
+
+    def _add_unary_centroid(self, xi, unary_marginals):
+        # Important part. I hope it works
+        for xit, mt in zip(xi, unary_marginals):
+            self.emission[:, xit.indices] += mt[:, np.newaxis]
+
+        self.bias[:, 0] += np.sum(unary_marginals, axis=0)
+        self.bias[:, 1] += unary_marginals[0]
+        self.bias[:, 2] += unary_marginals[-1]
+
+    def _add_centroid_binary(self, binary_marginals):
+        self.transition += np.sum(binary_marginals, axis=0)
+
+    def add_centroid(self, xi, marginals):
+        if marginals.islog:
+            marginals = marginals.exp()
+        self._add_unary_centroid(xi, marginals.unary)
+        self._add_centroid_binary(marginals.binary)
+
+
+class WeightsFromDense(Weights):
+
+    def __init__(self):
+        pass
+
+
+class WeightsFromSparse(Weights):
+
+    def __init__(self):
+        pass
 
 
 class Features:
-    """Features associated to a sample and a label.
-    Taking the centroid of such features gives the weights of the primal model.
-
-    Features are composed of:
-    - sparse emission features (unary), which counts the number of apparitions of a each
-    attribute for each tag. Because we use Features to represent the weights vector, that may
-    not be sparse, at least not exactly, we represent emission as a dense matrix.
-    - dense bias features (unary), which counts the number of apparition of each tag,
-    (1) in general, (2) at the beginning, (3) at the end.
-    - dense transition features (binary), which counts the number of transition between every
-    tags..
-    """
 
     def __init__(self, emission=None, bias=None, transition=None):
 
@@ -37,10 +130,6 @@ class Features:
     #########################################
     # Construction operations
     #########################################
-    def _init_emission(self, nb_features):
-        if self.emission is None:
-            self.emission = np.zeros((ALPHALEN, nb_features))
-
     def _add_unary(self, xi, yit, t, emission_counts):
         if emission_counts is None:
             self.emission[yit, xi[t]] += 1
@@ -52,18 +141,12 @@ class Features:
         self.transition[yit, yitp] += 1
 
     def add_datapoint(self, xi, yi, emission_counts=None):
-        if xi.shape[0] != len(yi):
-            raise ValueError(
-                "Not the same number of tags (%i) and words (%i) in sentence."
-                % (xi.shape[0], len(yi)))
-        self._init_emission(xi[0].dimension)
         for t, label in enumerate(yi):
             self._add_unary(xi, label, t, emission_counts)
         for t in range(xi.shape[0] - 1):
             self._add_binary(yi[t], yi[t + 1])
 
     def _add_unary_centroid(self, xi, unary_marginals):
-        self._init_emission(xi[0].dimension)
         # Important part. I hope it works
         for xit, mt in zip(xi, unary_marginals):
             self.emission[:, xit.indices] += mt[:, np.newaxis]
@@ -134,80 +217,3 @@ class Features:
         uscores = self._unary_scores(xi)
         bscores = self._binary_scores(xi)
         return oracles.sequence_viterbi(uscores, bscores)[0]
-
-    #########################################
-    # Arithmetic operations
-    #########################################
-    def map(self, ufunc, inplace=False):
-        """Map ufunc on each of the arrays inside self.
-
-        We need ufunc(0) = 0 , otherwise emission won't be sparse anymore.
-        """
-
-        if not np.isclose(ufunc(0), 0):
-            raise ValueError("ufunc %s should return 0 in 0." % (ufunc))
-
-        if inplace:
-            self.emission = ufunc(self.emission)
-            self.bias = ufunc(self.bias)
-            self.transition = ufunc(self.transition)
-        else:
-            return Features(ufunc(self.emission), ufunc(self.bias), ufunc(self.transition))
-
-    def multiply_scalar(self, scalar, inplace=False):
-        if inplace:
-            self.emission = scalar * self.emission
-            self.bias = scalar * self.bias
-            self.transition = scalar * self.transition
-        else:
-            return Features(scalar * self.emission, scalar * self.bias, scalar * self.transition)
-
-    def squared_norm(self):
-        return np.sum(self.emission ** 2) + np.sum(self.bias ** 2) + np.sum(self.transition ** 2)
-
-    def add(self, other):
-        emission = self.emission + other.emission
-        bias = self.bias + other.bias
-        transition = self.transition + other.transition
-        return Features(emission, bias, transition)
-
-    def subtract(self, other):
-        emission = self.emission - other.emission
-        bias = self.bias - other.bias
-        transition = self.transition - other.transition
-        return Features(emission, bias, transition)
-
-    def multiply(self, other):
-        emission = self.emission * other.emission
-        bias = self.bias * other.bias
-        transition = self.transition * other.transition
-        return Features(emission, bias, transition)
-
-    def reduce(self):
-        """Return the addition of the features."""
-        ans = self.emission.sum()
-        ans += self.bias.sum()
-        ans += self.transition.sum()
-        return ans
-
-    def inner_product(self, other):
-        return self.multiply(other).reduce()
-
-    def display(self):
-        """Display bias and transition features as heatmaps."""
-        cmap = "Greys"
-        plt.matshow(self.transition, cmap=cmap)
-        plt.grid()
-        tags_range = range(ALPHALEN)
-        plt.xticks(tags_range, ALPHABET, rotation='vertical')
-        plt.yticks(tags_range, ALPHABET)
-        plt.colorbar(fraction=0.046, pad=0.04)
-        plt.title("Transition Features", y=1.3)
-
-        rescale_bias = np.array([1 / 23, 1, 1])
-        plt.matshow((self.bias * rescale_bias).T, cmap=cmap)
-        plt.xticks(tags_range, ALPHABET)
-        plt.colorbar(fraction=0.046, pad=0.04)
-        plt.title("Bias features", y=1.15)
-
-        plt.show()
