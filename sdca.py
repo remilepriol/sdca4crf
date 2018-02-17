@@ -63,7 +63,8 @@ def sdca(trainset, testset=None, args=None):
             beta_i, log_partition_i = weights.infer_probabilities(point_i)
             # ASCENT DIRECTION (primal to dual)
             # TODO use a log value and scipy's logsumexp with signs.
-            dual_direction = beta_i.subtract_exp(alpha_i)
+            log_dual_direction, signs_dual_direction = beta_i.logsubtractexp(alpha_i)
+            dual_direction = log_dual_direction.exp().multiply(signs_dual_direction)
 
             # EXPECTATION of FEATURES (dual to primal)
             # TODO keep the primal direction sparse
@@ -86,8 +87,10 @@ def sdca(trainset, testset=None, args=None):
 
             # LINE SEARCH : find the optimal step size or use a fixed one
             # Update the dual objective monitor as well
-            line_search = LineSearch(weights, primal_direction, dual_direction, alpha_i, beta_i,
-                                     divergence_gap, args.regularization, len(trainset))
+            line_search = LineSearch(weights, primal_direction,
+                                     log_dual_direction,
+                                     alpha_i, beta_i, divergence_gap,
+                                     args.regularization, len(trainset))
 
             if args.fixed_step_size is not None:
                 optimal_step_size = args.fixed_step_size

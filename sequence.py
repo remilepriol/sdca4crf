@@ -1,6 +1,7 @@
 # standard imports
 import matplotlib.pyplot as plt
 import numpy as np
+from scipy.special import logsumexp
 
 # custom imports
 import oracles
@@ -136,33 +137,32 @@ class Sequence:
             return other
 
         if self.islog:
-            unary = np.minimum(0, utils.logsumexp(
-                np.asarray([self.unary + np.log(1 - s), other.unary + np.log(s)]), axis=0))
-            binary = np.minimum(0, utils.logsumexp(
-                np.asarray([self.binary + np.log(1 - s), other.binary + np.log(s)]), axis=0))
+            b = np.array([1 - s, s])
+            unary = np.minimum(0, logsumexp(
+                a=np.asarray([self.unary, other.unary]), axis=0,
+                b=b[:, np.newaxis, np.newaxis]))
+            binary = np.minimum(0, logsumexp(
+                a=np.asarray([self.binary, other.binary]), axis=0,
+                b=b[:, np.newaxis, np.newaxis, np.newaxis]))
         else:
             unary = (1 - s) * self.unary + s * other.unary
             binary = (1 - s) * self.binary + s * other.binary
         return Sequence(unary=unary, binary=binary, log=self.islog)
 
-    def subtract_exp(self, other):
-        """Return the ascent direction without numerical issues
+    def logsubtractexp(self, other):
+        """Return the ascent direction without numerical issue"""
+        b = np.array([1, -1])
+        unary, usign = logsumexp(
+            a=np.asanyarray([self.unary, other.unary]), axis=0,
+            b=b[:, np.newaxis, np.newaxis], return_sign=True)
 
-        Should start from the log space.
-        """
-        max_unary = np.maximum(self.unary, other.unary)
-        unary = np.exp(max_unary) * (np.exp(self.unary - max_unary)
-                                     - np.exp(other.unary - max_unary))
+        binary, bsign = logsumexp(
+            a=np.asanyarray([self.binary, other.binary]), axis=0,
+            b=b[:, np.newaxis, np.newaxis, np.newaxis], return_sign=True)
 
-        max_binary = np.maximum(self.binary, other.binary)
-        binary = np.exp(max_binary) * (np.exp(self.binary - max_binary)
-                                       - np.exp(other.binary - max_binary))
-
-        ans = Sequence(unary=unary, binary=binary, log=False)
-        assert ans.is_density(integral=0)
-        assert ans.is_consistent()
-
-        return ans
+        logvalue = Sequence(unary=unary, binary=binary, log=True)
+        signs = Sequence(unary=usign, binary=bsign, log=False)
+        return logvalue, signs
 
     #########################################
     # Typical arithmetic operations

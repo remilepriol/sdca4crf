@@ -4,12 +4,12 @@ import tensorboard_logger as tl
 
 class LineSearch:
 
-    def __init__(self, weights, primal_direction, dual_direction, alpha_i, beta_i,
-                 divergence_gap, regu, ntrain):
+    def __init__(self, weights, primal_direction, log_dual_direction,
+                 alpha_i, beta_i, divergence_gap, regu, ntrain):
 
         self.alpha_i = alpha_i
         self.beta_i = beta_i
-        self.dual_direction = dual_direction  # TODO use log(d) instead of d.
+        self.log_dual_direction_squared = log_dual_direction.multiply_scalar(2)
 
         # values for the derivative of the entropy
         self.divergence_gap = divergence_gap
@@ -65,9 +65,7 @@ class LineSearch:
                    + 2 * step_size * self.quadratic_coeff
 
     def _newton(self, newmarg, df):
-        log_ddf = self.dual_direction \
-            .absolute().log() \
-            .multiply_scalar(2) \
+        log_ddf = self.log_dual_direction_squared \
             .subtract(newmarg) \
             .log_reduce_exp(- 2 * self.quadratic_coeff)  # stable log sum exp
         ans = np.log(np.absolute(df)) - log_ddf  # log(|f'(x)/f''(x)|)
