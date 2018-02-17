@@ -61,7 +61,7 @@ def get_args():
         'full' if (args.train_size is None) else 'n' + str(args.train_size),
         time_stamp,
         args.sampling_scheme,
-        str(args.non_uniformity)
+        '' if args.sampling_scheme == "uniform" else str(args.non_uniformity)
     )
 
     return args
