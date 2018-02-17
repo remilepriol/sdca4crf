@@ -155,3 +155,20 @@ class Weights:
     def predict(self, points_sequence):
         uscores, bscores = self.scores(points_sequence)
         return oracles.sequence_viterbi(uscores, bscores)[0]
+
+    def labeled_sequence_score(self, points_sequence, labels_sequence):
+        """Return the score <self,F(points_sequence, labels_sequence)>."""
+
+        if self.is_sparse_features:
+            rows_id = np.repeat(labels_sequence, points_sequence.shape[1])
+            ans = np.sum(self.emission[rows_id, np.reshape(points_sequence, (-1,))])
+        else:
+            ans = np.sum(points_sequence * self.emission[labels_sequence])
+
+        ans += np.sum(self.bias[labels_sequence, 0])
+        ans += self.bias[labels_sequence[0], 1]
+        ans += self.bias[labels_sequence[-1], 2]
+
+        ans += np.sum(self.transition[labels_sequence[:-1], labels_sequence[1:]])
+
+        return ans
