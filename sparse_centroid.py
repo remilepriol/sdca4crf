@@ -7,9 +7,9 @@ class SparseCentroid:
         alphalen = marginal.nb_class
         sentence_length, nb_attributes = sentence.shape
 
-        sent = np.ravel(sentence)
-        active_attributes, inverse = np.unique(sent, return_inverse=True)
+        active_attributes, inverse = np.unique(sentence, return_inverse=True)
         centroid = np.zeros([active_attributes.shape[0], alphalen])
+        # TODO reshpae inverse
         for i, inv in enumerate(inverse):
             centroid[inv] += marginal[i // nb_attributes]
 

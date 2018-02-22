@@ -73,12 +73,13 @@ class Weights:
         """Display emission (if dense) bias and transition features as heatmaps."""
         cmap = "Greys"
 
-        emissions = letters2wordimage(self.emission)
-        plt.matshow(emissions, cmap=cmap)
-        ticks_positions = np.linspace(0, emissions.shape[1],
-                                      self.emission.shape[0] + 2).astype(int)[1:-1]
-        plt.xticks(ticks_positions, np.arange(self.emission.shape[0]))
-        plt.colorbar(fraction=0.046, pad=0.04)
+        if self.is_sparse_features:
+            emissions = letters2wordimage(self.emission)
+            plt.matshow(emissions, cmap=cmap)
+            ticks_positions = np.linspace(0, emissions.shape[1],
+                                          self.emission.shape[0] + 2).astype(int)[1:-1]
+            plt.xticks(ticks_positions, np.arange(self.emission.shape[0]))
+            plt.colorbar(fraction=0.046, pad=0.04)
 
         plt.matshow(self.transition, cmap=cmap)
         plt.grid()
