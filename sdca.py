@@ -7,6 +7,7 @@ from monitor import MonitorAllObjectives, MonitorDualObjective, MonitorDualityGa
     are_consistent, initialize_tensorboard
 from sampler_wrap import SamplerWrap
 from weights import Weights
+from sparse_centroid import SparsePrimalDirection
 
 
 def sdca(trainset, testset=None, args=None):
@@ -72,6 +73,9 @@ def sdca(trainset, testset=None, args=None):
                 nb_features=trainset.nb_features,
                 nb_labels=trainset.nb_labels,
                 is_sparse_features=trainset.is_sparse
+            ) if not trainset.is_sparse else SparsePrimalDirection(
+                nb_features=trainset.nb_features,
+                nb_labels=trainset.nb_labels
             )
             primal_direction.add_centroid(point_i, dual_direction)
             # Centroid of the corrected features in the dual direction

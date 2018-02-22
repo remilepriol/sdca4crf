@@ -62,9 +62,11 @@ class Weights:
     def __init__(self, emission=None, bias=None, transition=None,
                  nb_labels=0, nb_features=0, is_sparse_features=False):
 
+        # sparse centroid replace self.emission
         self.emission = np.zeros([nb_labels, nb_features]) if emission is None else emission
         self.bias = np.zeros([nb_labels, 3]) if bias is None else bias
         self.transition = np.zeros([nb_labels, nb_labels]) if transition is None else transition
+        self.nb_labels = nb_labels
 
         # are the features dense or sparse?
         self.is_sparse_features = is_sparse_features
@@ -120,6 +122,7 @@ class Weights:
                        is_sparse_features=self.is_sparse_features)
 
     def inner_product(self, other):
+        import ipdb; ipdb.set_trace()
         return np.sum(self.emission * other.emission) + \
                np.sum(self.bias * other.bias) + \
                np.sum(self.transition * other.transition)
