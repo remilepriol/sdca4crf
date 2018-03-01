@@ -14,7 +14,7 @@ class Sampler:
     def __init__(self, score_leaves, is_determinist=False):
 
         self.is_determinist = is_determinist
-        self.func = np.add if not self.is_determinist else self.func = np.maximum
+        self.func = np.add if not self.is_determinist else np.maximum
 
         self.size = len(score_leaves)
         self.score_tree = [np.array(score_leaves)]
