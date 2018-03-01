@@ -9,9 +9,13 @@ class SamplerWrap:
     IMPORTANCE = 1
     GAP = 2
     GAPP = 3
+    MAX = 4
 
     def __init__(self, sampling_scheme, non_uniformity,
                  gaps_array, trainset, regularization):
+
+        self.size = len(trainset)
+        self.non_uniformity = non_uniformity
 
         if sampling_scheme == "uniform":
             self.scheme = SamplerWrap.UNIFORM
@@ -21,17 +25,19 @@ class SamplerWrap:
             self.scheme = SamplerWrap.GAP
         elif sampling_scheme == "gap+":
             self.scheme = SamplerWrap.GAPP
+        elif sampling_scheme == "max":
+            self.scheme = SamplerWrap.MAX
         else:
             raise ValueError(" %s is not a valid argument for sampling scheme" % str(
                 sampling_scheme))
 
-        if self.scheme in [SamplerWrap.UNIFORM, SamplerWrap.GAP]:
-            self.importances = np.ones(len(trainset))
+        if self.scheme in [SamplerWrap.UNIFORM, SamplerWrap.GAP, SamplerWrap.MAX]:
+            self.importances = np.ones(self.size)
         elif self.scheme in [SamplerWrap.IMPORTANCE, SamplerWrap.GAPP]:
-            self.importances = 1 + radii(trainset) ** 2 / len(trainset) / regularization
+            self.importances = 1 + radii(trainset) ** 2 / self.size / regularization
 
-        self.sampler = Sampler(gaps_array * self.importances)
-        self.non_uniformity = non_uniformity
+        self.sampler = Sampler(gaps_array * self.importances,
+                               is_determinist=(self.scheme == SamplerWrap.MAX))
 
     def update(self, sample_id, divergence_gap):
         if self.scheme in [SamplerWrap.GAP, SamplerWrap.GAPP]:
@@ -42,4 +48,7 @@ class SamplerWrap:
             self.sampler = Sampler(gaps_array * self.importances)
 
     def sample(self):
-        return self.sampler.mixed_sample(self.non_uniformity)
+        if np.random.rand() > self.non_uniformity:  # then sample uniformly
+            return np.random.randint(self.size)
+        else:  # sample proportionally to the duality gaps
+            return self.sampler.sample()

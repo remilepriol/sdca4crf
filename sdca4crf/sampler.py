@@ -2,25 +2,31 @@ import numpy as np
 
 
 class Sampler:
-    """Implement the (fairly standard) random counters algorithm from 'Efficiency of coordinate
-    descent methods on huge-scale optimization problems', by Yuri Nesterov, 2012. It is a binary
-    search over changing scores.
+    """Implement a binary tree over changing scores.
+
+    One can sample from proportionally to these scores if the method is RANDOM.
+    Or one can find the maximum score if he method is DETERMINISTIC.
 
     Complexity of changing one score is O(log n). Complexity of sampling is O(log n). Complexity
-    of initialization is O(n log n)."""
+    of initialization is O(n log n).
+    """
 
-    def __init__(self, score_leaves):
+    def __init__(self, score_leaves, is_determinist=False):
+
+        self.is_determinist = is_determinist
+        self.func = np.add if not self.is_determinist else self.func = np.maximum
+
         self.size = len(score_leaves)
         self.score_tree = [np.array(score_leaves)]
         score_level = self.score_tree[-1]
         n = score_level.shape[0]
         while n > 1:
             if n % 2 == 0:
-                upper_level = score_level[::2] + score_level[1::2]
+                upper_level = self.func(score_level[::2], score_level[1::2])
                 self.score_tree.append(upper_level)
             else:
                 upper_level = np.empty(n // 2 + 1)
-                upper_level[:-1] = score_level[:-1:2] + score_level[1::2]
+                upper_level[:-1] = self.func(score_level[:-1:2], score_level[1::2])
                 upper_level[-1] = score_level[-1]
                 self.score_tree.append(upper_level)
             score_level = self.score_tree[-1]
@@ -35,16 +41,16 @@ class Sampler:
                 index //= 2
             else:
                 index //= 2
-                level[index] = lower_level[2 * index] + lower_level[2 * index + 1]
+                level[index] = self.func(lower_level[2 * index], lower_level[2 * index + 1])
             lower_level = level
 
-    def mixed_sample(self, non_uniformity):
-        if np.random.rand() > non_uniformity:  # then sample uniformly
-            return np.random.randint(self.size)
-        else:  # sample proportionally to the duality gaps
-            return self.sample()
-
     def sample(self):
+        if not self.is_determinist:
+            return self.sample_random()
+        else:
+            return self.sample_max()
+
+    def sample_random(self):
         score_sum = self.score_tree[-1][0]
         random_value = np.random.rand() * score_sum
         index = 0
@@ -55,6 +61,17 @@ class Sampler:
                 index = index * 2
             else:
                 random_value -= level[index * 2]
+                index = index * 2 + 1
+        return index
+
+    def sample_max(self):
+        index = 0
+        for level in self.score_tree[-2::-1]:
+            if (index + 1) * 2 > level.shape[0]:  # end of line, transfer
+                index = index * 2
+            elif level[index * 2] >= level[index * 2 + 1]:
+                index = index * 2
+            else:
                 index = index * 2 + 1
         return index
 
