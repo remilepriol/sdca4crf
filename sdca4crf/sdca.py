@@ -6,8 +6,7 @@ from line_search import LineSearch
 from monitor import MonitorAllObjectives, MonitorDualObjective, MonitorDualityGapEstimate, \
     are_consistent, initialize_tensorboard
 from sampler_wrap import SamplerWrap
-from weights import Weights
-from sparse_centroid import SparsePrimalDirection
+from weights2 import SparseWeights, DenseWeights
 
 
 def sdca(trainset, testset=None, args=None):
@@ -69,13 +68,10 @@ def sdca(trainset, testset=None, args=None):
             # EXPECTATION of FEATURES (dual to primal)
             # TODO keep the primal direction sparse
             # TODO implement this method as dual_direction.expected_features()
-            primal_direction = Weights(
+            Weights_ = SparseWeights if trainset.is_sparse else DenseWeights
+            primal_direction = Weights_(
                 nb_features=trainset.nb_features,
                 nb_labels=trainset.nb_labels,
-                is_sparse_features=trainset.is_sparse
-            ) if not trainset.is_sparse else SparsePrimalDirection(
-                nb_features=trainset.nb_features,
-                nb_labels=trainset.nb_labels
             )
             primal_direction.add_centroid(point_i, dual_direction)
             # Centroid of the corrected features in the dual direction

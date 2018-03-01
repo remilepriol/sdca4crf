@@ -122,7 +122,6 @@ class Weights:
                        is_sparse_features=self.is_sparse_features)
 
     def inner_product(self, other):
-        import ipdb; ipdb.set_trace()
         return np.sum(self.emission * other.emission) + \
                np.sum(self.bias * other.bias) + \
                np.sum(self.transition * other.transition)

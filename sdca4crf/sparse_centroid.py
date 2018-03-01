@@ -11,8 +11,7 @@ class SparsePrimalDirection(Weights):
                                        marginal=unary_marginals, nb_labels=self.nb_labels)
 
     def add_to_dense(self):
-        import ipdb; ipdb.set_trace()
-        pass
+        return self.emission
 
     def multiply_scalar(self, scalar, inplace=False):
         if inplace:
@@ -23,10 +22,12 @@ class SparsePrimalDirection(Weights):
             return -1
 
     def inner_product(self, other):
-        import ipdb; ipdb.set_trace()
-        pass
+        return np.sum(self.emission[:, self.active] * other.emission) + \
+               np.sum(self.bias * other.bias) + \
+               np.sum(self.transition * other.transition)
 
     def squared_norm(self):
+        import ipdb; ipdb.set_trace()
         return np.sum(self.emission.centroid ** 2) + np.sum(self.bias ** 2) + np.sum(self.transition ** 2)
 
 
