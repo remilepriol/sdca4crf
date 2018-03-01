@@ -1,7 +1,7 @@
 import numpy as np
 
-from sampler import Sampler
-from weights import radii
+from .sampler import Sampler
+from .weights import radii
 
 
 class SamplerWrap:

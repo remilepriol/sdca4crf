@@ -1,7 +1,7 @@
 import numpy as np
 
-from sequence import dirac
-from weights2 import DenseWeights, SparseWeights
+from .sequence import dirac
+from .weights2 import DenseWeights
 
 
 def initialize(warm_start, data, regularization):

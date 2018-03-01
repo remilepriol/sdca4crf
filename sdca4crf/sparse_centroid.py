@@ -1,5 +1,6 @@
 import numpy as np
-from weights import Weights
+
+from .weights import Weights
 
 
 class SparsePrimalDirection(Weights):

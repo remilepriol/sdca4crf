@@ -21,7 +21,7 @@ def get_args():
                              'non-uniform sampling and to get a convergence criterion.')
     parser.add_argument('--sampling-scheme', type=str, default='gap',
                         help='Type of sampling. Options are "uniform" (default), "importance", '
-                             '"gap", "gap+"')
+                             '"gap", "gap+", "max"')
     parser.add_argument('--non-uniformity', type=float, default=0.8,
                         help='between 0 and 1. probability of sampling non-uniformly.')
     parser.add_argument('--sampler-period', type=int, default=None,

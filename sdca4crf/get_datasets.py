@@ -1,6 +1,6 @@
 from scipy.io import loadmat
 
-from labeled_data import LabeledSequenceData, SparseLabeledSequenceData
+from .labeled_data import LabeledSequenceData, SparseLabeledSequenceData
 
 
 def read_mat(path):
