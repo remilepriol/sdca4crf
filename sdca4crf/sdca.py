@@ -7,6 +7,8 @@ from monitor import MonitorAllObjectives, MonitorDualObjective, MonitorDualityGa
     are_consistent, initialize_tensorboard
 from sampler_wrap import SamplerWrap
 from weights2 import SparseWeights, DenseWeights
+import time
+import tensorboard_logger as tl
 
 
 def sdca(trainset, testset=None, args=None):
@@ -49,8 +51,13 @@ def sdca(trainset, testset=None, args=None):
         # MAIN LOOP
         ##################################################################################
         progress_bar = tqdm(range(1, len(trainset) * args.npass + 1))
+        start = None
         for step in progress_bar:
             if step % 100 == 0:
+                if start is not None:
+                    end = time.time()
+                    tl.log_value("iteration per second", 100/(end-start), step)
+                start = time.time()
                 progress_bar.set_description(
                     "Duality gap estimate: %e" % monitor_gap_estimate.get_value())
 
