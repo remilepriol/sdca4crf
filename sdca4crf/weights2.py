@@ -175,7 +175,7 @@ class DenseWeights(Weights):
 
     def subtract(self, other):
         if isinstance(other, SparseWeights):
-            return other.add_to_dense(self, True)
+            return other.subtract_to_dense(self, True)
         emission = self.emission - other.emission
         bias = self.bias - other.bias
         transition = self.transition - other.transition
@@ -183,7 +183,7 @@ class DenseWeights(Weights):
 
     def inner_product(self, other):
         if isinstance(other, SparseWeights):
-            return other.inner_product(self)
+            return other.inner_product_to_dense(self)
 
         return np.sum(self.emission * other.emission) + \
                np.sum(self.bias * other.bias) + \
@@ -281,6 +281,14 @@ class SparseWeights(Weights):
             return SparseWeights(emission, bias, transition, self.active, self.nb_labels, self.nb_features)
 
     def inner_product(self, other):
+        if isinstance(other, DenseWeights):
+            return self.inner_product_to_dense(other)
+        else:
+            return np.sum(self.emission * other.emission) + \
+                   np.sum(self.bias * other.bias) + \
+                   np.sum(self.transition * other.transition)
+
+    def inner_product_to_dense(self, other):
         return np.sum(self.emission * other.emission[:, self.active]) + \
                np.sum(self.bias * other.bias) + \
                np.sum(self.transition * other.transition)
