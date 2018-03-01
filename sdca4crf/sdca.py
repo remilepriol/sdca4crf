@@ -50,16 +50,16 @@ def sdca(trainset, testset=None, args=None):
         ##################################################################################
         # MAIN LOOP
         ##################################################################################
-        progress_bar = tqdm(range(1, len(trainset) * args.npass + 1))
         start = None
-        for step in progress_bar:
+        for step in range(1, len(trainset) * args.npass + 1):
             if step % 100 == 0:
+                sparsity = np.mean(weights.emission < 1e-10)
+                tl.log_value('sparsity_coefficient', sparsity, step)
+                tl.log_histogram('weight matrix', weights.emission.tolist(), step)
                 if start is not None:
                     end = time.time()
                     tl.log_value("iteration per second", 100/(end-start), step)
                 start = time.time()
-                progress_bar.set_description(
-                    "Duality gap estimate: %e" % monitor_gap_estimate.get_value())
 
             # SAMPLING
             i = sampler.sample()

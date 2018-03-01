@@ -9,9 +9,9 @@ def get_args():
 
     parser.add_argument('--dataset', type=str, default='conll',
                         help='which dataset to use')
-    parser.add_argument('--train-size', type=int, default=100,
+    parser.add_argument('--train-size', type=int, default=None,
                         help='set to None if you want the full data set.')
-    parser.add_argument('--test-size', type=int, default=50,
+    parser.add_argument('--test-size', type=int, default=None,
                         help='set to None if you want the full data set.')
     parser.add_argument('--regularization', type=float, default=1,
                         help='value of the l2 regularization parameter. '
@@ -37,6 +37,8 @@ def get_args():
                         help='if numpy array, used as marginals to start from.')
 
     args = parser.parse_args()
+
+    print(args.dataset)
 
     if args.dataset == 'ocr':
         args.data_train_path = 'data/ocr_train.mat'
