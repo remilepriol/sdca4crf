@@ -111,6 +111,9 @@ class Weights:
         uscores, bscores = self.scores(points_sequence)
         return oracles.sequence_viterbi(uscores, bscores)[0]
 
+    def squared_norm(self):
+        return np.sum(self.emission ** 2) + np.sum(self.bias ** 2) + np.sum(self.transition ** 2)
+
 
 class DenseWeights(Weights):
     def __init__(self, emission=None, bias=None, transition=None, nb_labels=0, nb_features=0, dataset_sparse=False):
@@ -119,9 +122,6 @@ class DenseWeights(Weights):
 
     def display(self):
         self._display()
-
-    def squared_norm(self):
-        return np.sum(self.emission ** 2) + np.sum(self.bias ** 2) + np.sum(self.transition ** 2)
 
     def _add_labeled_point_emission(self, point, label):
         if self.dataset_sparse:
@@ -147,10 +147,7 @@ class DenseWeights(Weights):
         if self.dataset_sparse:
             unary_scores = np.empty([points_sequence.shape[0], self.emission.shape[0]])
             for t, point in enumerate(points_sequence):
-                try:
-                    unary_scores[t] = self.emission[:, point].sum(axis=1)
-                except:
-                    import ipdb; ipdb.set_trace()
+                unary_scores[t] = self.emission[:, point].sum(axis=1)
         else:
             unary_scores = np.dot(points_sequence, self.emission.T)
         unary_scores, binary_scores = self._scores(unary_scores, points_sequence)
@@ -204,14 +201,6 @@ class SparseWeights(Weights):
         plt.colorbar(fraction=0.046, pad=0.04)
         self._diplay()
 
-    def scores(self, points_sequence):
-        unary_scores = np.empty([points_sequence.shape[0], self.emission.shape[0]])
-        for t, point in enumerate(points_sequence):
-            # TODO verify with Remi
-            unary_scores[t] = self.emission.sum(axis=1)
-        unary_scores, binary_scores = self._scores(unary_scores, points_sequence)
-        return unary_scores, binary_scores
-
     def add_datapoint(self, points_sequence, labels_sequence):
         alphalen = self.nb_labels  # marginal.nb_class
 
@@ -263,7 +252,7 @@ class SparseWeights(Weights):
 
     def subtract(self, other):
         if isinstance(other, DenseWeights):
-            emission = self.emission - other.emission[:, self.active]
+            return self.subtract_to_dense(other)
         else:
             emission = self.emission - other.emission
         bias = self.bias - other.bias
@@ -292,9 +281,6 @@ class SparseWeights(Weights):
         return np.sum(self.emission * other.emission[:, self.active]) + \
                np.sum(self.bias * other.bias) + \
                np.sum(self.transition * other.transition)
-
-    def squared_norm(self):
-        return np.sum(self.emission ** 2) + np.sum(self.bias ** 2) + np.sum(self.transition ** 2)
 
 
 class SparseCentroid:
