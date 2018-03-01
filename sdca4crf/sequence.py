@@ -4,8 +4,8 @@ import numpy as np
 from scipy.special import logsumexp
 
 # custom imports
-import oracles
-import utils
+from .oracles import sequence_sum_product
+from .utils import entropy, kullback_leibler
 
 
 def uniform(length, nb_class, log=True):
@@ -36,7 +36,7 @@ def dirac(labels, nb_class, log=True):
     binary_scores[np.arange(length - 1), labels[:-1], labels[1:]] = constant
 
     if log:
-        unary_marginal, binary_marginal, _ = oracles.sequence_sum_product(
+        unary_marginal, binary_marginal, _ = sequence_sum_product(
             unary_scores, binary_scores)
     else:
         unary_marginal, binary_marginal = unary_scores, binary_scores
@@ -220,14 +220,14 @@ class Sequence:
     #########################################
     def entropy(self, returnlog=False):
         if self.length == 1:
-            return utils.entropy(self.unary, returnlog=returnlog)
+            return entropy(self.unary, returnlog=returnlog)
 
         elif self.length == 2:
-            return utils.entropy(self.binary, returnlog=returnlog)
+            return entropy(self.binary, returnlog=returnlog)
 
         else:
-            cliques = utils.entropy(self.binary, returnlog=True)
-            separations = utils.entropy(self.unary[1:-1], returnlog=True)
+            cliques = entropy(self.binary, returnlog=True)
+            separations = entropy(self.unary[1:-1], returnlog=True)
             return Sequence._safe_reduce(cliques, separations, returnlog)
 
     def kullback_leibler(self, other, returnlog=False):
@@ -236,15 +236,15 @@ class Sequence:
             raise ValueError("Not the same sequence length %i %i" % (self.length, other.length))
 
         if self.length == 1:
-            return utils.kullback_leibler(self.unary, other.unary, returnlog=returnlog)
+            return kullback_leibler(self.unary, other.unary, returnlog=returnlog)
 
         elif self.length == 2:
-            return utils.kullback_leibler(self.binary, other.binary, returnlog=returnlog)
+            return kullback_leibler(self.binary, other.binary, returnlog=returnlog)
 
         else:
-            cliques = utils.kullback_leibler(self.binary, other.binary, returnlog=True)
-            separations = utils.kullback_leibler(self.unary[1:-1], other.unary[1:-1],
-                                                 returnlog=True)
+            cliques = kullback_leibler(self.binary, other.binary, returnlog=True)
+            separations = kullback_leibler(self.unary[1:-1], other.unary[1:-1],
+                                           returnlog=True)
             return Sequence._safe_reduce(cliques, separations, returnlog)
 
     @staticmethod

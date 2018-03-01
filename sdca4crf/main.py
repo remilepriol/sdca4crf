@@ -1,8 +1,8 @@
 import os
 
-from arguments import get_args
-from get_datasets import get_datasets
-from sdca import sdca
+from .arguments import get_args
+from .get_datasets import get_datasets
+from .sdca import sdca
 
 # TODO reproduce the results of Schmidt on conll
 
@@ -31,3 +31,4 @@ if __name__ == '__main__':
 
     # run optimization
     fullweights, fullmargs = sdca(trainset=train_data, testset=test_data, args=args)
+

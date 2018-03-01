@@ -1,9 +1,9 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
-import oracles
-from sequence import Sequence
-from utils import letters2wordimage
+from .oracles import sequence_sum_product, sequence_viterbi
+from .sequence import Sequence
+from .utils import letters2wordimage
 
 
 def radius(points_sequence, labels_sequence, data):
@@ -194,7 +194,7 @@ class Weights:
 
     def infer_probabilities(self, points_sequence):
         uscores, bscores = self.scores(points_sequence)
-        umargs, bmargs, log_partition = oracles.sequence_sum_product(uscores, bscores)
+        umargs, bmargs, log_partition = sequence_sum_product(uscores, bscores)
         umargs = np.minimum(umargs, 0)
         bmargs = np.minimum(bmargs, 0)
         ans = Sequence(umargs, bmargs, log=True)
@@ -207,7 +207,7 @@ class Weights:
 
     def predict(self, points_sequence):
         uscores, bscores = self.scores(points_sequence)
-        return oracles.sequence_viterbi(uscores, bscores)[0]
+        return sequence_viterbi(uscores, bscores)[0]
 
     def labeled_sequence_score(self, points_sequence, labels_sequence):
         """Return the score <self,F(points_sequence, labels_sequence)>."""

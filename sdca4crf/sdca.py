@@ -1,14 +1,14 @@
-import numpy as np
-from tqdm import tqdm
-
-import parameters
-from line_search import LineSearch
-from monitor import MonitorAllObjectives, MonitorDualObjective, MonitorDualityGapEstimate, \
-    are_consistent, initialize_tensorboard
-from sampler_wrap import SamplerWrap
-from weights2 import SparseWeights, DenseWeights
 import time
+
+import numpy as np
 import tensorboard_logger as tl
+
+from .line_search import LineSearch
+from .monitor import MonitorAllObjectives, MonitorDualObjective, MonitorDualityGapEstimate, \
+    are_consistent, initialize_tensorboard
+from .parameters import initialize
+from .sampler_wrap import SamplerWrap
+from .weights2 import DenseWeights, SparseWeights
 
 
 def sdca(trainset, testset=None, args=None):
@@ -27,7 +27,7 @@ def sdca(trainset, testset=None, args=None):
 
     # INITIALIZE : the dual and primal variables
     marginals, weights, ground_truth_centroid = \
-        parameters.initialize(args.warm_start, trainset, args.regularization)
+        initialize(args.warm_start, trainset, args.regularization)
 
     # OBJECTIVES : primal objective, dual objective and duality gaps.
     use_tensorboard = initialize_tensorboard(args.logdir)
