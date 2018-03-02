@@ -6,10 +6,8 @@ import tensorboard_logger as tl
 from .line_search import LineSearch
 from .monitor import MonitorAllObjectives, MonitorDualObjective, MonitorDualityGapEstimate, \
     are_consistent, initialize_tensorboard
-from .parameters import initialize
+from .parameters import compute_primal_direction, initialize
 from .sampler_wrap import SamplerWrap
-from .sparse_centroid import SparsePrimalDirection
-from .weights2 import DenseWeights
 
 
 def sdca(trainset, testset=None, args=None):
@@ -74,14 +72,9 @@ def sdca(trainset, testset=None, args=None):
             dual_direction = log_dual_direction.exp().multiply(signs_dual_direction)
 
             # EXPECTATION of FEATURES (dual to primal)
-            if trainset.is_sparse:
-                primal_direction = SparsePrimalDirection(points_sequence_i, dual_direction)
-            else:
-                primal_direction = DenseWeights.from_marginals(points_sequence_i, dual_direction)
-
-            # Centroid of the corrected features in the dual direction
-            # = Centroid of the real features in the opposite of the dual direction
-            primal_direction *= -1 / args.regularization / len(trainset)
+            primal_direction = compute_primal_direction(points_sequence_i, dual_direction,
+                                                        trainset.is_sparse, len(trainset),
+                                                        args.regularization)
 
             # DUALITY GAP
             divergence_gap = alpha_i.kullback_leibler(beta_i)

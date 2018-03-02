@@ -1,7 +1,7 @@
 import numpy as np
 
 from .sequence import dirac
-from .weights2 import DenseWeights
+from .weights2 import DenseWeights, SparsePrimalDirection
 
 
 def initialize(warm_start, data, regularization):
@@ -49,3 +49,15 @@ def centroid(data, marginals=None):
 
     ans *= 1 / len(data)
     return ans
+
+
+def compute_primal_direction(points_sequence, dual_direction, is_sparse, nb_samples,
+                             regularization):
+    if not is_sparse:
+        primal_direction = DenseWeights.from_marginals(points_sequence, dual_direction)
+    else:
+        primal_direction = SparsePrimalDirection(points_sequence, dual_direction)
+
+    # Centroid of the corrected features in the dual direction
+    # = Centroid of the real features in the opposite of the dual direction
+    primal_direction *= -1 / regularization / nb_samples
