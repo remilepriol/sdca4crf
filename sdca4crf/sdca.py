@@ -1,7 +1,4 @@
-import time
-
 import numpy as np
-import tensorboard_logger as tl
 
 import sdca4crf.monitor as monitor
 from sdca4crf.line_search import LineSearch
@@ -39,6 +36,9 @@ def sdca(trainset, testset=None, args=None):
     gaps_array = 100 * np.ones(len(trainset))  # fake estimate of the duality gaps
     monitor_gap_estimate = monitor.MonitorDualityGapEstimate(gaps_array)
 
+    monitor_sparsity = monitor.MonitorSparsity()
+    monitor_speed = monitor.MonitorSpeed()
+
     # non-uniform sampling
     sampler = SamplerWrap(args.sampling_scheme, args.non_uniformity,
                           gaps_array, trainset, args.regularization)
@@ -48,16 +48,7 @@ def sdca(trainset, testset=None, args=None):
         ##################################################################################
         # MAIN LOOP
         ##################################################################################
-        start = None
         for step in range(1, len(trainset) * args.npass + 1):
-            if step % 100 == 0:
-                sparsity = np.mean(weights.emission < 1e-10)
-                tl.log_value('sparsity_coefficient', sparsity, step)
-                tl.log_histogram('weight matrix', weights.emission.tolist(), step)
-                if start is not None:
-                    end = time.time()
-                    tl.log_value("iteration per second", 100 / (end - start), step)
-                start = time.time()
 
             # SAMPLING
             i = sampler.sample()
@@ -101,9 +92,10 @@ def sdca(trainset, testset=None, args=None):
                                           line_search.norm_update(optimal_step_size))
 
             # ANNEX
-            if use_tensorboard and step % 20 == 0:
+            if use_tensorboard and step % 200 == 0:
                 monitor_dual_objective.log_tensorboard(step)
                 monitor_gap_estimate.log_tensorboard(step)
+                monitor_speed.log_tensorboard(step)
                 if args.fixed_step_size is None:
                     line_search.log_tensorboard(step)
 
@@ -122,6 +114,8 @@ def sdca(trainset, testset=None, args=None):
                     step += len(trainset)  # count the full batch in the number of steps
                     monitor_gap_estimate = monitor.MonitorDualityGapEstimate(gaps_array)
                     sampler.full_update(gaps_array)
+
+                monitor_sparsity.log_tensorboard(weights, step)
 
             # STOP condition
             if monitor_gap_estimate.get_value() < args.precision:
