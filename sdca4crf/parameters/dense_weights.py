@@ -60,7 +60,7 @@ class DenseWeights(WeightsWithoutEmission):
             for t, point in enumerate(points_sequence):
                 unary_scores[t] += self.emission[:, point].sum(axis=1)
         else:
-            unary_scores = np.dot(points_sequence, self.emission.T)
+            unary_scores += np.dot(points_sequence, self.emission.T)
 
         return unary_scores, binary_scores
 
