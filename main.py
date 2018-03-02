@@ -1,8 +1,8 @@
 import os
 
-from .arguments import get_args
-from .get_datasets import get_datasets
-from .sdca import sdca
+from sdca4crf.arguments import get_args
+from sdca4crf.get_datasets import get_datasets
+from sdca4crf.sdca import sdca
 
 # TODO reproduce the results of Schmidt on conll
 
