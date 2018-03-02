@@ -12,7 +12,7 @@ class SparsePrimalDirection(WeightsWithoutEmission):
 
     def __mul__(self, scalar):
         tmp = super().__mul__(scalar)
-        return SparsePrimalDirection(scalar * self.sparse_emission, tmp.bias, tmp.transition)
+        return SparsePrimalDirection(self.sparse_emission * scalar, tmp.bias, tmp.transition)
 
     @classmethod
     def from_marginals(cls, points_sequence, marginals):
