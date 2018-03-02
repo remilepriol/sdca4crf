@@ -75,16 +75,15 @@ def sdca(trainset, testset=None, args=None):
             # EXPECTATION of FEATURES (dual to primal)
             # TODO keep the primal direction sparse
             # TODO implement this method as dual_direction.expected_features()
-            Weights_ = SparseWeights if trainset.is_sparse else DenseWeights
-            primal_direction = Weights_(
+            primal_direction_cls = SparseWeights if trainset.is_sparse else DenseWeights
+            primal_direction = primal_direction_cls(
                 nb_features=trainset.nb_features,
                 nb_labels=trainset.nb_labels,
             )
             primal_direction.add_centroid(point_i, dual_direction)
             # Centroid of the corrected features in the dual direction
             # = Centroid of the real features in the opposite of the dual direction
-            primal_direction.multiply_scalar(-1 / args.regularization / len(trainset),
-                                             inplace=True)
+            primal_direction *= -1 / args.regularization / len(trainset)
 
             # DUALITY GAP
             divergence_gap = alpha_i.kullback_leibler(beta_i)
@@ -105,8 +104,8 @@ def sdca(trainset, testset=None, args=None):
 
             # UPDATE : the primal and dual coordinates
             marginals[i] = alpha_i.convex_combination(beta_i, optimal_step_size)
-            weights = weights.add(
-                primal_direction.multiply_scalar(optimal_step_size))
+            primal_direction *= optimal_step_size
+            weights += primal_direction
             # TODO sparsify update
             monitor_dual_objective.update(i, marginals[i].entropy(),
                                           line_search.norm_update(optimal_step_size))

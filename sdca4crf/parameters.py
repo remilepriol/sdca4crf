@@ -29,16 +29,16 @@ def initialize(warm_start, data, regularization):
     # Initialize the weights as the centroid of the ground truth features minus the centroid
     # of the features given by the marginals.
     ground_truth_centroid = centroid(data)
-
-    weights = centroid(data, marginals)
-    weights = ground_truth_centroid.subtract(weights)
-    weights.multiply_scalar(1 / regularization, inplace=True)
+    marginals_centroid = centroid(data, marginals)
+    weights = ground_truth_centroid - marginals_centroid
+    weights *= 1 / regularization
 
     return marginals, weights, ground_truth_centroid
 
 
 def centroid(data, marginals=None):
-    ans = DenseWeights(nb_features=data.nb_features, nb_labels=data.nb_labels, dataset_sparse=data.is_sparse)
+    ans = DenseWeights(nb_features=data.nb_features, nb_labels=data.nb_labels,
+                       is_dataset_sparse=data.is_sparse)
 
     if marginals is None:  # ground truth centroid
         for point, label in data:
@@ -47,5 +47,5 @@ def centroid(data, marginals=None):
         for (point, _), margs in zip(data, marginals):
             ans.add_centroid(point, margs)
 
-    ans.multiply_scalar(1 / len(data), inplace=True)
+    ans *= 1 / len(data)
     return ans
