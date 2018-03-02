@@ -63,6 +63,8 @@ def compute_primal_direction(points_sequence, dual_direction, is_sparse, nb_samp
     # = Centroid of the real features in the opposite of the dual direction
     primal_direction *= -1 / regularization / nb_samples
 
+    return primal_direction
+
 
 def uniform(length, nb_class, log=True):
     """Return uniform marginals for a sequence.
@@ -83,7 +85,7 @@ def uniform(length, nb_class, log=True):
 
 
 def dirac(labels_sequence, nb_class, log=True):
-    """Return dirac marginals over the observed sequence of labels.
+    """Return smoothed dirac marginals over the observed sequence of labels.
 
     :param labels_sequence:
     :param nb_class:
