@@ -1,8 +1,9 @@
 import numpy as np
 
+from sdca4crf.oracles import sequence_sum_product
 from sdca4crf.parameters.dense_weights import DenseWeights
+from sdca4crf.parameters.sequence_marginals import SequenceMarginals
 from sdca4crf.parameters.sparse_weights import SparsePrimalDirection
-from .sequence_marginals import dirac
 
 
 def initialize(warm_start, data, regularization):
@@ -61,3 +62,44 @@ def compute_primal_direction(points_sequence, dual_direction, is_sparse, nb_samp
     # Centroid of the corrected features in the dual direction
     # = Centroid of the real features in the opposite of the dual direction
     primal_direction *= -1 / regularization / nb_samples
+
+
+def uniform(length, nb_class, log=True):
+    """Return uniform marginals for a sequence.
+
+    :param length: of the sequence
+    :param nb_class: number of possible labels for each variable in the sequence
+    :param log: if true return the log-marginals
+    """
+    unary = np.ones([length, nb_class])
+    binary = np.ones([length - 1, nb_class, nb_class])
+    if log:
+        unary *= - np.log(nb_class)
+        binary *= -2 * np.log(nb_class)
+    else:
+        unary /= nb_class
+        binary /= nb_class ** 2
+    return SequenceMarginals(unary=unary, binary=binary, log=log)
+
+
+def dirac(labels_sequence, nb_class, log=True):
+    """Return dirac marginals over the observed sequence of labels.
+
+    :param labels_sequence:
+    :param nb_class:
+    :param log: if True, return smoothed log-probabilities
+    """
+    length = len(labels_sequence)
+    constant = 10 if log else 1
+
+    unary_scores = np.zeros([length, nb_class])
+    unary_scores[np.arange(length), labels_sequence] = constant
+    binary_scores = np.zeros([length - 1, nb_class, nb_class])
+    binary_scores[np.arange(length - 1), labels_sequence[:-1], labels_sequence[1:]] = constant
+
+    if log:
+        unary_marginal, binary_marginal, _ = sequence_sum_product(
+            unary_scores, binary_scores)
+    else:
+        unary_marginal, binary_marginal = unary_scores, binary_scores
+    return SequenceMarginals(unary=unary_marginal, binary=binary_marginal, log=log)

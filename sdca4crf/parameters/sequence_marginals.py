@@ -4,43 +4,7 @@ import numpy as np
 from scipy.special import logsumexp
 
 # custom imports
-from sdca4crf.oracles import sequence_sum_product
 from sdca4crf.utils import entropy, kullback_leibler
-
-
-def uniform(length, nb_class, log=True):
-    unary = np.ones([length, nb_class])
-    binary = np.ones([length - 1, nb_class, nb_class])
-    if log:
-        unary *= - np.log(nb_class)
-        binary *= -2 * np.log(nb_class)
-    else:
-        unary /= nb_class
-        binary /= nb_class ** 2
-    return SequenceMarginals(unary=unary, binary=binary, log=log)
-
-
-def dirac(labels, nb_class, log=True):
-    """Return an array of dirac over the observed labels.
-
-    :param labels:
-    :param nb_class:
-    :param log: if True, return smoothed log-probabilities
-    """
-    length = len(labels)
-    constant = 10 if log else 1
-
-    unary_scores = np.zeros([length, nb_class])
-    unary_scores[np.arange(length), labels] = constant
-    binary_scores = np.zeros([length - 1, nb_class, nb_class])
-    binary_scores[np.arange(length - 1), labels[:-1], labels[1:]] = constant
-
-    if log:
-        unary_marginal, binary_marginal, _ = sequence_sum_product(
-            unary_scores, binary_scores)
-    else:
-        unary_marginal, binary_marginal = unary_scores, binary_scores
-    return SequenceMarginals(unary=unary_marginal, binary=binary_marginal, log=log)
 
 
 class SequenceMarginals:
