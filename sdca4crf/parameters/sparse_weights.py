@@ -19,10 +19,9 @@ class SparsePrimalDirection(WeightsWithoutEmission):
         if marginals.islog:
             marginals = marginals.exp()
 
-        ans = cls(nb_labels=marginals.nb_labels)
-        ans.add_centroid(points_sequence, marginals)
-        ans.sparse_emission = SparseEmission.from_marginals(points_sequence, marginals)
-        return ans
+        sparse_emission = SparseEmission.from_marginals(points_sequence, marginals)
+        tmp = super(SparsePrimalDirection, cls).from_marginals(points_sequence, marginals)
+        return cls(sparse_emission, tmp.bias, tmp.transition)
 
     def squared_norm(self):
         ans = super().squared_norm()

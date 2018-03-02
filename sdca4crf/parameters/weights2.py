@@ -42,7 +42,6 @@ class WeightsWithoutEmission:
         ans.add_centroid(points_sequence, marginals)
         return ans
 
-
     # USE THE MODEL ON DATA
     def scores(self, points_sequence):
         seq_len = points_sequence.shape[0]
@@ -121,5 +120,3 @@ class WeightsWithoutEmission:
         plt.title("Bias features", y=1.15)
 
         plt.show()
-
-

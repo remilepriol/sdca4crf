@@ -62,6 +62,8 @@ def sdca(trainset, testset=None, args=None):
             # ASCENT DIRECTION (primal to dual)
             log_dual_direction, signs_dual_direction = beta_i.logsubtractexp(alpha_i)
             dual_direction = log_dual_direction.exp().multiply(signs_dual_direction)
+            assert dual_direction.is_consistent()
+            assert dual_direction.is_density(0)
 
             # EXPECTATION of FEATURES (dual to primal)
             primal_direction = compute_primal_direction(points_sequence_i, dual_direction,
@@ -85,16 +87,15 @@ def sdca(trainset, testset=None, args=None):
             else:
                 optimal_step_size = line_search.run()
 
-            # UPDATE : the primal and dual coordinates
+            # UPDATE : the primal and dual parameters
             marginals[i] = alpha_i.convex_combination(beta_i, optimal_step_size)
-            primal_direction *= optimal_step_size
-            weights += primal_direction
+            weights += primal_direction * optimal_step_size
 
             monitor_dual_objective.update(i, marginals[i].entropy(),
                                           line_search.norm_update(optimal_step_size))
 
             # ANNEX
-            if use_tensorboard and step % 10 == 0:
+            if use_tensorboard and step % 1 == 0:
                 monitor_dual_objective.log_tensorboard(step)
                 monitor_gap_estimate.log_tensorboard(step)
                 monitor_speed.log_tensorboard(step)

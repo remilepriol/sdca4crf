@@ -54,8 +54,8 @@ def centroid(data, marginals=None):
     return ans
 
 
-def compute_primal_direction(points_sequence, dual_direction, is_sparse, nb_samples,
-                             regularization):
+def compute_primal_direction(points_sequence, dual_direction,
+                             is_sparse, nb_samples, regularization):
     primal_direction_cls = SparsePrimalDirection if is_sparse else DenseWeights
     primal_direction = primal_direction_cls.from_marginals(points_sequence, dual_direction)
 
