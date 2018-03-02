@@ -17,7 +17,7 @@ def uniform(length, nb_class, log=True):
     else:
         unary /= nb_class
         binary /= nb_class ** 2
-    return Sequence(unary=unary, binary=binary, log=log)
+    return SequenceMarginals(unary=unary, binary=binary, log=log)
 
 
 def dirac(labels, nb_class, log=True):
@@ -40,10 +40,10 @@ def dirac(labels, nb_class, log=True):
             unary_scores, binary_scores)
     else:
         unary_marginal, binary_marginal = unary_scores, binary_scores
-    return Sequence(unary=unary_marginal, binary=binary_marginal, log=log)
+    return SequenceMarginals(unary=unary_marginal, binary=binary_marginal, log=log)
 
 
-class Sequence:
+class SequenceMarginals:
     """Represent anything that is decomposable over the nodes and edges of a sequential model.
 
     It can be a score, a conditional probability p(y|x) under the form of MARGINALS or
@@ -94,10 +94,10 @@ class Sequence:
     # Special operations
     #########################################
     def log(self):
-        return Sequence(np.log(self.unary), np.log(self.binary), log=True)
+        return SequenceMarginals(np.log(self.unary), np.log(self.binary), log=True)
 
     def exp(self):
-        return Sequence(np.exp(self.unary), np.exp(self.binary), log=False)
+        return SequenceMarginals(np.exp(self.unary), np.exp(self.binary), log=False)
 
     def reduce(self):
         """Return the special summation where the marginals on the separations are
@@ -147,7 +147,7 @@ class Sequence:
         else:
             unary = (1 - s) * self.unary + s * other.unary
             binary = (1 - s) * self.binary + s * other.binary
-        return Sequence(unary=unary, binary=binary, log=self.islog)
+        return SequenceMarginals(unary=unary, binary=binary, log=self.islog)
 
     def logsubtractexp(self, other):
         """Return the ascent direction without numerical issue"""
@@ -160,8 +160,8 @@ class Sequence:
             a=np.asanyarray([self.binary, other.binary]), axis=0,
             b=b[:, np.newaxis, np.newaxis, np.newaxis], return_sign=True)
 
-        logvalue = Sequence(unary=unary, binary=binary, log=True)
-        signs = Sequence(unary=usign, binary=bsign, log=False)
+        logvalue = SequenceMarginals(unary=unary, binary=binary, log=True)
+        signs = SequenceMarginals(unary=usign, binary=bsign, log=False)
         return logvalue, signs
 
     #########################################
@@ -170,7 +170,7 @@ class Sequence:
     def combine(self, other, ufunc):
         unary = ufunc(self.unary, other.unary)
         binary = ufunc(self.binary, other.binary)
-        return Sequence(unary, binary, self.islog)
+        return SequenceMarginals(unary, binary, self.islog)
 
     def add(self, other):
         return self.combine(other, np.add)
@@ -182,13 +182,13 @@ class Sequence:
         return self.combine(other, np.multiply)
 
     def map(self, ufunc):
-        return Sequence(ufunc(self.unary), ufunc(self.binary), self.islog)
+        return SequenceMarginals(ufunc(self.unary), ufunc(self.binary), self.islog)
 
     def absolute(self):
         return self.map(np.absolute)
 
     def multiply_scalar(self, scalar):
-        return Sequence(scalar * self.unary, scalar * self.binary, self.islog)
+        return SequenceMarginals(scalar * self.unary, scalar * self.binary, self.islog)
 
     #########################################
     # Assertion operations
@@ -228,7 +228,7 @@ class Sequence:
         else:
             cliques = entropy(self.binary, returnlog=True)
             separations = entropy(self.unary[1:-1], returnlog=True)
-            return Sequence._safe_reduce(cliques, separations, returnlog)
+            return SequenceMarginals._safe_reduce(cliques, separations, returnlog)
 
     def kullback_leibler(self, other, returnlog=False):
 
@@ -245,7 +245,7 @@ class Sequence:
             cliques = kullback_leibler(self.binary, other.binary, returnlog=True)
             separations = kullback_leibler(self.unary[1:-1], other.unary[1:-1],
                                            returnlog=True)
-            return Sequence._safe_reduce(cliques, separations, returnlog)
+            return SequenceMarginals._safe_reduce(cliques, separations, returnlog)
 
     @staticmethod
     def _safe_reduce(cliques, separations, returnlog):

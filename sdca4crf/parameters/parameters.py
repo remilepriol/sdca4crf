@@ -2,7 +2,7 @@ import numpy as np
 
 from sdca4crf.parameters.dense_weights import DenseWeights
 from sdca4crf.parameters.sparse_weights import SparsePrimalDirection
-from .sequence import dirac
+from .sequence_marginals import dirac
 
 
 def initialize(warm_start, data, regularization):

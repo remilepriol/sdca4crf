@@ -3,7 +3,7 @@ import numpy as np
 
 from sdca4crf.oracles import sequence_sum_product, sequence_viterbi
 from sdca4crf.utils import letters2wordimage
-from .sequence import Sequence
+from .sequence_marginals import SequenceMarginals
 
 
 def radius(points_sequence, labels_sequence, data):
@@ -197,7 +197,7 @@ class Weights:
         umargs, bmargs, log_partition = sequence_sum_product(uscores, bscores)
         umargs = np.minimum(umargs, 0)
         bmargs = np.minimum(bmargs, 0)
-        ans = Sequence(umargs, bmargs, log=True)
+        ans = SequenceMarginals(umargs, bmargs, log=True)
 
         nans = ans.exp()
         assert nans.is_consistent()
