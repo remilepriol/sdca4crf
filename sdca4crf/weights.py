@@ -66,7 +66,7 @@ class Weights:
         self.emission = np.zeros([nb_labels, nb_features]) if emission is None else emission
         self.bias = np.zeros([nb_labels, 3]) if bias is None else bias
         self.transition = np.zeros([nb_labels, nb_labels]) if transition is None else transition
-        self.nb_labels = nb_labels
+        self.nb_labels = self.transition.shape[0]
 
         # are the features dense or sparse?
         self.is_sparse_features = is_sparse_features
