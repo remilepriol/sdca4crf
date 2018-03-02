@@ -59,12 +59,12 @@ class LabeledSequenceData:
         return self.nb_sequences
 
     def get_item(self, i):
-        return self.get_point(i), self.get_label(i)
+        return self.get_points_sequence(i), self.get_labels_sequence(i)
 
-    def get_point(self, i):
+    def get_points_sequence(self, i):
         return self.points[self.starts[i]:self.ends[i]]
 
-    def get_label(self, i):
+    def get_labels_sequence(self, i):
         return self.labels[self.starts[i]:self.ends[i]]
 
     def is_consistent(self):

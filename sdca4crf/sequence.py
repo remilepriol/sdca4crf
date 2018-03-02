@@ -52,7 +52,7 @@ class Sequence:
 
     def __init__(self, unary, binary, log):
         self.length = unary.shape[0]
-        self.nb_class = unary.shape[1]
+        self.nb_labels = unary.shape[1]
         self.unary = unary
         self.binary = binary
         self.islog = log
@@ -64,8 +64,8 @@ class Sequence:
             raise ValueError("Wrong length of marginals: %i vs %i"
                              % (unary.shape[0], binary.shape[0] + 1))
 
-        if self.nb_class != binary.shape[1] \
-                or self.nb_class != binary.shape[2]:
+        if self.nb_labels != binary.shape[1] \
+                or self.nb_labels != binary.shape[2]:
             raise ValueError("Wrong alphabet size: %i vs (%i, %i)"
                              % (unary.shape[1], binary.shape[1], binary.shape[2]))
 

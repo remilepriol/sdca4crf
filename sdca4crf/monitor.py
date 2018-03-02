@@ -104,7 +104,7 @@ class MonitorAllObjectives:
         sum_log_partitions = 0
         for i in range(self.ntrain):
             newmargs, log_partition = weights.infer_probabilities(
-                self.trainset.get_point(i))
+                self.trainset.get_points_sequence(i))
             gaps_array[i] = marginals[i].kullback_leibler(newmargs)
             sum_log_partitions += log_partition
 
