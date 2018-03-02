@@ -55,7 +55,7 @@ def get_args():
     else:
         raise ValueError('the dataset is not defined')
 
-    args.dense = True if args.dataset == 'ocr' else False
+    args.is_dense = True if args.dataset == 'ocr' else False
 
     time_stamp = time.strftime("%Y%m%d_%H%M%S")
     args.logdir = "logs/{}_{}/{}_{}{}".format(

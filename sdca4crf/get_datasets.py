@@ -12,7 +12,7 @@ def get_datasets(args):
     xtrain, ytrain = read_mat(args.data_train_path)
     xtest, ytest = read_mat(args.data_test_path)
 
-    if args.dense:
+    if args.is_dense:
         trainset = LabeledSequenceData(xtrain, ytrain, args.train_size)
         testset = LabeledSequenceData(xtest, ytest, args.test_size)
     else:
