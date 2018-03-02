@@ -17,6 +17,9 @@ class SparsePrimalDirection(WeightsWithoutEmission):
 
     @classmethod
     def from_marginals(cls, points_sequence, marginals):
+        if marginals.islog:
+            marginals = marginals.exp()
+
         ans = cls(nb_labels=marginals.nb_labels)
         ans.add_centroid(points_sequence, marginals)
         ans.sparse_emission = SparseEmission(points_sequence, marginals)
@@ -40,7 +43,7 @@ class SparseEmission:
 
         # Finally remove the zeros
         self.active_set = active_attributes[1:]
-        self.values = centroid[1:]
+        self.values = np.transpose(centroid[1:])
 
     def __imul__(self, scalar):
         self.values *= scalar
