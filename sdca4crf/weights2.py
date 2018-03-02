@@ -128,16 +128,7 @@ class DenseWeights(WeightsWithoutEmission):
         self.is_dataset_sparse = is_dataset_sparse
         self.emission = np.zeros([nb_labels, nb_features]) if emission is None else emission
 
-    def display(self):
-        super().display()
-        if self.is_dataset_sparse:
-            emissions = letters2wordimage(self.emission)
-            plt.matshow(emissions, cmap="Greys")
-            ticks_positions = np.linspace(0, emissions.shape[1],
-                                          self.emission.shape[0] + 2).astype(int)[1:-1]
-            plt.xticks(ticks_positions, np.arange(self.emission.shape[0]))
-            plt.colorbar(fraction=0.046, pad=0.04)
-
+    # BUILD THE WEIGHTS FROM DATA
     def add_datapoint(self, points_sequence, labels_sequence):
         super().add_datapoint(points_sequence, labels_sequence)
 
@@ -157,6 +148,16 @@ class DenseWeights(WeightsWithoutEmission):
         else:
             self.emission += np.dot(marginals.unary.T, points_sequence)
 
+    @classmethod
+    def from_marginals(cls, points_sequence, marginals):
+        """Initialize the primal direction."""
+        # This being called means that the data set is dense
+        weights = cls(nb_features=points_sequence.shape[1], nb_labels=marginals.nb_labels,
+                      is_dataset_sparse=False)
+        weights.add_centroid(points_sequence, marginals)
+        return weights
+
+    # USE THE MODEL ON DATA
     def scores(self, points_sequence):
         unary_scores, binary_scores = super().scores(points_sequence)
 
@@ -168,6 +169,7 @@ class DenseWeights(WeightsWithoutEmission):
 
         return unary_scores, binary_scores
 
+    # ARITHMETIC OPERATIONS
     def __imul__(self, scalar):
         super().__imul__(scalar)
         self.emission *= scalar
@@ -196,11 +198,13 @@ class DenseWeights(WeightsWithoutEmission):
         else:
             return ans + np.sum(self.emission * other.emission)
 
-    @classmethod
-    def from_marginals(cls, points_sequence, marginals):
-        """Initialize the primal direction."""
-        # This being called means that the data set is dense
-        weights = cls(nb_features=points_sequence.shape[1], nb_labels=marginals.nb_labels,
-                      is_dataset_sparse=False)
-        weights.add_centroid(points_sequence, marginals)
-        return weights
+    # MISCELLANEOUS
+    def display(self):
+        super().display()
+        if self.is_dataset_sparse:
+            emissions = letters2wordimage(self.emission)
+            plt.matshow(emissions, cmap="Greys")
+            ticks_positions = np.linspace(0, emissions.shape[1],
+                                          self.emission.shape[0] + 2).astype(int)[1:-1]
+            plt.xticks(ticks_positions, np.arange(self.emission.shape[0]))
+            plt.colorbar(fraction=0.046, pad=0.04)
