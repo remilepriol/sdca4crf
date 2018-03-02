@@ -33,8 +33,10 @@ class DenseWeights(WeightsWithoutEmission):
                 self.emission[label] += point
 
     def add_centroid(self, points_sequence, marginals):
-        super().add_centroid(points_sequence, marginals)
+        if marginals.islog:
+            marginals = marginals.exp()
 
+        super().add_centroid(points_sequence, marginals)
         if self.is_dataset_sparse:  # slow?
             for point, unimarginal in zip(points_sequence, marginals.unary):
                 self.emission[:, point[point >= 0]] += unimarginal[:, np.newaxis]
@@ -70,11 +72,13 @@ class DenseWeights(WeightsWithoutEmission):
                             is_dataset_sparse=self.is_dataset_sparse)
 
     def __iadd__(self, other):
-        super().__iadd__(other)
+        tmp = super().__iadd__(other)
         if isinstance(other, SparsePrimalDirection):
             self.emission[:, other.sparse_emission.active_set] += other.sparse_emission.values
         else:
             self.emission += other.emission
+        return DenseWeights(self.emission, tmp.bias, tmp.transition,
+                            is_dataset_sparse=self.is_dataset_sparse)
 
     def __sub__(self, other):
         tmp = super().__sub__(other)

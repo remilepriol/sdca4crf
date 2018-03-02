@@ -82,6 +82,7 @@ class WeightsWithoutEmission:
     def __iadd__(self, other):
         self.bias += other.bias
         self.transition += other.transition
+        return WeightsWithoutEmission(self.bias, self.transition)
 
     def __sub__(self, other):
         return WeightsWithoutEmission(
