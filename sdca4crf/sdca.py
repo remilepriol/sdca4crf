@@ -8,7 +8,8 @@ from .monitor import MonitorAllObjectives, MonitorDualObjective, MonitorDualityG
     are_consistent, initialize_tensorboard
 from .parameters import initialize
 from .sampler_wrap import SamplerWrap
-from .weights2 import DenseWeights, SparseWeights
+from .sparse_centroid import SparsePrimalDirection
+from .weights2 import DenseWeights
 
 
 def sdca(trainset, testset=None, args=None):
@@ -58,29 +59,26 @@ def sdca(trainset, testset=None, args=None):
                 tl.log_histogram('weight matrix', weights.emission.tolist(), step)
                 if start is not None:
                     end = time.time()
-                    tl.log_value("iteration per second", 100/(end-start), step)
+                    tl.log_value("iteration per second", 100 / (end - start), step)
                 start = time.time()
 
             # SAMPLING
             i = sampler.sample()
             alpha_i = marginals[i]
-            point_i = trainset.get_point(i)
+            points_sequence_i = trainset.get_points_sequence(i)
 
             # MARGINALIZATION ORACLE
-            beta_i, log_partition_i = weights.infer_probabilities(point_i)
+            beta_i, log_partition_i = weights.infer_probabilities(points_sequence_i)
             # ASCENT DIRECTION (primal to dual)
             log_dual_direction, signs_dual_direction = beta_i.logsubtractexp(alpha_i)
             dual_direction = log_dual_direction.exp().multiply(signs_dual_direction)
 
             # EXPECTATION of FEATURES (dual to primal)
-            # TODO keep the primal direction sparse
-            # TODO implement this method as dual_direction.expected_features()
-            primal_direction_cls = SparseWeights if trainset.is_sparse else DenseWeights
-            primal_direction = primal_direction_cls(
-                nb_features=trainset.nb_features,
-                nb_labels=trainset.nb_labels,
-            )
-            primal_direction.add_centroid(point_i, dual_direction)
+            if trainset.is_sparse:
+                primal_direction = SparsePrimalDirection(points_sequence_i, dual_direction)
+            else:
+                primal_direction = DenseWeights.from_marginals(points_sequence_i, dual_direction)
+
             # Centroid of the corrected features in the dual direction
             # = Centroid of the real features in the opposite of the dual direction
             primal_direction *= -1 / args.regularization / len(trainset)
@@ -106,7 +104,7 @@ def sdca(trainset, testset=None, args=None):
             marginals[i] = alpha_i.convex_combination(beta_i, optimal_step_size)
             primal_direction *= optimal_step_size
             weights += primal_direction
-            # TODO sparsify update
+
             monitor_dual_objective.update(i, marginals[i].entropy(),
                                           line_search.norm_update(optimal_step_size))
 
