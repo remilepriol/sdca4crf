@@ -3,11 +3,12 @@ import time
 import numpy as np
 import tensorboard_logger as tl
 
-from .line_search import LineSearch
-from .monitor import MonitorAllObjectives, MonitorDualObjective, MonitorDualityGapEstimate, \
+from sdca4crf.line_search import LineSearch
+from sdca4crf.monitor import MonitorAllObjectives, MonitorDualObjective, \
+    MonitorDualityGapEstimate, \
     are_consistent, initialize_tensorboard
-from .parameters import compute_primal_direction, initialize
-from .sampler_wrap import SamplerWrap
+from sdca4crf.parameters.initializer import compute_primal_direction, initialize
+from sdca4crf.sampler_wrap import SamplerWrap
 
 
 def sdca(trainset, testset=None, args=None):
