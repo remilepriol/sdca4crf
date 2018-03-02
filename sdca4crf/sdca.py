@@ -39,6 +39,8 @@ def sdca(trainset, testset=None, args=None):
     monitor_sparsity = monitor.MonitorSparsity()
     monitor_speed = monitor.MonitorSpeed()
 
+    del ground_truth_centroid, testset  # clean up the namespace
+
     # non-uniform sampling
     sampler = SamplerWrap(args.sampling_scheme, args.non_uniformity,
                           gaps_array, trainset, args.regularization)
@@ -92,14 +94,14 @@ def sdca(trainset, testset=None, args=None):
                                           line_search.norm_update(optimal_step_size))
 
             # ANNEX
-            if use_tensorboard and step % 200 == 0:
+            if use_tensorboard and step % 10 == 0:
                 monitor_dual_objective.log_tensorboard(step)
                 monitor_gap_estimate.log_tensorboard(step)
                 monitor_speed.log_tensorboard(step)
                 if args.fixed_step_size is None:
                     line_search.log_tensorboard(step)
 
-            if step % len(trainset) == 0:
+                # if step % len(trainset) == 0:
                 # OBJECTIVES : after every epochs, compute the duality gap
                 # Update the sampler if necessary (count_time==True)
                 count_time = args.sampler_period is not None and step % (

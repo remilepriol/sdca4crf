@@ -45,8 +45,5 @@ class SparseEmission:
         self.active_set = active_attributes[1:]
         self.values = np.transpose(centroid[1:])
 
-    def __imul__(self, scalar):
-        self.values *= scalar
-
     def squared_norm(self):
         return np.sum(self.values ** 2)

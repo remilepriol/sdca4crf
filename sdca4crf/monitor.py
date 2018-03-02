@@ -97,8 +97,8 @@ class MonitorAllObjectives:
     def update_objectives(self, weights, marginals):
         weights_squared_norm = weights.squared_norm()
 
-        entropies = np.array([margs.entropy() for margs in marginals])
-        self.dual_objective = entropies.mean() - self.regularization / 2 * weights_squared_norm
+        entropy = sum(margs.entropy() for margs in marginals) / self.ntrain
+        self.dual_objective = entropy - self.regularization / 2 * weights_squared_norm
 
         gaps_array = np.empty(self.ntrain, dtype=float)
         sum_log_partitions = 0

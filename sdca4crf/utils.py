@@ -1,8 +1,5 @@
 import numpy as np
 
-OCR_IMAGE_HEIGHT = 16
-OCR_IMAGE_WIDTH = 8
-
 def entropy(logproba, axis=None, returnlog=False):
     themax = np.amax(logproba)
     try:
@@ -20,7 +17,16 @@ def entropy(logproba, axis=None, returnlog=False):
 
 def kullback_leibler(logp, logq, axis=None, returnlog=False):
     themax = np.amax(logp)
-    ans = themax + np.log(np.sum(np.exp(logp - themax) * (logp - logq), axis=axis))
+    tmp = np.sum(np.exp(logp - themax) * (logp - logq), axis=axis)
+    if tmp <= -1e-8:
+        raise Warning(f"Numerical stability: {tmp}")
+    if tmp <= 0:
+        if returnlog:
+            return -np.infty
+        else:
+            return 0
+
+    ans = themax + np.log(tmp)
     if returnlog:
         return ans
     else:
@@ -30,12 +36,17 @@ def kullback_leibler(logp, logq, axis=None, returnlog=False):
             print("too big ", ans)
             raise
 
+
 def boolean_encoding(y, k):
     """Return the n*k matrix Y whose line i is the one-hot encoding of y_i."""
     n = y.shape[0]
     ans = np.zeros([n, k])
     ans[np.arange(n), y] = 1
     return ans
+
+
+OCR_IMAGE_HEIGHT = 16
+OCR_IMAGE_WIDTH = 8
 
 
 def letters2wordimage(letters_images):

@@ -74,16 +74,18 @@ class LineSearch:
 
     def run(self):
         u0, = self.evaluator(0, return_df=True)
+        assert u0 > 0, u0
+
         u1, = self.evaluator(1, return_df=True)
-        if u1 >= 0:  # 1 is optimal, the new marginal is already updated
+        if u1 >= 0:
             self.optimal_step_size = 1
             self.subobjectives = [u1]
-        else:
-            self.optimal_step_size, self.subobjectives = safe_newton(
-                lambda x: self.evaluator(x, return_df=True, return_newton=True),
-                lowerbound=0, upperbound=1,
-                u_lower=u0, u_upper=u1, precision=1e-2)
+            return self.optimal_step_size
 
+        self.optimal_step_size, self.subobjectives = safe_newton(
+            lambda x: self.evaluator(x, return_df=True, return_newton=True),
+            lowerbound=0, upperbound=1,
+            u_lower=u0, u_upper=u1, precision=1e-2)
         return self.optimal_step_size
 
     def norm_update(self, step_size):
