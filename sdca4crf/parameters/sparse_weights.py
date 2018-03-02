@@ -10,10 +10,9 @@ class SparsePrimalDirection(WeightsWithoutEmission):
         super().__init__(bias, transition, nb_labels)
         self.sparse_emission = sparse_emission
 
-    def __imul__(self, scalar):
-        tmp = super().__imul__(scalar)
-        self.sparse_emission.values *= scalar
-        return SparsePrimalDirection(self.sparse_emission, tmp.bias, tmp.transition)
+    def __mul__(self, scalar):
+        tmp = super().__mul__(scalar)
+        return SparsePrimalDirection(scalar * self.sparse_emission, tmp.bias, tmp.transition)
 
     @classmethod
     def from_marginals(cls, points_sequence, marginals):
@@ -22,7 +21,7 @@ class SparsePrimalDirection(WeightsWithoutEmission):
 
         ans = cls(nb_labels=marginals.nb_labels)
         ans.add_centroid(points_sequence, marginals)
-        ans.sparse_emission = SparseEmission(points_sequence, marginals)
+        ans.sparse_emission = SparseEmission.from_marginals(points_sequence, marginals)
         return ans
 
     def squared_norm(self):
@@ -32,7 +31,12 @@ class SparsePrimalDirection(WeightsWithoutEmission):
 
 class SparseEmission:
 
-    def __init__(self, points_sequence, marginals):
+    def __init__(self, active_set, values):
+        self.active_set = active_set
+        self.values = values
+
+    @classmethod
+    def from_marginals(cls, points_sequence, marginals):
         alphalen = marginals.nb_labels
 
         active_attributes, inverse = np.unique(points_sequence, return_inverse=True)
@@ -42,8 +46,12 @@ class SparseEmission:
             centroid[inv] += marg
 
         # Finally remove the zeros
-        self.active_set = active_attributes[1:]
-        self.values = np.transpose(centroid[1:])
+        active_set = active_attributes[1:]
+        values = np.transpose(centroid[1:])
+        return cls(active_set, values)
+
+    def __mul__(self, scalar):
+        return SparseEmission(self.active_set, scalar * self.values)
 
     def squared_norm(self):
         return np.sum(self.values ** 2)

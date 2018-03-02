@@ -33,6 +33,16 @@ class WeightsWithoutEmission:
 
         self.transition += np.sum(marginals.binary, axis=0)
 
+    @classmethod
+    def from_marginals(cls, points_sequence, marginals):
+        if marginals.islog:
+            marginals = marginals.exp()
+
+        ans = cls(nb_labels=marginals.nb_labels)
+        ans.add_centroid(points_sequence, marginals)
+        return ans
+
+
     # USE THE MODEL ON DATA
     def scores(self, points_sequence):
         seq_len = points_sequence.shape[0]
@@ -74,10 +84,10 @@ class WeightsWithoutEmission:
         return ans
 
     # ARITHMETIC OPERATIONS
-    def __imul__(self, scalar):
-        self.bias *= scalar
-        self.transition *= scalar
-        return WeightsWithoutEmission(self.bias, self.transition)
+    def __mul__(self, scalar):
+        bias = scalar * self.bias
+        transition = scalar * self.transition
+        return WeightsWithoutEmission(bias, transition)
 
     def __iadd__(self, other):
         self.bias += other.bias

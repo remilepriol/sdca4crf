@@ -65,10 +65,10 @@ class DenseWeights(WeightsWithoutEmission):
         return unary_scores, binary_scores
 
     # ARITHMETIC OPERATIONS
-    def __imul__(self, scalar):
-        tmp = super().__imul__(scalar)
-        self.emission *= scalar
-        return DenseWeights(self.emission, tmp.bias, tmp.transition,
+    def __mul__(self, scalar):
+        tmp = super().__mul__(scalar)
+        emission = scalar * self.emission
+        return DenseWeights(emission, tmp.bias, tmp.transition,
                             is_dataset_sparse=self.is_dataset_sparse)
 
     def __iadd__(self, other):
