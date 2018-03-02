@@ -3,10 +3,8 @@ import time
 import numpy as np
 import tensorboard_logger as tl
 
+import sdca4crf.monitor as monitor
 from sdca4crf.line_search import LineSearch
-from sdca4crf.monitor import MonitorAllObjectives, MonitorDualObjective, \
-    MonitorDualityGapEstimate, \
-    are_consistent, initialize_tensorboard
 from sdca4crf.parameters.initializer import compute_primal_direction, initialize
 from sdca4crf.sampler_wrap import SamplerWrap
 
@@ -30,16 +28,16 @@ def sdca(trainset, testset=None, args=None):
         initialize(args.warm_start, trainset, args.regularization)
 
     # OBJECTIVES : primal objective, dual objective and duality gaps.
-    use_tensorboard = initialize_tensorboard(args.logdir)
+    use_tensorboard = monitor.initialize_tensorboard(args.logdir)
 
-    monitor_all_objectives = MonitorAllObjectives(args.regularization, weights, marginals,
-                                                  ground_truth_centroid, trainset, testset,
-                                                  use_tensorboard)
+    monitor_all_objectives = monitor.MonitorAllObjectives(args.regularization, weights, marginals,
+                                                          ground_truth_centroid, trainset, testset,
+                                                          use_tensorboard)
 
-    monitor_dual_objective = MonitorDualObjective(args.regularization, weights, marginals)
+    monitor_dual_objective = monitor.MonitorDualObjective(args.regularization, weights, marginals)
 
     gaps_array = 100 * np.ones(len(trainset))  # fake estimate of the duality gaps
-    monitor_gap_estimate = MonitorDualityGapEstimate(gaps_array)
+    monitor_gap_estimate = monitor.MonitorDualityGapEstimate(gaps_array)
 
     # non-uniform sampling
     sampler = SamplerWrap(args.sampling_scheme, args.non_uniformity,
@@ -118,11 +116,11 @@ def sdca(trainset, testset=None, args=None):
                 gaps_array = monitor_all_objectives.full_batch_update(
                     weights, marginals, step, count_time)
 
-                assert are_consistent(monitor_dual_objective, monitor_all_objectives)
+                assert monitor.are_consistent(monitor_dual_objective, monitor_all_objectives)
 
                 if count_time:
                     step += len(trainset)  # count the full batch in the number of steps
-                    monitor_gap_estimate = MonitorDualityGapEstimate(gaps_array)
+                    monitor_gap_estimate = monitor.MonitorDualityGapEstimate(gaps_array)
                     sampler.full_update(gaps_array)
 
             # STOP condition
