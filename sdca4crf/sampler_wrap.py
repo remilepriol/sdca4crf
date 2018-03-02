@@ -1,7 +1,7 @@
 import numpy as np
 
+from sdca4crf.parameters.radius import radii
 from .sampler import Sampler
-from .weights import radii
 
 
 class SamplerWrap:

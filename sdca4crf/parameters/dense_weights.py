@@ -1,9 +1,9 @@
 import numpy as np
 from matplotlib import pyplot as plt
 
-from sdca4crf.sparse_weights import SparsePrimalDirection
+from sdca4crf.parameters.sparse_weights import SparsePrimalDirection
+from sdca4crf.parameters.weights2 import WeightsWithoutEmission
 from sdca4crf.utils import letters2wordimage
-from sdca4crf.weights2 import WeightsWithoutEmission
 
 
 class DenseWeights(WeightsWithoutEmission):

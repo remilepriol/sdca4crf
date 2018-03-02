@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
-from .oracles import sequence_sum_product, sequence_viterbi
+from sdca4crf.oracles import sequence_sum_product, sequence_viterbi
 from .sequence import Sequence
 
 

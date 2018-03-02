@@ -1,9 +1,9 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
-from .oracles import sequence_sum_product, sequence_viterbi
+from sdca4crf.oracles import sequence_sum_product, sequence_viterbi
+from sdca4crf.utils import letters2wordimage
 from .sequence import Sequence
-from .utils import letters2wordimage
 
 
 def radius(points_sequence, labels_sequence, data):

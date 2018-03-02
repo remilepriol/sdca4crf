@@ -1,6 +1,6 @@
 import numpy as np
 
-from sdca4crf.weights2 import WeightsWithoutEmission
+from sdca4crf.parameters.weights2 import WeightsWithoutEmission
 
 
 class SparsePrimalDirection(WeightsWithoutEmission):

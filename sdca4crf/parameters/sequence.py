@@ -4,8 +4,8 @@ import numpy as np
 from scipy.special import logsumexp
 
 # custom imports
-from .oracles import sequence_sum_product
-from .utils import entropy, kullback_leibler
+from sdca4crf.oracles import sequence_sum_product
+from sdca4crf.utils import entropy, kullback_leibler
 
 
 def uniform(length, nb_class, log=True):

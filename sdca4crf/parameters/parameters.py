@@ -1,7 +1,7 @@
 import numpy as np
 
-from sdca4crf.dense_weights import DenseWeights
-from sdca4crf.sparse_weights import SparsePrimalDirection
+from sdca4crf.parameters.dense_weights import DenseWeights
+from sdca4crf.parameters.sparse_weights import SparsePrimalDirection
 from .sequence import dirac
 
 
