@@ -1,7 +1,7 @@
 import numpy as np
 
-from .sparse_centroid import SparsePrimalDirection
-from .weights2 import DenseWeights
+from sdca4crf.dense_weights import DenseWeights
+from sdca4crf.sparse_weights import SparsePrimalDirection
 
 
 def radius(points_sequence, labels_sequence, data):
