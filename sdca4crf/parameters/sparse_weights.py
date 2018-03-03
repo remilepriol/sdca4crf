@@ -38,16 +38,21 @@ class SparseEmission:
     def from_marginals(cls, points_sequence, marginals):
         alphalen = marginals.nb_labels
 
-        active_attributes, inverse = np.unique(points_sequence, return_inverse=True)
-        centroid = np.zeros([active_attributes.shape[0], alphalen])
+        active_set, inverse = np.unique(points_sequence, return_inverse=True)
+        centroid = np.zeros([active_set.shape[0], alphalen])
         inverse = inverse.reshape(points_sequence.shape)
         for inv, marg in zip(inverse, marginals.unary):
             centroid[inv] += marg
 
-        # Finally remove the zeros
-        active_set = active_attributes[1:]
-        values = np.transpose(centroid[1:])
-        return cls(active_set, values)
+        # Finally remove the absent attributes
+        if active_set[0] == -1:
+            active_set = active_set[1:]
+            centroid = centroid[1:]
+        else:
+            pass
+
+        centroid = np.transpose(centroid)
+        return cls(active_set, centroid)
 
     def __mul__(self, scalar):
         return SparseEmission(self.active_set, scalar * self.values)
