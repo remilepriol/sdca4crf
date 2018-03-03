@@ -12,13 +12,11 @@ if __name__ == '__main__':
     # load datasets
     train_data, test_data = get_datasets(args)
 
-    args.train_size = len(train_data)
-    args.test_size = len(test_data)
     args.regularization = 1 / args.train_size
 
     infostring = (f"Data set: {args.dataset} \n"
-                  f"Size of training set: {args.train_size} \n"
-                  f"Size of test set: {args.test_size} \n"
+                  f"Size of training set: {args.train_size} ({train_data.nb_points}) \n"
+                  f"Size of test set: {args.test_size} ({test_data.nb_points}) \n"
                   f"Number of labels: {train_data.nb_labels} \n"
                   f"Number of features: {train_data.nb_features}")
     print(infostring)
