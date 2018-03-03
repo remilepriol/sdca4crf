@@ -58,7 +58,7 @@ class DenseWeights(WeightsWithoutEmission):
 
         if self.is_dataset_sparse:  # slow?
             for t, point in enumerate(points_sequence):
-                unary_scores[t] += self.emission[:, point].sum(axis=1)
+                unary_scores[t] += self.emission[:, point[point >= 0]].sum(axis=1)
         else:
             unary_scores += np.dot(points_sequence, self.emission.T)
 
