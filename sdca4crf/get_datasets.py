@@ -20,4 +20,7 @@ def get_datasets(args):
         testset = SparseLabeledSequenceData(xtest, ytest, args.test_size,
                                             trainset.vocabulary_sizes)
 
+    args.train_size = len(trainset)
+    args.test_size = len(testset)
+
     return trainset, testset
