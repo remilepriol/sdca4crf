@@ -24,8 +24,8 @@ def initialize(warm_start, data, regularization):
         # This is the recommended initialization for online exponentiated
         # gradient in appendix D of the SAG-NUS for CRF paper
         marginals = []
-        for imgs, labels in data:
-            marginals.append(dirac(labels, data.nb_labels))
+        for _, labels_sequence in data:
+            marginals.append(dirac(labels_sequence, data.nb_labels))
         marginals = np.array(marginals)
 
     # Initialize the weights as the centroid of the ground truth features minus the centroid

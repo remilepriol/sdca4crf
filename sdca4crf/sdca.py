@@ -58,7 +58,7 @@ def sdca(trainset, testset=None, args=None):
             points_sequence_i = trainset.get_points_sequence(i)
 
             # MARGINALIZATION ORACLE
-            beta_i, log_partition_i = weights.infer_probabilities(points_sequence_i)
+            beta_i, _ = weights.infer_probabilities(points_sequence_i)
             # ASCENT DIRECTION (primal to dual)
             log_dual_direction, signs_dual_direction = beta_i.logsubtractexp(alpha_i)
             dual_direction = log_dual_direction.exp().multiply(signs_dual_direction)
