@@ -80,12 +80,12 @@ def sdca(trainset, testset=None, args=None):
             line_search = LineSearch(weights, primal_direction,
                                      log_dual_direction,
                                      alpha_i, beta_i, divergence_gap,
-                                     args.regularization, len(trainset))
+                                     args)
 
             if args.fixed_step_size is not None:
                 optimal_step_size = args.fixed_step_size
             else:
-                optimal_step_size = line_search.auto_run()
+                optimal_step_size = line_search.run()
 
             # UPDATE : the primal and dual parameters
             marginals[i] = alpha_i.convex_combination(beta_i, optimal_step_size)

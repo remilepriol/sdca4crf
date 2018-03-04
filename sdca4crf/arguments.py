@@ -35,6 +35,8 @@ def get_args():
                              'positive float to be used as the constant step size')
     parser.add_argument('--warm-start', type=np.array, default=None,
                         help='if numpy array, used as marginals to start from.')
+    parser.add_argument('--line-search', type=str, default='custom',
+                        help='Use scipy.optimize.minimize_scalar "scipy", or "custom line search.')
 
     args = parser.parse_args()
 
@@ -51,9 +53,17 @@ def get_args():
         args.data_train_path = 'data/POS_train.mat'
         args.data_test_path = 'data/POS_test.mat'
     else:
-        raise ValueError('the dataset is not defined')
+        raise ValueError(f'the dataset {args.dataset} is not defined')
 
-    args.is_dense = True if args.dataset == 'ocr' else False
+    args.is_dense = (args.dataset == 'ocr')
+
+    if args.line_search == 'scipy':
+        args.use_scipy_optimize = True
+    elif args.line_search == 'custom':
+        args.use_scipy_optimize = False
+    else:
+        raise ValueError(f'the line_search argument {args.line_search} '
+                         f'should be "scipy" or "custom".')
 
     args.time_stamp = time.strftime("%Y%m%d_%H%M%S")
     args.logdir = "logs/{}_{}/{}_{}{}".format(

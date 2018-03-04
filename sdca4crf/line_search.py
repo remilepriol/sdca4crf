@@ -7,7 +7,7 @@ from scipy.optimize import minimize_scalar
 class LineSearch:
 
     def __init__(self, weights, primal_direction, log_dual_direction,
-                 alpha_i, beta_i, divergence_gap, regu, ntrain, subprecision=1e-3):
+                 alpha_i, beta_i, divergence_gap, args, subprecision=1e-3):
 
         # linse search direction
         self.alpha_i = alpha_i
@@ -21,11 +21,13 @@ class LineSearch:
         # values for the quadratic term
         self.primaldir_squared_norm = primal_direction.squared_norm()
         self.weights_dot_primaldir = weights.inner_product(primal_direction)
-        self.quadratic_coeff = - regu * ntrain / 2 * self.primaldir_squared_norm
-        self.linear_coeff = - regu * ntrain * self.weights_dot_primaldir
+        scaling = - args.regularization * args.train_size
+        self.quadratic_coeff = scaling / 2 * self.primaldir_squared_norm
+        self.linear_coeff = scaling * self.weights_dot_primaldir
 
         # hyperparameter
         self.subprecision = subprecision
+        self.use_scipy = args.use_scipy_optimize
 
         # return values
         self.optimal_step_size = 0
@@ -79,6 +81,12 @@ class LineSearch:
         return ans
 
     def run(self):
+        if self.use_scipy:
+            return self.run_scipy()
+        else:
+            return self.run_custom()
+
+    def run_custom(self):
         u0 = self.evaluator(0, return_df=True)
         assert u0 > 0, u0
 
@@ -94,18 +102,17 @@ class LineSearch:
             u_lower=u0, u_upper=u1, precision=self.subprecision)
         return self.optimal_step_size
 
-    def auto_run(self):
+    def run_scipy(self):
         result = minimize_scalar(lambda x: - self.evaluator(x, return_f=True),
                                  bounds=(0, 1), method='bounded',
                                  options={'xatol': self.subprecision})
 
         # compare = self.run()
         # step_diff = result.x - compare
+        # # caution the function value of result is the negative dual : minimization
         # dual_diff = - result.fun - self.evaluator(compare, return_f=True)
-
-        # if dual_diff <0 or abs(step_diff) > 0.1:
-        #   print(f"scipy - mine: step-size {step_diff:.4f} \t dual {dual_diff:.4f}")
-        ##caution the function value of result is the negative dual : minimization
+        # if dual_diff < -1e-2:
+        #     print(f"scipy - mine: step-size {step_diff:.4f} \t dual {dual_diff:.4f}")
 
         self.optimal_step_size = result.x
         # hack to simulate a list of the right length
