@@ -14,11 +14,14 @@ if __name__ == '__main__':
 
     args.regularization = 1 / args.train_size
 
-    infostring = (f"Data set: {args.dataset} \n"
-                  f"Size of training set: {args.train_size} ({train_data.nb_points}) \n"
-                  f"Size of test set: {args.test_size} ({test_data.nb_points}) \n"
-                  f"Number of labels: {train_data.nb_labels} \n"
-                  f"Number of features: {train_data.nb_features}")
+    infostring = (
+        f"Time stamp: {args.time_stamp} \n"
+        f"Data set: {args.dataset} \n"
+        f"Size of training set: {args.train_size} ({train_data.nb_points}) \n"
+        f"Size of test set: {args.test_size} ({test_data.nb_points}) \n"
+        f"Number of labels: {train_data.nb_labels} \n"
+        f"Number of features: {train_data.nb_features}"
+    )
     print(infostring)
 
     os.makedirs(args.logdir)
@@ -29,4 +32,3 @@ if __name__ == '__main__':
 
     # run optimization
     fullweights, fullmargs = sdca(trainset=train_data, testset=test_data, args=args)
-

@@ -38,8 +38,6 @@ def get_args():
 
     args = parser.parse_args()
 
-    print(args.dataset)
-
     if args.dataset == 'ocr':
         args.data_train_path = 'data/ocr_train.mat'
         args.data_test_path = 'data/ocr_test.mat'
@@ -57,11 +55,11 @@ def get_args():
 
     args.is_dense = True if args.dataset == 'ocr' else False
 
-    time_stamp = time.strftime("%Y%m%d_%H%M%S")
+    args.time_stamp = time.strftime("%Y%m%d_%H%M%S")
     args.logdir = "logs/{}_{}/{}_{}{}".format(
         args.dataset,
         'full' if (args.train_size is None) else 'n' + str(args.train_size),
-        time_stamp,
+        args.time_stamp,
         args.sampling_scheme,
         '' if args.sampling_scheme == "uniform" else str(args.non_uniformity)
     )
