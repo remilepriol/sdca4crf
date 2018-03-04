@@ -239,5 +239,5 @@ class MonitorSpeed:
         self.previous_step = step
         self.previous_time = current_time
 
-    def log_tensorboard(self, step):
+    def log_tensorboard(self):
         tl.log_value("iteration per second", self.speed, self.previous_step)
