@@ -21,9 +21,12 @@ class LineSearch:
         # values for the quadratic term
         self.primaldir_squared_norm = primal_direction.squared_norm()
         self.weights_dot_primaldir = weights.inner_product(primal_direction)
-        scaling = - args.regularization * args.train_size
-        self.quadratic_coeff = scaling / 2 * self.primaldir_squared_norm
-        self.linear_coeff = scaling * self.weights_dot_primaldir
+        self.regularization = args.regularization
+        self.train_size = args.train_size
+
+        self.quadratic_coeff = \
+            - args.regularization * args.train_size / 2 \
+            * self.primaldir_squared_norm
 
         # hyperparameter
         self.subprecision = subprecision
@@ -57,9 +60,12 @@ class LineSearch:
         return self.alpha_i.convex_combination(self.beta_i, step_size)
 
     def _function(self, newmarg, step_size):
-        return newmarg.entropy() \
-               + step_size ** 2 * self.quadratic_coeff \
-               + 2 * step_size * self.linear_coeff
+        quadratic = - self.train_size * self.regularization / 2 * self.norm_update(step_size)
+        return newmarg.entropy() + quadratic
+
+    def norm_update(self, step_size):
+        return step_size ** 2 * self.primaldir_squared_norm \
+               + 2 * step_size * self.weights_dot_primaldir
 
     def _derivative(self, newmarg, step_size):
         if step_size == 0:
@@ -132,10 +138,6 @@ class LineSearch:
             self.optimal_step_size = step_scipy
             self.subobjectives = [score_scipy]
             return step_scipy
-
-    def norm_update(self, step_size):
-        return step_size ** 2 * self.primaldir_squared_norm \
-               + 2 * step_size * self.weights_dot_primaldir
 
     def log_tensorboard(self, step):
         tl.log_value("optimal step size", self.optimal_step_size, step)
