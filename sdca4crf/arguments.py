@@ -9,13 +9,13 @@ def get_args():
 
     parser.add_argument('--dataset', type=str, default='conll',
                         help='which dataset to use')
-    parser.add_argument('--train-size', type=int, default=100,
+    parser.add_argument('--train-size', type=int, default=None,
                         help='set to None if you want the full data set.')
-    parser.add_argument('--test-size', type=int, default=100,
+    parser.add_argument('--test-size', type=int, default=None,
                         help='set to None if you want the full data set.')
-    parser.add_argument('--regularization', type=float, default=1,
+    parser.add_argument('--regularization', type=float, default=None,
                         help='value of the l2 regularization parameter. '
-                             'Will be overwritten by 1/n.')
+                             'if None, will be set to 1/n.')
     parser.add_argument('--npass', type=int, default=100,
                         help='maximum number of pass over the trainset duality gaps used in the '
                              'non-uniform sampling and to get a convergence criterion.')
