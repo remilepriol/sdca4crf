@@ -74,7 +74,7 @@ class LabeledSequenceData:
         return True
 
     def trim(self, size):
-        mask = self.ends - self.starts > 2  # debug : remove small sequence
+        mask = self.ends - self.starts > 0  # debug : remove small sequences
         self.starts = self.starts[mask][:size]
         self.ends = self.ends[mask][:size]
         self.points = self.points[:self.ends[-1] + 1]
