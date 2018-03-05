@@ -1,12 +1,11 @@
 #!/usr/bin/env bash
-#SBATCH --time=24:00:00
+#SBATCH --time=0:10:00
 #SBATCH --job-name=sdca
-#SBATCH --mem=10GB
+#SBATCH --mem=1GB
 #SBATCH --output=sdca_results.out
 #SBATCH --qos=high
 #SBATCH --gres=gpu:0
 
-source activate py362
 
 for i in 0.2 0.5 0.8 1.0
 do
