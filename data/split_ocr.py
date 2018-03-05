@@ -13,7 +13,7 @@ for i, fold in enumerate(folds):
 print(folds[:40])
 
 # Modify here if you want to change the split structure.
-# for now the train set is folds 0-8 and the test set is fold 9
+# for now the train set is folds 1-9 and the test set is fold 0
 mask = (folds == 9)
 
 train = {}
