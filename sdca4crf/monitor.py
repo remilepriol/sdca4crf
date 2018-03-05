@@ -172,7 +172,7 @@ class MonitorAllObjectives:
 class MonitorDualObjective:
 
     def __init__(self, regularization, weights, marginals):
-        self.ntrain = len(marginals)
+        self.train_size = len(marginals)
         self.regularization = regularization
         self.entropies = np.array([margs.entropy() for margs in marginals])
         self.entropy = self.entropies.mean()
@@ -183,7 +183,7 @@ class MonitorDualObjective:
     def update(self, i, newmarg_entropy, norm_update):
         self.weights_squared_norm += norm_update
 
-        self.entropy += (newmarg_entropy - self.entropies[i]) / self.ntrain
+        self.entropy += (newmarg_entropy - self.entropies[i]) / self.train_size
         self.entropies[i] = newmarg_entropy
 
         self.dual_objective = self.entropy - self.regularization / 2 * self.weights_squared_norm
