@@ -116,9 +116,22 @@ class LineSearch:
 
         self.optimal_step_size = result.x
         # hack to simulate a list of the right length
-        self.subobjectives = [result.fun] * result.nfev
+        self.subobjectives = [-result.fun] * result.nfev
 
         return self.optimal_step_size
+
+    def run_best(self):
+        step_scipy = self.run_scipy()
+        score_scipy = self.subobjectives[-1]
+        step_custom = self.run_custom()
+        score_custom = self.evaluator(step_custom, return_f=True)
+
+        if score_custom > score_scipy:
+            return step_custom
+        else:
+            self.optimal_step_size = step_scipy
+            self.subobjectives = [score_scipy]
+            return step_scipy
 
     def norm_update(self, step_size):
         return step_size ** 2 * self.primaldir_squared_norm \
