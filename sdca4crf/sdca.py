@@ -5,6 +5,8 @@ from sdca4crf.line_search import LineSearch
 from sdca4crf.parameters.initializer import compute_primal_direction, initialize
 from sdca4crf.sampler_wrap import SamplerWrap
 import pickle
+import time
+import tensorboard_logger as tl
 
 
 def sdca(trainset, testset=None, args=None):
@@ -46,6 +48,8 @@ def sdca(trainset, testset=None, args=None):
     sampler = SamplerWrap(args.sampling_scheme, args.non_uniformity,
                           gaps_array, trainset, args.regularization)
     step_size_array = np.empty((len(trainset)*args.npass, 2))
+    start_sdca = time.time()
+    time_pass_on_line_search = 0
     try:
 
         ##################################################################################
@@ -78,11 +82,14 @@ def sdca(trainset, testset=None, args=None):
 
             # LINE SEARCH : find the optimal step size or use a fixed one
             # Update the dual objective monitor as well
+            line_search_start = time.time()
             line_search = LineSearch(weights, primal_direction,
                                      log_dual_direction,
                                      alpha_i, beta_i, divergence_gap,
                                      args)
 
+            line_search_end = time.time()
+            time_pass_on_line_search += line_search_end-line_search_start
             if args.fixed_step_size is not None:
                 optimal_step_size = args.fixed_step_size
             else:
@@ -135,5 +142,8 @@ def sdca(trainset, testset=None, args=None):
     finally:  # save results no matter what.
         monitor_all_objectives.save_results(args.logdir)
 
+    end_sdca = time.time()
+    p_time_line_search = time_pass_on_line_search/(end_sdca-start_sdca)
+    monitor_speed.log_time_spent_on_line_search(p_time_line_search)
     step_size_array.dump(args.logdir + '.pickle')
     return weights, marginals
