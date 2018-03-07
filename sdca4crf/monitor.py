@@ -241,3 +241,6 @@ class MonitorSpeed:
 
     def log_tensorboard(self):
         tl.log_value("iteration per second", self.speed, self.previous_step)
+
+    def log_time_spent_on_line_search(self, p):
+        tl.log_value("percent time spend line search", p, 0)

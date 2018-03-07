@@ -1,5 +1,4 @@
 import time
-
 import numpy as np
 
 import sdca4crf.monitor as monitor
@@ -36,7 +35,6 @@ def sdca(trainset, testset=None, args=None):
     monitor_all_objectives = monitor.MonitorAllObjectives(args.regularization, weights, marginals,
                                                           ground_truth_centroid, trainset, testset,
                                                           use_tensorboard)
-
     monitor_dual_objective = monitor.MonitorDualObjective(args.regularization, weights, marginals)
     monitor_gap_estimate = monitor.MonitorDualityGapEstimate(gaps_array)
     monitor_sparsity = monitor.MonitorSparsity()
@@ -88,14 +86,14 @@ def sdca(trainset, testset=None, args=None):
                                      alpha_i, beta_i, divergence_gap,
                                      args, previous_step_sizes[i])
 
-            line_search_end = time.time()
-            time_pass_on_line_search += line_search_end - line_search_start
             if args.fixed_step_size is not None:
                 optimal_step_size = args.fixed_step_size
             else:
                 optimal_step_size = line_search.run()
 
-            step_size_array[step - 1] = np.array((i, optimal_step_size))
+            line_search_end = time.time()
+            time_pass_on_line_search += line_search_end-line_search_start
+            step_size_array[step-1] = np.array((i, optimal_step_size))
 
             # UPDATE : the primal and dual parameters
             marginals[i] = alpha_i.convex_combination(beta_i, optimal_step_size)
@@ -141,9 +139,9 @@ def sdca(trainset, testset=None, args=None):
 
     finally:  # save results no matter what.
         monitor_all_objectives.save_results(args.logdir)
+        end_sdca = time.time()
+        p_time_line_search = time_pass_on_line_search/(end_sdca-start_sdca)
+        monitor_speed.log_time_spent_on_line_search(p_time_line_search)
 
-    end_sdca = time.time()
-    p_time_line_search = time_pass_on_line_search / (end_sdca - start_sdca)
-    monitor_speed.log_time_spent_on_line_search(p_time_line_search)
     step_size_array.dump(args.logdir + '.pickle')
     return weights, marginals
