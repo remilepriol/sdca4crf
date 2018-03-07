@@ -71,11 +71,12 @@ def get_args():
                          f'should be "scipy" or "custom".')
 
     args.time_stamp = time.strftime("%Y%m%d_%H%M%S")
-    args.logdir = "logs/{}_{}/{}_{}{}_{}".format(
+    args.logdir = "logs/{}_{}/{}_{}_{}_{}_{}".format(
         args.dataset,
         'full' if (args.train_size is None) else 'n' + str(args.train_size),
         args.time_stamp,
         args.sampling_scheme,
+        args.subprecision,
         '' if args.sampling_scheme == 'uniform' else str(args.non_uniformity),
         'lr' + args.fixed_step_size if args.fixed_step_size is not None
         else 'ls' + args.line_search
