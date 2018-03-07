@@ -37,6 +37,8 @@ def get_args():
                         help='if numpy array, used as marginals to start from.')
     parser.add_argument('--line-search', type=str, default='custom',
                         help='Use scipy.optimize.minimize_scalar "scipy", or "custom line search.')
+    parser.add_argument('--subprecision', type=float, default=1e-3,
+                        help='Precision of the line search on the step-size value.')
 
     args = parser.parse_args()
 
