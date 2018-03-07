@@ -1,4 +1,5 @@
 import time
+
 import numpy as np
 
 import sdca4crf.monitor as monitor
@@ -92,8 +93,8 @@ def sdca(trainset, testset=None, args=None):
                 optimal_step_size = line_search.run()
 
             line_search_end = time.time()
-            time_pass_on_line_search += line_search_end-line_search_start
-            step_size_array[step-1] = np.array((i, optimal_step_size))
+            time_pass_on_line_search += line_search_end - line_search_start
+            step_size_array[step - 1] = np.array((i, optimal_step_size))
 
             # UPDATE : the primal and dual parameters
             marginals[i] = alpha_i.convex_combination(beta_i, optimal_step_size)
@@ -140,7 +141,7 @@ def sdca(trainset, testset=None, args=None):
     finally:  # save results no matter what.
         monitor_all_objectives.save_results(args.logdir)
         end_sdca = time.time()
-        p_time_line_search = time_pass_on_line_search/(end_sdca-start_sdca)
+        p_time_line_search = time_pass_on_line_search / (end_sdca - start_sdca)
         monitor_speed.log_time_spent_on_line_search(p_time_line_search)
 
     step_size_array.dump(args.logdir + '.pickle')
