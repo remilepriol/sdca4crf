@@ -1,12 +1,11 @@
+import time
+
 import numpy as np
 
 import sdca4crf.monitor as monitor
 from sdca4crf.line_search import LineSearch
 from sdca4crf.parameters.initializer import compute_primal_direction, initialize
 from sdca4crf.sampler_wrap import SamplerWrap
-import pickle
-import time
-import tensorboard_logger as tl
 
 
 def sdca(trainset, testset=None, args=None):
@@ -28,6 +27,10 @@ def sdca(trainset, testset=None, args=None):
         initialize(args.warm_start, trainset, args.regularization)
 
     # OBJECTIVES : primal objective, dual objective and duality gaps.
+
+    gaps_array = 100 * np.ones(len(trainset))  # fake estimate of the duality gaps
+    previous_step_sizes = .5 * np.ones(len(trainset))
+
     use_tensorboard = monitor.initialize_tensorboard(args.logdir)
 
     monitor_all_objectives = monitor.MonitorAllObjectives(args.regularization, weights, marginals,
@@ -35,10 +38,7 @@ def sdca(trainset, testset=None, args=None):
                                                           use_tensorboard)
 
     monitor_dual_objective = monitor.MonitorDualObjective(args.regularization, weights, marginals)
-
-    gaps_array = 100 * np.ones(len(trainset))  # fake estimate of the duality gaps
     monitor_gap_estimate = monitor.MonitorDualityGapEstimate(gaps_array)
-
     monitor_sparsity = monitor.MonitorSparsity()
     monitor_speed = monitor.MonitorSpeed()
 
@@ -47,7 +47,7 @@ def sdca(trainset, testset=None, args=None):
     # non-uniform sampling
     sampler = SamplerWrap(args.sampling_scheme, args.non_uniformity,
                           gaps_array, trainset, args.regularization)
-    step_size_array = np.empty((len(trainset)*args.npass, 2))
+    step_size_array = np.empty((len(trainset) * args.npass, 2))
     start_sdca = time.time()
     time_pass_on_line_search = 0
     try:
@@ -86,16 +86,16 @@ def sdca(trainset, testset=None, args=None):
             line_search = LineSearch(weights, primal_direction,
                                      log_dual_direction,
                                      alpha_i, beta_i, divergence_gap,
-                                     args)
+                                     args, previous_step_sizes[i])
 
             line_search_end = time.time()
-            time_pass_on_line_search += line_search_end-line_search_start
+            time_pass_on_line_search += line_search_end - line_search_start
             if args.fixed_step_size is not None:
                 optimal_step_size = args.fixed_step_size
             else:
                 optimal_step_size = line_search.run()
 
-            step_size_array[step-1] = np.array((i, optimal_step_size))
+            step_size_array[step - 1] = np.array((i, optimal_step_size))
 
             # UPDATE : the primal and dual parameters
             marginals[i] = alpha_i.convex_combination(beta_i, optimal_step_size)
@@ -143,7 +143,7 @@ def sdca(trainset, testset=None, args=None):
         monitor_all_objectives.save_results(args.logdir)
 
     end_sdca = time.time()
-    p_time_line_search = time_pass_on_line_search/(end_sdca-start_sdca)
+    p_time_line_search = time_pass_on_line_search / (end_sdca - start_sdca)
     monitor_speed.log_time_spent_on_line_search(p_time_line_search)
     step_size_array.dump(args.logdir + '.pickle')
     return weights, marginals

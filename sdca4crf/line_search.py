@@ -7,7 +7,7 @@ from scipy.optimize import minimize_scalar
 class LineSearch:
 
     def __init__(self, weights, primal_direction, log_dual_direction,
-                 alpha_i, beta_i, divergence_gap, args, subprecision=1e-3):
+                 alpha_i, beta_i, divergence_gap, args, initial_point=.5):
 
         # linse search direction
         self.alpha_i = alpha_i
@@ -29,8 +29,9 @@ class LineSearch:
             * self.primaldir_squared_norm
 
         # hyperparameter
-        self.subprecision = subprecision
+        self.subprecision = args.subprecision
         self.use_scipy = args.use_scipy_optimize
+        self.initial_point = initial_point
 
         # return values
         self.optimal_step_size = 0
@@ -104,7 +105,7 @@ class LineSearch:
 
         self.optimal_step_size, self.subobjectives = safe_newton(
             lambda x: self.evaluator(x, return_df=True, return_newton=True),
-            lowerbound=0, upperbound=1,
+            lowerbound=0, upperbound=1, initial_point=self.initial_point,
             u_lower=u0, u_upper=u1, precision=self.subprecision)
         return self.optimal_step_size
 
@@ -112,13 +113,6 @@ class LineSearch:
         result = minimize_scalar(lambda x: - self.evaluator(x, return_f=True),
                                  bounds=(0, 1), method='bounded',
                                  options={'xatol': self.subprecision})
-
-        # compare = self.run()
-        # step_diff = result.x - compare
-        # # caution the function value of result is the negative dual : minimization
-        # dual_diff = - result.fun - self.evaluator(compare, return_f=True)
-        # if dual_diff < -1e-2:
-        #     print(f"scipy - mine: step-size {step_diff:.4f} \t dual {dual_diff:.4f}")
 
         self.optimal_step_size = result.x
         # hack to simulate a list of the right length
@@ -146,16 +140,17 @@ class LineSearch:
                      step=step)
 
 
-def safe_newton(evaluator, lowerbound, upperbound, u_lower, u_upper, precision,
-                max_iter=100):
+def safe_newton(evaluator, lowerbound, upperbound, initial_point,
+                u_lower, u_upper, precision, max_iter=100):
     """Using a combination of Newton-Raphson and bisection, find the root of a function bracketed
     between lowerbound and upperbound.
 
-    :param evaluator: user-supplied routine that returns both the function value u(x)
-    and u(x)/u'(x)
-    :param lowerbound: point smaller than the root
-    :param upperbound: point larger than the root
-    :param precision: accuracy on the root value rts
+    :param scalar function evaluator: user-supplied routine that returns both the function value
+    u(x) and u(x)/u'(x)
+    :param float lowerbound: point smaller than the root
+    :param float upperbound: point larger than the root
+        :param u_lower:
+    :param float precision: accuracy on the root value rts
     :return: The root, returned as the value rts
     """
 
@@ -171,7 +166,7 @@ def safe_newton(evaluator, lowerbound, upperbound, u_lower, u_upper, precision,
     else:
         xh, xl = lowerbound, upperbound
 
-    rts = (xl + xh) / 2  # Initialize the guess for root
+    rts = initial_point  # Initialize the guess for root
     dxold = abs(upperbound - lowerbound)  # the “stepsize before last"
     dx = dxold  # and the last step
 
