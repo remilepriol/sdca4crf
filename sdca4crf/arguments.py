@@ -39,6 +39,9 @@ def get_args():
                         help='Use scipy.optimize.minimize_scalar "scipy", or "custom line search.')
     parser.add_argument('--subprecision', type=float, default=1e-3,
                         help='Precision of the line search on the step-size value.')
+    parser.add_argument('--use-previous-step-size', type=bool, default=False,
+                        help='Use the previous step size taken for a given sample to initialize '
+                             'the line search?')
 
     args = parser.parse_args()
 
