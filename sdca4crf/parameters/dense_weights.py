@@ -107,3 +107,6 @@ class DenseWeights(WeightsWithoutEmission):
                                           self.emission.shape[0] + 2).astype(int)[1:-1]
             plt.xticks(ticks_positions, np.arange(self.emission.shape[0]))
             plt.colorbar(fraction=0.046, pad=0.04)
+
+    def to_array(self):
+        return np.concatenate((self.transition, self.bias, self.emission), axis=0)

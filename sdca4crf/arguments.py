@@ -45,6 +45,8 @@ def get_args():
     parser.add_argument('--skip-line-search', type=bool, default=False,
                         help='Use the previous step size taken for a given sample if it '
                              'increases the dual objective.')
+    parser.add_argument('--save', type=str, default='results',
+                        help='Use "all" if you want to also save the step-sizes and the optimum.')
 
     args = parser.parse_args()
 
@@ -72,6 +74,9 @@ def get_args():
     else:
         raise ValueError(f'the line_search argument {args.line_search} '
                          f'should be "scipy" or "custom".')
+
+    if args.save not in ['results', 'all']:
+        raise ValueError
 
     args.time_stamp = time.strftime("%Y%m%d_%H%M%S")
 

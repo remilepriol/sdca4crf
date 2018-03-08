@@ -144,6 +144,7 @@ def sdca(trainset, testset=None, args=None):
         end_sdca = time.time()
         ratio_time_line_search = time_pass_on_line_search / (end_sdca - start_sdca)
         monitor_speed.log_time_spent_on_line_search(ratio_time_line_search)
-        step_size_array.dump(args.logdir + '.npy')
+        if args.save == 'all':
+            step_size_array.dump(args.logdir + '.npy')
 
     return weights, marginals
