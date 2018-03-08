@@ -82,6 +82,6 @@ def get_args():
         'uniform' if (args.sampling_scheme == 'uniform' or args.non_uniformity <= 0)
         else args.sampling_scheme + str(args.non_uniformity),
         'step_size' + args.fixed_step_size if args.fixed_step_size is not None
-        else 'line_search' + args.line_search + args.subprecision,
+        else 'line_search_' + args.line_search + str(args.subprecision),
     )
     return args
