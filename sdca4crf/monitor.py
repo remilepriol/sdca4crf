@@ -211,8 +211,9 @@ class MonitorDualityGapEstimate:
     def get_value(self):
         return self.gap_estimate
 
-    def log_tensorboard(self, step):
+    def log_tensorboard(self, true_duality_gap, step):
         tl.log_value("log10 duality gap estimate", np.log10(self.gap_estimate), step)
+        tl.log_value("gap estimate/ true gap", self.gap_estimate / true_duality_gap, step)
 
 
 class MonitorSparsity:

@@ -121,6 +121,8 @@ def sdca(trainset, testset=None, args=None):
                 gaps_array = monitor_all_objectives.full_batch_update(
                     weights, marginals, step, count_time)
 
+                monitor_gap_estimate.log_tensorboard(monitor_all_objectives.duality_gap, step)
+
                 assert monitor.are_consistent(monitor_dual_objective, monitor_all_objectives)
 
                 if count_time:
@@ -128,7 +130,6 @@ def sdca(trainset, testset=None, args=None):
                     monitor_gap_estimate = monitor.MonitorDualityGapEstimate(gaps_array)
                     sampler.full_update(gaps_array)
 
-                monitor_gap_estimate.log_tensorboard(step)
                 monitor_sparsity.log_tensorboard(weights, step)
                 # Don't count the monitoring time in the speed.
                 monitor_speed.update(step)
