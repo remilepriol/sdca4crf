@@ -91,19 +91,16 @@ class LineSearch:
 
     def run(self):
         if self.skip:
-            return self.skipping()
+            if self.evaluator(0, return_f=True) <= \
+                    self.evaluator(self.previous_step_size, return_f=True):
+                self.optimal_step_size = self.previous_step_size
+                self.subobjectives = []  # so that the number of steps is 0
+                return self.previous_step_size
 
         if self.use_scipy:
             return self.run_scipy()
         else:
             return self.run_custom()
-
-    def skipping(self):
-        if self.evaluator(0, return_f=True) <= \
-                self.evaluator(self.previous_step_size, return_f=True):
-            self.optimal_step_size = self.previous_step_size
-            self.subobjectives = []  # so that the number of steps is 0
-            return self.previous_step_size
 
     def run_custom(self):
         u0 = self.evaluator(0, return_df=True)
