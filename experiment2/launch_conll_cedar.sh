@@ -13,5 +13,5 @@ fi
 
 source activate py362
 
-python main.py --dataset conll --non-uniformity 0.8 --use-previous-step-size True
+python main.py --dataset conll --non-uniformity 0.8 --init-previous-step-size True
 

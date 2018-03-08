@@ -91,7 +91,7 @@ def sdca(trainset, testset=None, args=None):
                 optimal_step_size = args.fixed_step_size
             else:
                 optimal_step_size = line_search.run()
-                if args.use_previous_step_size:
+                if args.init_previous_step_size:
                     previous_step_sizes[i] = optimal_step_size
 
             line_search_end = time.time()
