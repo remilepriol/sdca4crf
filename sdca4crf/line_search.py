@@ -34,7 +34,6 @@ class LineSearch:
         self.initial_point = previous_step_size if args.init_previous_step_size else 0.5
         self.previous_step_size = previous_step_size
         self.skip = args.skip_line_search
-        self.skipped = False
 
         # return values
         self.optimal_step_size = 0
@@ -92,15 +91,18 @@ class LineSearch:
 
     def run(self):
         if self.skip:
-            if self.evaluator(0, return_f=True) <= \
-                    self.evaluator(self.previous_step_size, return_f=True):
-                self.skipped = True
-                return self.previous_step_size
+            return self.skipping()
 
         if self.use_scipy:
             return self.run_scipy()
         else:
             return self.run_custom()
+
+    def skipping(self):
+        if self.evaluator(0, return_f=True) <= \
+                self.evaluator(self.previous_step_size, return_f=True):
+            self.subobjectives = []  # so that the number of steps is 0
+            return self.previous_step_size
 
     def run_custom(self):
         u0 = self.evaluator(0, return_df=True)
@@ -147,8 +149,6 @@ class LineSearch:
         tl.log_value("number of line search steps", len(self.subobjectives), step)
         tl.log_value("log10 primal_direction_squared_norm", np.log10(self.primaldir_squared_norm),
                      step=step)
-        if self.skip:
-            tl.log_value("skipped line search?", self.skipped, step)
 
 
 def safe_newton(evaluator, lowerbound, upperbound, initial_point,
