@@ -6,12 +6,4 @@
 #SBATCH --qos=low
 #SBATCH --gres=gpu:0
 
-source activate py362
-for s in ocr conll
-do
- for i in 0.0 0.8 1.0
- do
-       sbatch experiment5/launch_dataset.sh $s $i
- done
-done
-
+python main.py --dataset $1 --non-uniformity $2 --sampling-scheme gap
