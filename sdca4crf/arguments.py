@@ -74,6 +74,14 @@ def get_args():
 
     args.time_stamp = time.strftime("%Y%m%d_%H%M%S")
 
+    if args.sampling_scheme == 'uniform' or args.non_uniformity <= 0:
+        sampling_string = 'uniform'
+    else:
+        sampling_string = args.sampling_scheme
+        sampling_string += str(args.non_uniformity)
+        if args.sampler_period is not None:
+            sampling_string += '_' + args.sampler_period
+
     if args.fixed_step_size is not None:
         line_search_string = 'step_size' + args.fixed_step_size
     else:
@@ -87,8 +95,7 @@ def get_args():
         args.dataset,
         'full' if (args.train_size is None) else 'n' + str(args.train_size),
         args.time_stamp,
-        'uniform' if (args.sampling_scheme == 'uniform' or args.non_uniformity <= 0)
-        else args.sampling_scheme + str(args.non_uniformity),
+        sampling_string,
         line_search_string
     )
     return args
