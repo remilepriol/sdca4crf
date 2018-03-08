@@ -107,7 +107,6 @@ def sdca(trainset, testset=None, args=None):
             # ANNEX
             if use_tensorboard and step % (len(trainset) // 5) == 0:
                 monitor_dual_objective.log_tensorboard(step)
-                monitor_gap_estimate.log_tensorboard(step)
                 monitor_speed.update(step)
                 monitor_speed.log_tensorboard()
                 if args.fixed_step_size is None:
@@ -129,6 +128,7 @@ def sdca(trainset, testset=None, args=None):
                     monitor_gap_estimate = monitor.MonitorDualityGapEstimate(gaps_array)
                     sampler.full_update(gaps_array)
 
+                monitor_gap_estimate.log_tensorboard(step)
                 monitor_sparsity.log_tensorboard(weights, step)
                 # Don't count the monitoring time in the speed.
                 monitor_speed.update(step)
