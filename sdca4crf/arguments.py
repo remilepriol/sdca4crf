@@ -20,8 +20,8 @@ def get_args():
                         help='maximum number of pass over the trainset duality gaps used in the '
                              'non-uniform sampling and to get a convergence criterion.')
     parser.add_argument('--sampling-scheme', type=str, default='gap',
-                        help='Type of sampling. Options are "uniform" (default), "importance", '
-                             '"gap", "gap+", "max"')
+                        help='Type of sampling.',
+                        choices=["uniform", "importance", "gap", "gap+", "max"])
     parser.add_argument('--non-uniformity', type=float, default=0.8,
                         help='between 0 and 1. probability of sampling non-uniformly.')
     parser.add_argument('--sampler-period', type=int, default=None,
@@ -35,7 +35,7 @@ def get_args():
                              'positive float to be used as the constant step size')
     parser.add_argument('--warm-start', type=np.array, default=None,
                         help='if numpy array, used as marginals to start from.')
-    parser.add_argument('--line-search', type=str, default='custom',
+    parser.add_argument('--line-search', type=str, choices=['scipy', 'custom'], default='custom',
                         help='Use scipy.optimize.minimize_scalar "scipy", or "custom line search.')
     parser.add_argument('--subprecision', type=float, default=1e-3,
                         help='Precision of the line search on the step-size value.')
@@ -45,7 +45,7 @@ def get_args():
     parser.add_argument('--skip-line-search', type=bool, default=False,
                         help='Use the previous step size taken for a given sample if it '
                              'increases the dual objective.')
-    parser.add_argument('--save', type=str, default='results',
+    parser.add_argument('--save', type=str, choices=['results', 'all'], default='results',
                         help='Use "all" if you want to also save the step-sizes and the optimum.')
 
     args = parser.parse_args()
@@ -71,14 +71,17 @@ def get_args():
         args.use_scipy_optimize = True
     elif args.line_search == 'custom':
         args.use_scipy_optimize = False
-    else:
-        raise ValueError(f'the line_search argument {args.line_search} '
-                         f'should be "scipy" or "custom".')
-
-    if args.save not in ['results', 'all']:
-        raise ValueError
 
     args.time_stamp = time.strftime("%Y%m%d_%H%M%S")
+
+    if args.fixed_step_size is not None:
+        line_search_string = 'step_size' + args.fixed_step_size
+    else:
+        line_search_string = f'line_search_{args.line_search}{args.subprecision}'
+        if args.init_previous_step_size:
+            line_search_string += "_useprevious"
+        if args.skip_line_search:
+            line_search_string += "_skip"
 
     args.logdir = "logs/{}_{}/{}_{}_{}".format(
         args.dataset,
@@ -86,7 +89,6 @@ def get_args():
         args.time_stamp,
         'uniform' if (args.sampling_scheme == 'uniform' or args.non_uniformity <= 0)
         else args.sampling_scheme + str(args.non_uniformity),
-        'step_size' + args.fixed_step_size if args.fixed_step_size is not None
-        else 'line_search_' + args.line_search + str(args.subprecision),
+        line_search_string
     )
     return args
