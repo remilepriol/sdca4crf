@@ -7,7 +7,7 @@ from scipy.optimize import minimize_scalar
 class LineSearch:
 
     def __init__(self, weights, primal_direction, log_dual_direction,
-                 alpha_i, beta_i, divergence_gap, args, initial_point=.5):
+                 alpha_i, beta_i, divergence_gap, args, previous_step_size):
 
         # linse search direction
         self.alpha_i = alpha_i
@@ -31,7 +31,10 @@ class LineSearch:
         # hyperparameter
         self.subprecision = args.subprecision
         self.use_scipy = args.use_scipy_optimize
-        self.initial_point = initial_point
+        self.initial_point = previous_step_size if args.init_previous_step_size else 0.5
+        self.previous_step_size = previous_step_size
+        self.skip = args.skip_line_search
+        self.skipped = False
 
         # return values
         self.optimal_step_size = 0
@@ -88,6 +91,12 @@ class LineSearch:
         return ans
 
     def run(self):
+        if self.skip:
+            if self.evaluator(0, return_f=True) <= \
+                    self.evaluator(self.previous_step_size, return_f=True):
+                self.skipped = True
+                return self.previous_step_size
+
         if self.use_scipy:
             return self.run_scipy()
         else:
@@ -138,6 +147,8 @@ class LineSearch:
         tl.log_value("number of line search steps", len(self.subobjectives), step)
         tl.log_value("log10 primal_direction_squared_norm", np.log10(self.primaldir_squared_norm),
                      step=step)
+        if self.skip:
+            tl.log_value("skipped line search?", self.skipped, step)
 
 
 def safe_newton(evaluator, lowerbound, upperbound, initial_point,
@@ -149,7 +160,6 @@ def safe_newton(evaluator, lowerbound, upperbound, initial_point,
     u(x) and u(x)/u'(x)
     :param float lowerbound: point smaller than the root
     :param float upperbound: point larger than the root
-        :param u_lower:
     :param float precision: accuracy on the root value rts
     :return: The root, returned as the value rts
     """

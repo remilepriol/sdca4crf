@@ -42,7 +42,7 @@ def get_args():
     parser.add_argument('--init-previous-step-size', type=bool, default=False,
                         help='Use the previous step size taken for a given sample to initialize '
                              'the line search?')
-    parser.add_argument('--use-previous-step-size', type=bool, default=False,
+    parser.add_argument('--skip-line-search', type=bool, default=False,
                         help='Use the previous step size taken for a given sample if it '
                              'increases the dual objective.')
 
