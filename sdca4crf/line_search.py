@@ -101,6 +101,7 @@ class LineSearch:
     def skipping(self):
         if self.evaluator(0, return_f=True) <= \
                 self.evaluator(self.previous_step_size, return_f=True):
+            self.optimal_step_size = self.previous_step_size
             self.subobjectives = []  # so that the number of steps is 0
             return self.previous_step_size
 
