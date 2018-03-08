@@ -132,6 +132,11 @@ def sdca(trainset, testset=None, args=None):
                 monitor_sparsity.log_tensorboard(weights, step)
                 # Don't count the monitoring time in the speed.
                 monitor_speed.update(step)
+                end_sdca = time.time()
+                ratio_time_line_search = time_pass_on_line_search / (end_sdca - start_sdca)
+                monitor_speed.log_time_spent_on_line_search(ratio_time_line_search, step)
+                time_pass_on_line_search = 0
+                start_sdca = time.time()
 
             # STOP condition
             if monitor_gap_estimate.get_value() < args.precision:
@@ -141,9 +146,6 @@ def sdca(trainset, testset=None, args=None):
 
     finally:  # save results no matter what.
         monitor_all_objectives.save_results(args.logdir)
-        end_sdca = time.time()
-        ratio_time_line_search = time_pass_on_line_search / (end_sdca - start_sdca)
-        monitor_speed.log_time_spent_on_line_search(ratio_time_line_search)
         if args.save == 'all':
             step_size_array.dump(args.logdir + '.npy')
 
