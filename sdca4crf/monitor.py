@@ -5,14 +5,6 @@ import numpy as np
 import tensorboard_logger as tl
 
 
-def initialize_tensorboard(logdir):
-    try:
-        tl.configure(logdir=logdir, flush_secs=15)
-        return True
-    except:
-        return False
-
-
 def are_consistent(monitor_dual, monitor_all):
     return np.isclose(monitor_dual.get_value(), monitor_all.dual_objective)
 

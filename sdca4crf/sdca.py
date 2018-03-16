@@ -31,11 +31,9 @@ def sdca(trainset, testset=None, args=None):
     gaps_array = 100 * np.ones(len(trainset))  # fake estimate of the duality gaps
     previous_step_sizes = .5 * np.ones(len(trainset))
 
-    use_tensorboard = monitor.initialize_tensorboard(args.logdir)
-
     monitor_all_objectives = monitor.MonitorAllObjectives(args.regularization, weights, marginals,
                                                           ground_truth_centroid, trainset, testset,
-                                                          use_tensorboard)
+                                                          args.use_tensorboard)
     monitor_dual_objective = monitor.MonitorDualObjective(args.regularization, weights, marginals)
     monitor_gap_estimate = monitor.MonitorDualityGapEstimate(gaps_array)
     monitor_sparsity = monitor.MonitorSparsity()
@@ -109,7 +107,7 @@ def sdca(trainset, testset=None, args=None):
                                           line_search.norm_update(optimal_step_size))
 
             # ANNEX
-            if use_tensorboard and step % (len(trainset) // 5) == 0:
+            if args.use_tensorboard and step % (len(trainset) // 5) == 0:
                 monitor_dual_objective.log_tensorboard(step)
                 monitor_speed.update(step)
                 monitor_speed.log_tensorboard()

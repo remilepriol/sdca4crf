@@ -1,7 +1,9 @@
 import argparse
+import os
 import time
 
 import numpy as np
+import tensorboard_logger as tl
 
 
 def get_args():
@@ -35,7 +37,7 @@ def get_args():
                              'positive float to be used as the constant step size')
     parser.add_argument('--warm-start', type=np.array, default=None,
                         help='if numpy array, used as marginals to start from.')
-    parser.add_argument('--line-search', type=str, choices=['scipy', 'custom'], default='custom',
+    parser.add_argument('--line-search', type=str, choices=['golden', 'newton'], default='custom',
                         help='Use scipy.optimize.minimize_scalar "scipy", or "custom line search.')
     parser.add_argument('--subprecision', type=float, default=1e-3,
                         help='Precision of the line search on the step-size value.')
@@ -67,11 +69,32 @@ def get_args():
 
     args.is_dense = (args.dataset == 'ocr')
 
-    if args.line_search == 'scipy':
+    if args.line_search == 'golden':
         args.use_scipy_optimize = True
-    elif args.line_search == 'custom':
+    elif args.line_search == 'newton':
         args.use_scipy_optimize = False
 
+    return args
+
+
+def init_logdir(args):
+    args.logdir = get_logdir(args)
+    os.makedirs(args.logdir)
+
+    # write important informations in the log directory
+    infostring = get_information_string(args)
+    print(infostring)
+    with open(args.logdir + '/parameters.txt', 'w') as file:
+        file.write(infostring)
+        file.write('\n')
+        for arg in vars(args):
+            file.write("{}:{}\n".format(arg, getattr(args, arg)))
+
+    # initialize tensorboard logger
+    args.use_tensorboard = initialize_tensorboard(args.logdir)
+
+
+def get_logdir(args):
     args.time_stamp = time.strftime("%Y%m%d_%H%M%S")
 
     if args.sampling_scheme == 'uniform' or args.non_uniformity <= 0:
@@ -91,11 +114,29 @@ def get_args():
         if args.skip_line_search:
             line_search_string += "_skip"
 
-    args.logdir = "logs/{}_{}/{}_{}_{}".format(
+    return "logs/{}_{}/{}_{}_{}".format(
         args.dataset,
-        'full' if (args.train_size is None) else 'n' + str(args.train_size),
+        'n' + str(args.train_size),
         args.time_stamp,
         sampling_string,
         line_search_string
     )
-    return args
+
+
+def get_information_string(args):
+    return (
+        f"Time stamp: {args.time_stamp} \n"
+        f"Data set: {args.dataset} \n"
+        f"Size of training set: sequences {args.train_size} (nodes: {train_data.nb_points}) \n"
+        f"Size of test set: sequences {args.test_size} (nodes: {test_data.nb_points}) \n"
+        f"Number of labels: {train_data.nb_labels} \n"
+        f"Number of attributes: {train_data.nb_features} \n \n"
+    )
+
+
+def initialize_tensorboard(logdir):
+    try:
+        tl.configure(logdir=logdir, flush_secs=15)
+        return True
+    except:
+        return False
