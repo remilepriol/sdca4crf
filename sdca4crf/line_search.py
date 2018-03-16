@@ -6,7 +6,7 @@ from scipy.optimize import minimize_scalar
 
 class LineSearch:
 
-    def __init__(self, weights, primal_direction, log_dual_direction,
+    def __init__(self, weights_dot_primaldir, primaldir_squared_norm, log_dual_direction,
                  alpha_i, beta_i, divergence_gap, args, previous_step_size):
 
         # linse search direction
@@ -19,8 +19,8 @@ class LineSearch:
         self.reverse_gap = self.beta_i.kullback_leibler(alpha_i)
 
         # values for the quadratic term
-        self.primaldir_squared_norm = primal_direction.squared_norm()
-        self.weights_dot_primaldir = weights.inner_product(primal_direction)
+        self.primaldir_squared_norm = primaldir_squared_norm
+        self.weights_dot_primaldir = weights_dot_primaldir
         self.regularization = args.regularization
         self.train_size = args.train_size
 
@@ -104,13 +104,16 @@ class LineSearch:
 
     def run_custom(self):
         u0 = self.evaluator(0, return_df=True)
-        assert u0 > 0, u0
+        if u0 <= 0:
+            self.optimal_step_size = 0
+            self.subobjectives = [u0]
+            return 0
 
         u1 = self.evaluator(1, return_df=True)
         if u1 >= 0:
             self.optimal_step_size = 1
             self.subobjectives = [u1]
-            return self.optimal_step_size
+            return 1
 
         self.optimal_step_size, self.subobjectives = safe_newton(
             lambda x: self.evaluator(x, return_df=True, return_newton=True),
