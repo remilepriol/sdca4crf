@@ -1,7 +1,6 @@
 import numpy as np
 
 from sdca4crf.parameters.dense_weights import DenseWeights
-from sdca4crf.parameters.sparse_weights import SparsePrimalDirection
 
 
 def radius(points_sequence, labels_sequence, data):
@@ -11,8 +10,9 @@ def radius(points_sequence, labels_sequence, data):
     :param labels_sequence: sequence of labels
     :param data: data set with the specifications nb_features, nb_labels, is_sparse
     """
-    weights_cls = SparsePrimalDirection if data.is_sparse else DenseWeights
-    featuremap = weights_cls(nb_features=data.nb_features, nb_labels=data.nb_labels)
+    weights_cls = DenseWeights
+    featuremap = weights_cls(nb_features=data.nb_features, nb_labels=data.nb_labels,
+                             is_dataset_sparse=data.is_sparse)
 
     # ground truth feature
     featuremap.add_datapoint(points_sequence, labels_sequence)
