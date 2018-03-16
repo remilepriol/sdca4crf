@@ -74,17 +74,19 @@ def sdca(trainset, testset=None, args=None):
                                                         trainset.is_sparse, len(trainset),
                                                         args.regularization)
 
-            # DUALITY GAP
-            divergence_gap = alpha_i.kullback_leibler(beta_i)
-            monitor_gap_estimate.update(i, divergence_gap)
-            sampler.update(i, divergence_gap)
+            # NECESSARY VALUES
+            individual_gap = alpha_i.kullback_leibler(beta_i)
+            monitor_gap_estimate.update(i, individual_gap)
+
+            primaldir_squared_norm = primal_direction.squared_norm()
+            weights_dot_primaldir = weights.inner_product(primal_direction)
 
             # LINE SEARCH : find the optimal step size or use a fixed one
             # Update the dual objective monitor as well
             line_search_start = time.time()
-            line_search = LineSearch(weights, primal_direction,
+            line_search = LineSearch(weights_dot_primaldir, primaldir_squared_norm,
                                      log_dual_direction,
-                                     alpha_i, beta_i, divergence_gap,
+                                     alpha_i, beta_i, individual_gap,
                                      args, previous_step_sizes[i])
 
             if args.fixed_step_size is not None:
@@ -97,9 +99,11 @@ def sdca(trainset, testset=None, args=None):
             time_pass_on_line_search += line_search_end - line_search_start
             step_size_array[step - 1] = np.array([i, optimal_step_size])
 
-            # UPDATE : the primal and dual parameters
+            # UPDATE : the primal and dual parameters, and the sampler
             marginals[i] = alpha_i.convex_combination(beta_i, optimal_step_size)
             weights += primal_direction * optimal_step_size
+
+            sampler.update(i, individual_gap, np.sqrt(primaldir_squared_norm), optimal_step_size)
 
             monitor_dual_objective.update(i, marginals[i].entropy(),
                                           line_search.norm_update(optimal_step_size))
