@@ -1,10 +1,10 @@
 import numpy as np
 
 
-def entropy(logproba, axis=None, returnlog=False):
+def entropy(logproba, returnlog=False):
     themax = np.amax(logproba)
     try:
-        ans = themax + np.log(- np.sum(np.exp(logproba - themax) * logproba, axis=axis))
+        ans = themax + np.log(- np.sum(np.exp(logproba - themax) * logproba))
         if returnlog:
             return ans
         else:
@@ -16,9 +16,9 @@ def entropy(logproba, axis=None, returnlog=False):
         raise
 
 
-def kullback_leibler(logp, logq, axis=None, returnlog=False):
+def kullback_leibler(logp, logq, returnlog=False):
     themax = np.amax(logp)
-    tmp = np.sum(np.exp(logp - themax) * (logp - logq), axis=axis)
+    tmp = np.sum(np.exp(logp - themax) * (logp - logq))
     if tmp <= -1e-8:
         raise Warning(f"Numerical stability: {tmp}")
     if tmp <= 0:
