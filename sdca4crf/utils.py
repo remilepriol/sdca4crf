@@ -1,5 +1,6 @@
 import numpy as np
 
+
 def entropy(logproba, axis=None, returnlog=False):
     themax = np.amax(logproba)
     try:
@@ -35,6 +36,11 @@ def kullback_leibler(logp, logq, axis=None, returnlog=False):
         except FloatingPointError:
             print("too big ", ans)
             raise
+
+
+def logsumexp(arr, axis=None):
+    themax = np.amax(arr)
+    return themax + np.log(np.sum(np.exp(arr - themax), axis=axis))
 
 
 def letters2wordimage(letters_images):
