@@ -62,21 +62,6 @@ class SequenceMarginals:
     def exp(self):
         return SequenceMarginals(np.exp(self.unary), np.exp(self.binary), log=False)
 
-    def reduce(self):
-        """Return the special summation where the marginals on the separations are
-        subtracted."""
-        if self.length == 1:
-            return np.sum(self.unary)
-        if self.length == 2:
-            return np.sum(self.binary)
-        else:
-            return np.sum(self.binary) - np.sum(self.unary[1:-1])
-
-    def inner_product(self, other):
-        """Return the special inner product where the marginals on the separations are
-        subtracted."""
-        return self.multiply(other).reduce()
-
     def log_reduce_exp(self, to_add):
         if self.length == 1:  # the joint is the unary
             themax = np.amax(self.unary)
