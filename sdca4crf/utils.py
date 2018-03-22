@@ -51,6 +51,13 @@ def logsubtractexp(x1, x2):
     return ans, sign
 
 
+def subtractexp_scalar(cliques, separations):
+    ans = np.exp(cliques) * (1 - np.exp(separations - cliques))
+    if ans < 0:
+        raise RuntimeWarning(f"{ans} should be positive.")
+    return ans
+
+
 def letters2wordimage(letters_images):
     OCR_IMAGE_HEIGHT = 16
     OCR_IMAGE_WIDTH = 8
