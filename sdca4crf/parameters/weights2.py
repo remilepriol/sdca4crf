@@ -62,10 +62,6 @@ class WeightsWithoutEmission:
         bmargs = np.minimum(bmargs, 0)
         ans = SequenceMarginals(umargs, bmargs, log=True)
 
-        nans = ans.exp()
-        assert nans.is_consistent()
-        assert nans.is_density(1)
-
         return ans, log_partition
 
     def predict(self, points_sequence):

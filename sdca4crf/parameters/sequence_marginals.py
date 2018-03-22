@@ -1,10 +1,9 @@
 # standard imports
 import matplotlib.pyplot as plt
 import numpy as np
-from scipy.special import logsumexp
 
 # custom imports
-from sdca4crf.utils import entropy, kullback_leibler
+from sdca4crf.utils import entropy, kullback_leibler, logsubtractexp
 
 
 class SequenceMarginals:
@@ -101,28 +100,18 @@ class SequenceMarginals:
             return other
 
         if self.islog:
-            b = np.array([1 - s, s])
-            unary = np.minimum(0, logsumexp(
-                a=np.asarray([self.unary, other.unary]), axis=0,
-                b=b[:, np.newaxis, np.newaxis]))
-            binary = np.minimum(0, logsumexp(
-                a=np.asarray([self.binary, other.binary]), axis=0,
-                b=b[:, np.newaxis, np.newaxis, np.newaxis]))
+            unary = np.logaddexp(np.log(1 - s) + self.unary, np.log(s) + other.unary)
+            binary = np.logaddexp(np.log(1 - s) + self.binary, np.log(s) + other.binary)
         else:
             unary = (1 - s) * self.unary + s * other.unary
             binary = (1 - s) * self.binary + s * other.binary
+
         return SequenceMarginals(unary=unary, binary=binary, log=self.islog)
 
     def logsubtractexp(self, other):
         """Return the ascent direction without numerical issue"""
-        b = np.array([1, -1])
-        unary, usign = logsumexp(
-            a=np.asanyarray([self.unary, other.unary]), axis=0,
-            b=b[:, np.newaxis, np.newaxis], return_sign=True)
-
-        binary, bsign = logsumexp(
-            a=np.asanyarray([self.binary, other.binary]), axis=0,
-            b=b[:, np.newaxis, np.newaxis, np.newaxis], return_sign=True)
+        unary, usign = logsubtractexp(self.unary, other.unary)
+        binary, bsign = logsubtractexp(self.binary, other.binary)
 
         logvalue = SequenceMarginals(unary=unary, binary=binary, log=True)
         signs = SequenceMarginals(unary=usign, binary=bsign, log=False)

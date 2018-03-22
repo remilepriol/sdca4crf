@@ -31,6 +31,19 @@ def kullback_leibler(logp, logq, axis=None, returnlog=False):
         return np.exp(ans)
 
 
+def logsumexp(arr, axis=None):
+    themax = np.amax(arr)
+    return themax + np.log(np.sum(np.exp(arr - themax), axis=axis))
+
+
+def logsubtractexp(x1, x2):
+    themax = max(np.amax(x1), np.amax(x2))
+    expvalue = np.exp(x1 - themax) - np.exp(x2 - themax)
+    sign = np.sign(expvalue)
+    ans = themax + np.log(np.absolute(expvalue))
+    return ans, sign
+
+
 def letters2wordimage(letters_images):
     OCR_IMAGE_HEIGHT = 16
     OCR_IMAGE_WIDTH = 8
