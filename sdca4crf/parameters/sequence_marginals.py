@@ -162,7 +162,8 @@ class SequenceMarginals:
     #########################################
     # Information theory
     #########################################
-    def entropy(self, returnlog=False):
+    def entropy(self):
+        returnlog = False
         if self.length == 1:
             return entropy(self.unary, returnlog=returnlog)
 
@@ -172,10 +173,10 @@ class SequenceMarginals:
         else:
             cliques = entropy(self.binary, returnlog=True)
             separations = entropy(self.unary[1:-1], returnlog=True)
-            return SequenceMarginals._safe_reduce(cliques, separations, returnlog)
+            return SequenceMarginals.subtractexp(cliques, separations)
 
-    def kullback_leibler(self, other, returnlog=False):
-
+    def kullback_leibler(self, other):
+        returnlog = False
         if self.length != other.length:
             raise ValueError("Not the same sequence length %i %i" % (self.length, other.length))
 
@@ -189,20 +190,11 @@ class SequenceMarginals:
             cliques = kullback_leibler(self.binary, other.binary, returnlog=True)
             separations = kullback_leibler(self.unary[1:-1], other.unary[1:-1],
                                            returnlog=True)
-            return SequenceMarginals._safe_reduce(cliques, separations, returnlog)
+            return SequenceMarginals.subtractexp(cliques, separations)
 
     @staticmethod
-    def _safe_reduce(cliques, separations, returnlog):
-        if cliques <= separations:
-            return -np.inf if returnlog else 0
-
-        try:
-            ans = cliques + np.log(1 - np.exp(separations - cliques))
-            if returnlog:
-                return ans
-            else:
-                return np.exp(ans)
-
-        except FloatingPointError:
-            print("Entropy problem:", cliques, separations)
-            raise
+    def subtractexp(cliques, separations):
+        ans = np.exp(cliques) * (1 - np.exp(separations - cliques))
+        if ans < 0:
+            raise RuntimeWarning(f"{ans} should be positive.")
+        return ans
