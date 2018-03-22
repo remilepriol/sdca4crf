@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 # custom imports
-from sdca4crf.utils import entropy, kullback_leibler, logsumexp
+from sdca4crf.utils import entropy, kullback_leibler, logsubtractexp
 
 
 class SequenceMarginals:
@@ -110,14 +110,8 @@ class SequenceMarginals:
 
     def logsubtractexp(self, other):
         """Return the ascent direction without numerical issue"""
-        b = np.array([1, -1])
-        unary, usign = logsumexp(
-            a=np.asanyarray([self.unary, other.unary]), axis=0,
-            b=b[:, np.newaxis, np.newaxis], return_sign=True)
-
-        binary, bsign = logsumexp(
-            a=np.asanyarray([self.binary, other.binary]), axis=0,
-            b=b[:, np.newaxis, np.newaxis, np.newaxis], return_sign=True)
+        unary, usign = logsubtractexp(self.unary, other.unary)
+        binary, bsign = logsubtractexp(self.binary, other.binary)
 
         logvalue = SequenceMarginals(unary=unary, binary=binary, log=True)
         signs = SequenceMarginals(unary=usign, binary=bsign, log=False)
