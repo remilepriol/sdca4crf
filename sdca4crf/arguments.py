@@ -39,7 +39,7 @@ def get_args():
                         help='if numpy array, used as marginals to start from.')
     parser.add_argument('--line-search', type=str, choices=['golden', 'newton'], default='custom',
                         help='Use scipy.optimize.minimize_scalar "scipy", or "custom line search.')
-    parser.add_argument('--subprecision', type=float, default=1e-3,
+    parser.add_argument('--subprecision', type=float, default=1e-2,
                         help='Precision of the line search on the step-size value.')
     parser.add_argument('--init-previous-step-size', type=bool, default=False,
                         help='Use the previous step size taken for a given sample to initialize '
