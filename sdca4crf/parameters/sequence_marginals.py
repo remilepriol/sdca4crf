@@ -1,10 +1,9 @@
 # standard imports
 import matplotlib.pyplot as plt
 import numpy as np
-from scipy.special import logsumexp
 
 # custom imports
-from sdca4crf.utils import entropy, kullback_leibler
+from sdca4crf.utils import entropy, kullback_leibler, logsumexp
 
 
 class SequenceMarginals:

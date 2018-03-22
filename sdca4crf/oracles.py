@@ -1,5 +1,6 @@
 import numpy as np
-from scipy.special import logsumexp
+
+from sdca4crf.utils import logsumexp
 
 
 def sequence_sum_product(uscores, bscores):
