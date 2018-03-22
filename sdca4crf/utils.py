@@ -37,19 +37,9 @@ def kullback_leibler(logp, logq, axis=None, returnlog=False):
             raise
 
 
-def boolean_encoding(y, k):
-    """Return the n*k matrix Y whose line i is the one-hot encoding of y_i."""
-    n = y.shape[0]
-    ans = np.zeros([n, k])
-    ans[np.arange(n), y] = 1
-    return ans
-
-
-OCR_IMAGE_HEIGHT = 16
-OCR_IMAGE_WIDTH = 8
-
-
 def letters2wordimage(letters_images):
+    OCR_IMAGE_HEIGHT = 16
+    OCR_IMAGE_WIDTH = 8
     word_image = np.zeros([OCR_IMAGE_HEIGHT, 2])
     spacing = np.zeros([OCR_IMAGE_HEIGHT, 2])
     for letter in letters_images:
