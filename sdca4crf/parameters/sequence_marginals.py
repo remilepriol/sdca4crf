@@ -125,20 +125,11 @@ class SequenceMarginals:
         binary = ufunc(self.binary, other.binary)
         return SequenceMarginals(unary, binary, self.islog)
 
-    def add(self, other):
-        return self.combine(other, np.add)
-
     def subtract(self, other):
         return self.combine(other, np.subtract)
 
     def multiply(self, other):
         return self.combine(other, np.multiply)
-
-    def map(self, ufunc):
-        return SequenceMarginals(ufunc(self.unary), ufunc(self.binary), self.islog)
-
-    def absolute(self):
-        return self.map(np.absolute)
 
     def multiply_scalar(self, scalar):
         return SequenceMarginals(scalar * self.unary, scalar * self.binary, self.islog)
