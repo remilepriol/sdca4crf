@@ -100,16 +100,12 @@ class SequenceMarginals:
             return other
 
         if self.islog:
-            b = np.array([1 - s, s])
-            unary = np.minimum(0, logsumexp(
-                a=np.asarray([self.unary, other.unary]), axis=0,
-                b=b[:, np.newaxis, np.newaxis]))
-            binary = np.minimum(0, logsumexp(
-                a=np.asarray([self.binary, other.binary]), axis=0,
-                b=b[:, np.newaxis, np.newaxis, np.newaxis]))
+            unary = np.logaddexp(np.log(1 - s) + self.unary, np.log(s) + other.unary)
+            binary = np.logaddexp(np.log(1 - s) + self.binary, np.log(s) + other.binary)
         else:
             unary = (1 - s) * self.unary + s * other.unary
             binary = (1 - s) * self.binary + s * other.binary
+
         return SequenceMarginals(unary=unary, binary=binary, log=self.islog)
 
     def logsubtractexp(self, other):
