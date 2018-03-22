@@ -1,5 +1,8 @@
 import numpy as np
+from numba import jit
 
+
+@jit
 def entropy(logproba, axis=None, returnlog=False):
     themax = np.amax(logproba)
     try:
@@ -15,6 +18,7 @@ def entropy(logproba, axis=None, returnlog=False):
         raise
 
 
+@jit
 def kullback_leibler(logp, logq, axis=None, returnlog=False):
     themax = np.amax(logp)
     tmp = np.sum(np.exp(logp - themax) * (logp - logq), axis=axis)
