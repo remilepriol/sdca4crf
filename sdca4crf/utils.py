@@ -3,9 +3,9 @@ from numba import jit
 
 
 @jit(cache=True)
-def entropy(logproba, axis=None, returnlog=False):
+def entropy(logproba, returnlog=False):
     themax = np.amax(logproba)
-    ans = themax + np.log(- np.sum(np.exp(logproba - themax) * logproba, axis=axis))
+    ans = themax + np.log(- np.sum(np.exp(logproba - themax) * logproba))
     if returnlog:
         return ans
     else:
@@ -13,9 +13,9 @@ def entropy(logproba, axis=None, returnlog=False):
 
 
 @jit(cache=True)
-def kullback_leibler(logp, logq, axis=None, returnlog=False):
+def kullback_leibler(logp, logq, returnlog=False):
     themax = np.amax(logp)
-    tmp = np.sum(np.exp(logp - themax) * (logp - logq), axis=axis)
+    tmp = np.sum(np.exp(logp - themax) * (logp - logq))
     if tmp <= -1e-8:
         raise Warning("Numerical stability issue: {} should be positive.".format(tmp))
     if tmp <= 0:
@@ -44,6 +44,13 @@ def logsubtractexp(x1, x2):
     sign = np.sign(expvalue)
     ans = themax + np.log(np.absolute(expvalue))
     return ans, sign
+
+
+def subtractexp_scalar(cliques, separations):
+    ans = np.exp(cliques) * (1 - np.exp(separations - cliques))
+    if ans < 0:
+        raise RuntimeWarning(f"{ans} should be positive.")
+    return ans
 
 
 def letters2wordimage(letters_images):

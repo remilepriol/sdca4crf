@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 # custom imports
-from sdca4crf.utils import entropy, kullback_leibler, logsubtractexp
+from sdca4crf.utils import entropy, kullback_leibler, logsubtractexp, subtractexp_scalar
 
 
 class SequenceMarginals:
@@ -62,21 +62,6 @@ class SequenceMarginals:
     def exp(self):
         return SequenceMarginals(np.exp(self.unary), np.exp(self.binary), log=False)
 
-    def reduce(self):
-        """Return the special summation where the marginals on the separations are
-        subtracted."""
-        if self.length == 1:
-            return np.sum(self.unary)
-        if self.length == 2:
-            return np.sum(self.binary)
-        else:
-            return np.sum(self.binary) - np.sum(self.unary[1:-1])
-
-    def inner_product(self, other):
-        """Return the special inner product where the marginals on the separations are
-        subtracted."""
-        return self.multiply(other).reduce()
-
     def log_reduce_exp(self, to_add):
         if self.length == 1:  # the joint is the unary
             themax = np.amax(self.unary)
@@ -125,20 +110,11 @@ class SequenceMarginals:
         binary = ufunc(self.binary, other.binary)
         return SequenceMarginals(unary, binary, self.islog)
 
-    def add(self, other):
-        return self.combine(other, np.add)
-
     def subtract(self, other):
         return self.combine(other, np.subtract)
 
     def multiply(self, other):
         return self.combine(other, np.multiply)
-
-    def map(self, ufunc):
-        return SequenceMarginals(ufunc(self.unary), ufunc(self.binary), self.islog)
-
-    def absolute(self):
-        return self.map(np.absolute)
 
     def multiply_scalar(self, scalar):
         return SequenceMarginals(scalar * self.unary, scalar * self.binary, self.islog)
@@ -171,7 +147,8 @@ class SequenceMarginals:
     #########################################
     # Information theory
     #########################################
-    def entropy(self, returnlog=False):
+    def entropy(self):
+        returnlog = False
         if self.length == 1:
             return entropy(self.unary, returnlog=returnlog)
 
@@ -181,10 +158,10 @@ class SequenceMarginals:
         else:
             cliques = entropy(self.binary, returnlog=True)
             separations = entropy(self.unary[1:-1], returnlog=True)
-            return SequenceMarginals._safe_reduce(cliques, separations, returnlog)
+            return subtractexp_scalar(cliques, separations)
 
-    def kullback_leibler(self, other, returnlog=False):
-
+    def kullback_leibler(self, other):
+        returnlog = False
         if self.length != other.length:
             raise ValueError("Not the same sequence length %i %i" % (self.length, other.length))
 
@@ -196,21 +173,6 @@ class SequenceMarginals:
 
         else:
             cliques = kullback_leibler(self.binary, other.binary, returnlog=True)
-            separations = kullback_leibler(self.unary[1:-1], other.unary[1:-1], returnlog=True)
-            return SequenceMarginals._safe_reduce(cliques, separations, returnlog)
-
-    @staticmethod
-    def _safe_reduce(cliques, separations, returnlog):
-        if cliques <= separations:
-            return -np.inf if returnlog else 0
-
-        try:
-            ans = cliques + np.log(1 - np.exp(separations - cliques))
-            if returnlog:
-                return ans
-            else:
-                return np.exp(ans)
-
-        except FloatingPointError:
-            print("Entropy problem:", cliques, separations)
-            raise
+            separations = kullback_leibler(self.unary[1:-1], other.unary[1:-1],
+                                           returnlog=True)
+            return subtractexp_scalar(cliques, separations)
