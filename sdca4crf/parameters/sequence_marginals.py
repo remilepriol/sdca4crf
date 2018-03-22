@@ -196,8 +196,7 @@ class SequenceMarginals:
 
         else:
             cliques = kullback_leibler(self.binary, other.binary, returnlog=True)
-            separations = kullback_leibler(self.unary[1:-1], other.unary[1:-1],
-                                           returnlog=True)
+            separations = kullback_leibler(self.unary[1:-1], other.unary[1:-1], returnlog=True)
             return SequenceMarginals._safe_reduce(cliques, separations, returnlog)
 
     @staticmethod

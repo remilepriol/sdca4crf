@@ -31,11 +31,13 @@ def kullback_leibler(logp, logq, axis=None, returnlog=False):
         return np.exp(ans)
 
 
+@jit(cache=True)
 def logsumexp(arr, axis=None):
     themax = np.amax(arr)
     return themax + np.log(np.sum(np.exp(arr - themax), axis=axis))
 
 
+@jit(cache=True)
 def logsubtractexp(x1, x2):
     themax = max(np.amax(x1), np.amax(x2))
     expvalue = np.exp(x1 - themax) - np.exp(x2 - themax)
