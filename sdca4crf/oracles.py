@@ -3,6 +3,11 @@ import numpy as np
 from sdca4crf.utils import logsumexp
 
 
+# from numba import float64, jit
+
+
+# TODO add just in time compilation
+# jit((float64[:, :], float64[:, :, :]))
 def sequence_sum_product(uscores, bscores):
     """Apply the sum-product algorithm on a chain
 
@@ -26,17 +31,17 @@ def sequence_sum_product(uscores, bscores):
     fm = np.zeros([length - 1, nb_class])  # forward_messages
 
     # backward pass
-    bm[-1] = logsumexp(bscores[-1] + uscores[-1], axis=-1)
+    bm[-1] = logsumexp(bscores[-1] + uscores[-1], axis=1)
     for t in range(length - 3, -1, -1):
-        bm[t] = logsumexp(bscores[t] + uscores[t + 1] + bm[t + 1], axis=-1)
+        bm[t] = logsumexp(bscores[t] + uscores[t + 1] + bm[t + 1], axis=1)
 
     # we compute the log-partition and include it in the forward messages
     log_partition = logsumexp(bm[0] + uscores[0])
 
     # forward pass
-    fm[0] = logsumexp(bscores[0].T + uscores[0] - log_partition, axis=-1)
+    fm[0] = logsumexp(bscores[0].T + uscores[0] - log_partition, axis=1)
     for t in range(1, length - 1):
-        fm[t] = logsumexp(bscores[t].T + uscores[t] + fm[t - 1], axis=-1)
+        fm[t] = logsumexp(bscores[t].T + uscores[t] + fm[t - 1], axis=1)
 
     # unary marginals
     umargs = np.empty([length, nb_class])
