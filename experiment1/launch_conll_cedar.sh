@@ -13,5 +13,5 @@ fi
 
 source activate py362
 
-python main.py --line-search scipy --dataset conll --non-uniformity 0.8 --sampler-period $2
+python main.py --line-search scipy --dataset conll --non-uniformity $1 --sampler-period $2
 
