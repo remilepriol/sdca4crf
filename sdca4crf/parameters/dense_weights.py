@@ -2,7 +2,7 @@ import numpy as np
 from matplotlib import pyplot as plt
 
 from sdca4crf.parameters.sparse_weights import SparsePrimalDirection
-from sdca4crf.parameters.weights2 import WeightsWithoutEmission
+from sdca4crf.parameters.weights import WeightsWithoutEmission
 from sdca4crf.utils import letters2wordimage
 
 
