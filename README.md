@@ -1,14 +1,14 @@
 # SDCA4CRF
 
-Stochastic dual coordinate ascent for training conditional random fields.
+Stochastic dual coordinate ascent for training conditional random fields. [website](https://remilepriol.github.io/research/sdca4crf.html)
 
 <img src="doc/ner_primal_calls.png" alt="drawing" width="512px"/>
 
-## Depends
+### Depends
 
 Python 3.6, Numpy, Scipy, Matplotlib, [tensorboard_logger](https://github.com/TeamHG-Memex/tensorboard_logger).
 
-## Usage
+### Usage
 
 Call `main.py` with the desired arguments.
 The full list of arguments is specified in `sdca4crf/arguments.py`.
@@ -19,6 +19,17 @@ Four pre-processed datasets are available, courtesy of [Mark Schmidt](https://ww
 
 You can use tensorboard to visualize training. Training curves and other results are also saved into pickle files at the end of training.
 
-## Other methods
+### Other methods
 To compare against other methods on the same datasets, use the Matlab package [SAG4CRF](https://www.cs.ubc.ca/~schmidtm/Software/SAG4CRF.html).
+
+### Citation
+If you use this package please cite
+
+```
+@inproceedings{sdca4crf2018lepriol,  
+      author    = {Le Priol, R\'emi and Pich\'e, Alexandre and Lacoste-Julien, Simon},  
+      title     = {Adaptive Stochastic Dual Coordinate Ascent for training Conditional Random Fields},  
+      booktitle = {UAI},  
+      year      = {2018}
+```
 
