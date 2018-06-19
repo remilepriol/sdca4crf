@@ -1,0 +1,1 @@
+Measure the accuract of the duality gap estimates for several values of non-uniformity
