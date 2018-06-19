@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from sdca4crf.oracles import sequence_sum_product, sequence_viterbi
-from .sequence_marginals import SequenceMarginals
+from sdca4crf.parameters.sequence_marginals import SequenceMarginals
 
 
 class WeightsWithoutEmission:
