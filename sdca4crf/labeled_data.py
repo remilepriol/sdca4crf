@@ -9,7 +9,7 @@ class LabeledSequenceData:
     Provide an iterator over the sequences.
     """
 
-    # TODO include the bias in x?
+    # Question: include the bias in x?
     # pro : code is shorter
     # cons : swap under the rug this detail of the optimization
 

@@ -17,7 +17,6 @@ class WeightsWithoutEmission:
 
     # BUILD THE WEIGHTS FROM DATA
     def add_datapoint(self, points_sequence, labels_sequence):
-        # TODO profile to decide if should be improved
         for t, label in enumerate(labels_sequence):
             self.bias[label] += [1, t == 0, t == len(labels_sequence) - 1]
         for t in range(labels_sequence.shape[0] - 1):
