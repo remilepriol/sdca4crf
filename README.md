@@ -2,7 +2,7 @@
 
 Stochastic dual coordinate ascent for training conditional random fields.
 
-![performance](doc/ner_primal_calls.png)
+<img src="doc/ner_primal_calls.png" alt="drawing" width="512px"/>
 
 ## Depends
 
